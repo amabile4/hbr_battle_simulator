@@ -4291,9 +4291,9 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
     );
 
     const dpStatus = popup.querySelector('[data-role="damage-calc-dp-status"]');
-    assert.equal(dpStatus?.textContent?.trim(), '12345 / 67891');
+    assert.equal(dpStatus?.textContent?.trim(), '12,345 / 67,891');
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
-    assert.equal(hpStatus?.textContent?.trim(), '12345 / 67891');
+    assert.equal(hpStatus?.textContent?.trim(), '12,345 / 67,891');
   }));
 
 test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>
@@ -4371,7 +4371,7 @@ test('char detail popup damage tab prefers extra HP gauge over normal HP fields'
     );
 
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
-    assert.equal(hpStatus?.textContent?.trim(), '2 / 4');
+    assert.equal(hpStatus?.textContent?.trim(), '12,345 / 100 (2/4)');
   }));
 
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>

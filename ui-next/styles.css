@@ -2911,6 +2911,39 @@
   text-align: right;
 }
 
+.char-popup-enemy-gauge-wrap {
+  display: flex;
+  gap: 2px;
+  margin: -4px 0 6px;
+}
+
+.char-popup-enemy-gauge__bar-wrapper {
+  flex: 1;
+  height: 5px;
+  background: #0f172a;
+  border-radius: 3px;
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+
+.char-popup-enemy-gauge__bar-wrapper.is-depleted {
+  opacity: 0.25;
+}
+
+.char-popup-enemy-gauge__bar {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.char-popup-enemy-gauge__bar--dp {
+  background: linear-gradient(90deg, #4cc3de, #006f84);
+}
+
+.char-popup-enemy-gauge__bar--hp {
+  background: linear-gradient(90deg, #f3beec, #863e7e);
+}
+
 .char-popup-damage-calc-result > div {
   display: flex;
   flex-direction: column;
