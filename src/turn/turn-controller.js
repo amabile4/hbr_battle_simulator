@@ -82,6 +82,7 @@ const TALISMAN_PENALTY_PER_LEVEL = 10;
 const DISASTER_MAX_LEVEL = 10;
 const DISASTER_PENALTY_PER_LEVEL = 7;
 const HACKING_ALL_ABILITY_DOWN = 100;
+const MISFORTUNE_ALL_ABILITY_DOWN = 20;
 const TALISMAN_STATE_DEFAULT = Object.freeze({
   active: false,
   level: 0,
@@ -3366,15 +3367,37 @@ function buildEnemyHackingPenaltyMap(turnState, enemyCount = DEFAULT_ENEMY_COUNT
   return penaltyMap;
 }
 
+function buildEnemyMisfortunePenaltyMap(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const penaltyMap = {};
+  const statuses = Array.isArray(turnState?.enemyState?.statuses) ? turnState.enemyState.statuses : [];
+  for (const status of statuses) {
+    if (String(status?.statusType ?? '') !== 'Misfortune') {
+      continue;
+    }
+    const targetIndex = Number(status?.targetIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= numericEnemyCount) {
+      continue;
+    }
+    if (!isEnemyAlive(turnState, targetIndex, numericEnemyCount)) {
+      continue;
+    }
+    penaltyMap[String(targetIndex)] = MISFORTUNE_ALL_ABILITY_DOWN;
+  }
+  return penaltyMap;
+}
+
 function buildEnemyAllAbilityPenaltyMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
   const talismanMaps = buildEnemyTalismanMaps(turnState, enemyCount);
   const disasterMaps = buildEnemyDisasterMaps(turnState, enemyCount);
   const hackingMap = buildEnemyHackingPenaltyMap(turnState, enemyCount);
+  const misfortuneMap = buildEnemyMisfortunePenaltyMap(turnState, enemyCount);
   const enemyAllAbilityDownByEnemy = {};
   for (const sourceMap of [
     disasterMaps.enemyAllAbilityDownByEnemy,
     talismanMaps.enemyAllAbilityDownByEnemy,
     hackingMap,
+    misfortuneMap,
   ]) {
     for (const [targetIndex, penalty] of Object.entries(sourceMap)) {
       const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);

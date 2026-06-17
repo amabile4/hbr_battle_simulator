@@ -1,11 +1,11 @@
 /**
- * 敵パラメータ減少デバフ（霊符・禍・ハッキング）の実数値記録テスト
+ * 敵パラメータ減少デバフ（霊符・禍・ハッキング・厄）の実数値記録テスト
  *
  * 確認ポイント:
  * - level × penaltyPerLevel の乗算値が damageContext に正確に記録されること
  * - 霊符は「攻撃を受けるごとにレベル+1」の仕様があるため、
  *   攻撃実行後の damageContext では level が開始値+attackCount になる
- * - 霊符・禍・ハッキングが複数存在する場合、高い方の能力ダウン値が採用されること
+ * - 霊符・禍・ハッキング・厄が複数存在する場合、高い方の能力ダウン値が採用されること
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,6 +17,8 @@ const TALISMAN_PENALTY_PER_LEVEL = 10;
 const DISASTER_PENALTY_PER_LEVEL = 7;
 // ハッキングの敵能力ダウン量
 const HACKING_ALL_ABILITY_DOWN = 100;
+// 厄（Misfortune）の敵能力ダウン量
+const MISFORTUNE_ALL_ABILITY_DOWN = 20;
 
 /** ダメージスキルを持つ最小構成の6人パーティを生成する */
 function createMinimalDamageParty() {
@@ -287,4 +289,61 @@ test('ハッキングと霊符・禍が同時存在: 高い方の 100 を採用'
     HACKING_ALL_ABILITY_DOWN,
     'ハッキング 100 が霊符 50 / 禍 35 より高いため採用'
   );
+});
+
+// ──────────────────────────────────────────────
+// 厄（Misfortune）の実数値テスト
+// ──────────────────────────────────────────────
+
+test('厄付与中: enemyAllAbilityDownByEnemy は固定 20', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Misfortune',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    MISFORTUNE_ALL_ABILITY_DOWN,
+    '厄の敵能力ダウン実数値は固定 20'
+  );
+});
+
+test('厄と禍（低レベル）が同時存在: 高い方の 20 を採用', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.disasterState = {
+    active: true,
+    level: 2,
+    maxLevel: 10,
+    penaltyPerLevel: DISASTER_PENALTY_PER_LEVEL,
+  };
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Misfortune',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  // 禍 level2 = 14, 厄 = 20 → max = 20
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    MISFORTUNE_ALL_ABILITY_DOWN,
+    '厄 20 が禍 level2(14) より高いため採用'
+  );
+});
+
+test('厄なし: Misfortune ステータスがない場合は enemyAllAbilityDownByEnemy にエントリなし', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.statuses = [];
+
+  const ctx = getDamageContext(state);
+  assert.equal(ctx.enemyAllAbilityDownByEnemy[0], undefined, '厄なしの場合はエントリなし');
 });
