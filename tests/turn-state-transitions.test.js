@@ -19132,6 +19132,42 @@ test('T13: BIYamawakiServant(155) — Eternal型: 複数付与・CountBC(>=6)判
   assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 3, 'しもべ状態6人以上のときパッシブが発動してSP+3');
 });
 
+test('T13: BIYamawakiServant(155) legacy remaining=0 entries count as active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 91007,
+              name: '旧形式しもべ条件',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()&&SpecialStatusCountByType(155)>=1)>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  for (const member of state.party) {
+    member.statusEffects.push({
+      statusType: 'BIYamawakiServant',
+      remaining: 0,
+      metadata: { specialStatusTypeId: 155 },
+    });
+  }
+
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').sp.current - spBefore,
+    3,
+    '旧形式のremaining=0しもべ状態6人でもCountBC条件を満たすこと'
+  );
+});
+
 test('SkillCondition variants use CountBC thresholds and same-action Before Funnel for OD gain', () => {
   const skillId = 30072;
   const party = createSixMemberManualParty((idx) =>

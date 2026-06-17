@@ -260,6 +260,18 @@
 | 仕様整理 | ✅ 記録 | （本コミット） | DownTurn が EnemyTurnEnd tick で正規に明けた後、DPが全回復し、その後の再消費で再ブレイクすることは正しい挙動として扱う。固定するのは回数ではなく「自動ブレイク直前が非Break」「EnemyStatuses適用では導出Breakを消さない」という因果 |
 | 回帰テスト | ✅ 追加完了 | （本コミット） | unit: スカルフェザー比較バッファ全8ターンを走査し、#2自動Break後のDownTurn継続中に auto DownTurn が再発生しないこと、導出Breakが EnemyStatuses entry で消えないこと、DP0から最大回復しないことを固定。E2E: #3 popup が BREAK / `0 / 4550000` で、#4/#8 に DP auto chip が出ないことを検証 |
 
+### 回帰修正追記（2026-06-17, 多段HPゲージ比較再計算）
+
+| 対象 | 状態 | 備考 |
+|---|---|---|
+| 多段HPゲージの自動HP消費 | ✅ 修正完了 | `applyEnemyHpFromActions` が `extraHpGaugeStateByEnemy` の現在段階最大HPを `remainingHpByEnemy` として追跡し、現在段階HPが0になった場合は `source:'auto'` の `HpBreak` を発生させる。最終段階HP0のみ `Dead` とする |
+| 手動HP破壊後の残HP同期 | ✅ 修正完了 | 手動 `HpBreak` は damage carry-over を次段階へ持ち越さず、次段階最大HPへ `remainingHpByEnemy` を同期する。これにより通常ビューの手動破壊行でも次ターン以降のHP計算基準が比較ビューと同じになる |
+| 比較ビューの保存済み extra HP gauge snapshot 除外 | ✅ 修正完了 | 比較ビューの clone replay では `ActionOutcomeOverrides` / Break系 enemy status に加え、手動HP破壊で保存された `EnemyExtraHpGauges` snapshot も除外する。手動HP破壊を消した比較計算に、破壊後ゲージ段階だけが残る hybrid state を防止 |
+| 貫通クリティカル倍率 | ✅ 修正完了 | `PenetrationCriticalAttack.value[0]` を相性倍率へ反映し、威力詳細用の affinity contribution にも `PenetrationCriticalAttack` として表示する |
+| 旧形式しもべ状態 | ✅ 修正完了 | `BIYamawakiServant` の legacy `remaining=0` / `exitCond` なし entry も `SpecialStatusCountByType(155)` の有効状態として数える |
+| 対象 replay の残差 | 🔶 調査継続 | `/Users/ram4/Downloads/ui_next_session_2026-06-05T21-24-36.194+09-00.json` は、通常ビューでは #4 手動HP破壊、比較ビュー純計算では #5 自動HP破壊まで改善。#4 は `シンメトリー・リベレーション` 22,587,870 + `メガデストロイヤー` 33,500,737 = 約56.09M（hit適用ベース約58.33M）で、75M段階破壊に約16.67M不足。未確定候補は `Misfortune` / 厄など、現状 duration 状態として保持のみでダメージ式に未接続の実機補正 |
+| 回帰テスト | ✅ 追加完了 | unit: 多段HPゲージの現在段階HP消費・自動HP破壊、手動HP破壊後の残HP同期、比較ビューでの `EnemyExtraHpGauges` 除外、貫通クリティカル倍率、legacy しもべ状態判定 |
+
 #### 残タスク
 1. 既知: probe commit のコスト（DP/HPゲージ敵存在時に commit/preview 約2倍）。体感劣化があれば最適化
 

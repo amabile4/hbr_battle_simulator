@@ -1952,15 +1952,25 @@ function getDamagePartReferences(part, options = {}) {
   return [...new Set(out)];
 }
 
+function getPenetrationCriticalAffinityMultiplier(part) {
+  if (String(part?.skill_type ?? '') !== 'PenetrationCriticalAttack') {
+    return 1;
+  }
+  const multiplier = Number(Array.isArray(part?.value) ? part.value[0] : 0);
+  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+}
+
 function computeEnemyEffectiveDamageRatePercentForPart(turnState, targetIndex, part, options = {}) {
   const references = getDamagePartReferences(part, options);
+  const penetrationCriticalMultiplier = getPenetrationCriticalAffinityMultiplier(part);
   if (references.length === 0) {
-    return DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+    return truncateToTwoDecimals(DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT * penetrationCriticalMultiplier);
   }
   let rate = 1;
   for (const reference of references) {
     rate *= getEnemyResistanceRatePercent(turnState, targetIndex, reference) / 100;
   }
+  rate *= penetrationCriticalMultiplier;
   return truncateToTwoDecimals(rate * 100);
 }
 
@@ -1991,6 +2001,15 @@ function resolveBestDamagePartAffinityForEnemy(state, member, skill, targetIndex
       iconStatusType: DAMAGE_AFFINITY_REFERENCE_ICON_TYPES[reference] ?? '',
     };
   });
+  const penetrationCriticalMultiplier = getPenetrationCriticalAffinityMultiplier(bestPart);
+  if (penetrationCriticalMultiplier > 1) {
+    contributions.push({
+      reference: 'PenetrationCriticalAttack',
+      label: '貫通クリティカル',
+      multiplier: penetrationCriticalMultiplier,
+      iconStatusType: 'CriticalRateUp',
+    });
+  }
   return {
     references,
     contributions,
@@ -4021,6 +4040,18 @@ function getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex) {
   return cloneEnemyExtraHpGaugeState(enemyState.extraHpGaugeStateByEnemy?.[String(Number(targetIndex))]);
 }
 
+function getEnemyExtraHpGaugeCurrentSegmentMax(extraHpGaugeState = null) {
+  const normalized = cloneEnemyExtraHpGaugeState(extraHpGaugeState);
+  if (!normalized) {
+    return null;
+  }
+  const total = Math.round(Number(normalized.total ?? normalized.values.length ?? 0));
+  const remaining = Math.round(Number(normalized.remaining ?? 0));
+  const currentIndex = total - remaining;
+  const segmentMax = Number(normalized.values?.[currentIndex] ?? 0);
+  return Number.isFinite(segmentMax) && segmentMax > 0 ? segmentMax : null;
+}
+
 function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
   const enemyState = getEnemyState(turnState);
   const next = { ...(enemyState.eShieldStateByEnemy ?? {}) };
@@ -5844,7 +5875,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
  * - 初期値は前ターンから引き継いだ remainingHpByEnemy、なければ enemyHpByEnemy（最大HP）。
  * - perHitHpDamageByEnemy（manager 層 enrichment が付与する派生値）× hit 数を消費。
  * - HP0 到達で source:'auto' の Dead を付与（手動討伐指定が最優先）。
- * - extra HP gauge（多段ゲージ）搭載敵は既存のHpBreak管理に委ね、追跡対象外。
+ * - extra HP gauge（多段ゲージ）搭載敵は現在セグメントHPを remainingHpByEnemy に保持し、
+ *   HP0 到達時に source:'auto' の HpBreak / Dead を付与する。
  * - remainingHpByEnemy は turnState 内の派生値であり、replay JSON へ保存してはならない。
  */
 function applyEnemyHpFromActions(state, previewRecord, options = {}) {
@@ -5860,12 +5892,15 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
   const runningHp = {};
   for (let i = 0; i < enemyCount; i++) {
     const key = String(i);
-    // 多段HPゲージ搭載敵は対象外（HpBreak での段階管理が正）
-    if (getEnemyExtraHpGaugeStateByTarget(state.turnState, i)) {
-      continue;
-    }
     if (key in inheritedRemaining && Number.isFinite(Number(inheritedRemaining[key]))) {
       runningHp[key] = Number(inheritedRemaining[key]);
+      continue;
+    }
+    const extraHpSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+      getEnemyExtraHpGaugeStateByTarget(state.turnState, i)
+    );
+    if (extraHpSegmentMax !== null) {
+      runningHp[key] = extraHpSegmentMax;
     } else if (Number(maxHpByEnemy[key] ?? 0) > 0) {
       runningHp[key] = Number(maxHpByEnemy[key]);
     }
@@ -5900,6 +5935,16 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
     for (const targetIndex of targetEnemyIndexes) {
       const key = String(targetIndex);
       if (!(key in runningHp)) {
+        continue;
+      }
+      const manualHpBreakEnemyIndexes = normalizeManualHpBreakEnemyIndexes(actionEntry, enemyCount);
+      if (manualHpBreakEnemyIndexes.includes(Number(targetIndex))) {
+        const nextSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+          getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex)
+        );
+        if (nextSegmentMax !== null) {
+          runningHp[key] = nextSegmentMax;
+        }
         continue;
       }
       // 手動討伐指定はHP枯渇として扱う（DP版の手動ブレイク優先と同型）。
@@ -5937,21 +5982,48 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
       const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hpDamage));
       runningHp[key] = newHp;
       if (newHp <= 0) {
-        const applied = applyManualEnemyKill(state.turnState, targetIndex);
-        if (applied) {
-          // HP枯渇による自動討伐も手動討伐と同様にイベントへ記録する
+        const extraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex);
+        if (canEnemyHpBreak(extraHpGaugeState)) {
+          const applied = applyManualEnemyHpBreak(state.turnState, targetIndex);
+          if (!applied) {
+            continue;
+          }
+          const nextSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+            getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex)
+          );
+          if (nextSegmentMax !== null) {
+            runningHp[key] = nextSegmentMax;
+          }
           events.push(
             buildActionScopedEvent(actionEntry, {
               actorCharacterId: String(actionEntry.characterId ?? ''),
               skillId: Number(actionEntry.skillId ?? 0),
               skillName: String(actionEntry.skillName ?? ''),
-              mode: 'Dead',
+              mode: 'HpBreak',
               targetIndex: Number(applied.targetIndex),
-              statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
+              statusType: String(applied.statusType ?? 'HpBreak'),
+              remainingExtraHpGaugeCount: Number(applied.remainingExtraHpGaugeCount ?? 0),
               source: 'auto',
             })
           );
+          continue;
         }
+        const applied = applyManualEnemyKill(state.turnState, targetIndex);
+        if (!applied) {
+          continue;
+        }
+        // HP枯渇による自動討伐も手動討伐と同様にイベントへ記録する
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: String(actionEntry.characterId ?? ''),
+            skillId: Number(actionEntry.skillId ?? 0),
+            skillName: String(actionEntry.skillName ?? ''),
+            mode: 'Dead',
+            targetIndex: Number(applied.targetIndex),
+            statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
+            source: 'auto',
+          })
+        );
       }
     }
   }
@@ -10668,6 +10740,9 @@ function hasSpecialStatus(member, typeId) {
   const id = Number(typeId);
   return member.statusEffects.some((e) => {
     if (Number(e.metadata?.specialStatusTypeId) !== id) return false;
+    if (id === BUFF_SKILL_TYPE_TO_STATUS_ID.BIYamawakiServant && String(e.statusType ?? '') === 'BIYamawakiServant') {
+      return true;
+    }
     // Eternal 状態は remaining=0 でも有効
     if (String(e.exitCond ?? '') === 'Eternal') return true;
     return Number(e.remaining ?? 0) > 0;
@@ -12817,6 +12892,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     }
   }
   if (hasEnemyHpBreak) {
+    applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
     const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
       buffMetadataValidation,
     });
@@ -12877,8 +12953,19 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   }
   // HP累積消費とHP0自動討伐（手動討伐の後に呼ぶことで applyManualEnemyKill の
   // 二重適用が自然に抑止され、手動優先になる）。autoのDeadは killCount 導出に含めない。
-  const hpAutoKillEvents = applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+  const hpAutoEvents = applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+  const hpAutoBreakEvents = hpAutoEvents.filter((event) => String(event?.mode ?? event?.statusType ?? '') === 'HpBreak');
+  const hpAutoKillEvents = hpAutoEvents.filter((event) => String(event?.mode ?? event?.statusType ?? '') !== 'HpBreak');
+  enemyHpBreakEvents.push(...hpAutoBreakEvents);
   enemyKillEvents.push(...hpAutoKillEvents);
+  if (hpAutoBreakEvents.length > 0) {
+    const autoHpBreakEnemyIndexes = hpAutoBreakEvents
+      .map((event) => Number(event?.targetIndex))
+      .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+    if (!Number.isFinite(Number(actionEntry?.hpBreakCount)) || Number(actionEntry.hpBreakCount) <= 0) {
+      actionEntry.hpBreakCount = autoHpBreakEnemyIndexes.length;
+    }
+  }
   const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
     state,
     actionEntry,
@@ -15975,6 +16062,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         })
       ),
       ...enemyBreakEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...enemyHpBreakEvents.filter((ev) =>
         eventBelongsToActionEntry(entry, ev, {
           actorKey: 'actorCharacterId',
           skillKey: 'skillId',

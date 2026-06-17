@@ -17,7 +17,7 @@
 |---|---|
 | A-1 〜 A-7 | DP ダメージ MVP: charge 修正・attacker source PartySetup 化・read-only stat 表示・DP 固定・invariant・敵 param_border 実値配線 |
 | 倍率内訳 | 7カテゴリ（buff / crit-mindeye / funnel / token-passive / debuff / affinity / vulnerability）表示 |
-| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加。2026-06-13 に hbr_calc の `resolveEffectPowerFromPart` を turn engine へ接続し、`diff_for_max > 0` の自己バフ / 敵デバフ / DamageRateUp / DestructionUp 入力を実 stats・敵 border で解決するよう更新。2026-06-17 に damageContext へ行動時点の `remainingDpByEnemy` / `remainingHpByEnemy` / `extraHpGaugeStateByEnemy` を追加し、威力詳細の現DP/現HP表示を計算入力と同じ時点へ統一。多段HPゲージ遷移後は本来破壊率・本来capを保持しつつ、強ダウン一時capはHPゲージ破壊またはDownTurn解除で本来capへ復元する。HPゲージ破壊アクションの表示は破壊対象ゲージで打ち切り、超過分を次ゲージへ持ち越さない。空の replay cap override による上書き低下も修正 |
+| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加。2026-06-13 に hbr_calc の `resolveEffectPowerFromPart` を turn engine へ接続し、`diff_for_max > 0` の自己バフ / 敵デバフ / DamageRateUp / DestructionUp 入力を実 stats・敵 border で解決するよう更新。2026-06-17 に damageContext へ行動時点の `remainingDpByEnemy` / `remainingHpByEnemy` / `extraHpGaugeStateByEnemy` を追加し、威力詳細の現DP/現HP表示を計算入力と同じ時点へ統一。多段HPゲージ遷移後は本来破壊率・本来capを保持しつつ、強ダウン一時capはHPゲージ破壊またはDownTurn解除で本来capへ復元する。HPゲージ破壊アクションの表示は破壊対象ゲージで打ち切り、超過分を次ゲージへ持ち越さない。空の replay cap override による上書き低下も修正。多段HPゲージ敵の自動HP消費・自動HP破壊、手動HP破壊後の次段階HP同期、`PenetrationCriticalAttack.value[0]` の相性倍率反映を追加。対象 replay では比較純計算が #5 自動HP破壊まで改善し、#4 実機手動破壊との差分は `Misfortune` / 厄など未確定実機補正として継続調査 |
 
 ---
 
@@ -267,7 +267,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | ImprisonRandom | 束縛 | 🔵 | 状態異常 |
 | StunRandom | 気絶 | 🔵 | 状態異常 |
 | RecoilRandom | 反動ダメージ | 🔵 | 固定ダメージ（倍率計算外） |
-| Misfortune | 不幸 | 🔵 | 状態異常 |
+| Misfortune | 不幸 | ⚠️ | 現状は duration 敵状態として保持のみ。`/Users/ram4/Downloads/ui_next_session_2026-06-05T21-24-36.194+09-00.json` の #4 HP破壊差分では、純計算が約16.67M不足しており、厄が実機で被ダメージ補正を持つか要確認 |
 | SelfDamage | 自傷ダメージ | 🔵 | 固定ダメージ |
 | DebuffGuard | デバフ無効 | 🔵 | 状態管理 |
 | BuffCharge | チャージ | ✅ | buff群（`chargeEffects` 経由でチャージ倍率として加算） |
@@ -317,10 +317,10 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | Reinforce | 鬼神化中 | 🔵 | 変身状態（ATK増加効果は AttackUp 等として収集） |
 | ActionDisabled | 行動不能 | 🔵 | 行動管理 |
 
-**集計: ✅ 22件 / ⚠️ 2件 / 🔵 66件 （合計 90件）**
+**集計: ✅ 22件 / ⚠️ 3件 / 🔵 65件 （合計 90件）**
 
 | 区分 | タイプ一覧 |
 |---|---|
 | ✅ 反映済み（22件）| AttackUp, DefenseDown, ResistDown, ResistDownOverwrite, Fragile, HighBoost, Babied, CriticalRateUp, CriticalDamageUp, BuffCharge, MindEye, Funnel, Diva, Hacking, TokenSet, FireMark, Curry, Gelato, Shchi, Steak, Talisman, Disaster |
-| ⚠️ 要調査（2件）| DamageRateUp（大分類D）, ShadowClone（I-1）|
-| 🔵 スコープ外（66件）| 上記以外（Shredding はスキル使用可否のみ） |
+| ⚠️ 要調査（3件）| DamageRateUp（大分類D）, ShadowClone（I-1）, Misfortune（対象 replay のHP差分候補）|
+| 🔵 スコープ外（65件）| 上記以外（Shredding はスキル使用可否のみ） |

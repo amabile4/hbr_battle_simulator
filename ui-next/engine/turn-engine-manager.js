@@ -742,6 +742,9 @@ export class TurnEngineManager {
         if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES) {
           return [];
         }
+        if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES) {
+          return [];
+        }
         if (type !== REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES) {
           return [structuredClone(entry)];
         }
