@@ -70,6 +70,13 @@ export function buildActionFlowFromRecord(record) {
       manualBreakEnemyIndexes: Array.isArray(action?.manualBreakEnemyIndexes)
         ? [...action.manualBreakEnemyIndexes]
         : [],
+      manualHpBreakEnemyIndexes: Array.isArray(action?.manualHpBreakEnemyIndexes)
+        ? [...action.manualHpBreakEnemyIndexes]
+        : [],
+      hpBreakCount:
+        Number.isFinite(Number(action?.hpBreakCount))
+          ? Number(action.hpBreakCount)
+          : 0,
       costDelta: Number.isFinite(costDelta) ? costDelta : 0,
       costPreSp: Number.isFinite(startSp) ? startSp : null,
       costPostSp: Number.isFinite(endSp) ? endSp : null,

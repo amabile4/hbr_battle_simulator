@@ -1007,6 +1007,7 @@ async function main() {
         const rawEnemies = await fetchJsonOrFallback('../json/enemies.json', []);
         battleStateManager.setEnemyCatalog(rawEnemies);
         const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
+          battles: store.battles,
           enemyEShieldOverrides: store.enemyEShieldOverrides,
         });
         initialSetup.setEnemies(enemyPresets);

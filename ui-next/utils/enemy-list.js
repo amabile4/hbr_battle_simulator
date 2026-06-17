@@ -9,6 +9,14 @@ const RECENT_MONTH_WINDOW_COUNT = 3;
 const ENEMY_PRESET_MONTH_CATEGORY_PREFIX = 'month:';
 export const ENEMY_PRESET_TEMPLATE_CATEGORY_KEY = 'template';
 export const ENEMY_PRESET_TEMPLATE_CATEGORY_LABEL = 'テンプレート';
+const ENEMY_PRESET_ORB_BOSS_CATEGORY_KEY = 'normal:orb-boss';
+const ENEMY_PRESET_ORB_BOSS_CATEGORY_LABEL = 'オーブボス';
+const ORB_BOSS_LEVEL4_LABELS = Object.freeze([
+  'ExoWatcherDefault01_04',
+  'DiamondEyeballRectusDefault01_04',
+  'DiamondEyeballSinisterDefault01_04',
+]);
+const ORB_BOSS_LEVEL4_LABEL_SET = new Set(ORB_BOSS_LEVEL4_LABELS);
 const ENEMY_PRESET_ELEMENT_KEYS = Object.freeze([
   'slash',
   'stab',
@@ -48,6 +56,78 @@ const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
     },
   }),
 ]);
+
+function buildBattleEnemyPresetId(battleId, enemyIndex) {
+  const normalizedBattleId = Number(battleId);
+  const normalizedEnemyIndex = Number(enemyIndex);
+  if (!Number.isFinite(normalizedBattleId) || !Number.isFinite(normalizedEnemyIndex)) {
+    return null;
+  }
+  return -((Math.trunc(normalizedBattleId) * 10) + Math.trunc(normalizedEnemyIndex) + 1);
+}
+
+function buildBattleEnemyResistanceMap(resist = []) {
+  const entries = Array.isArray(resist) ? resist : [];
+  const rawByKey = new Map(
+    entries.map(([key, value]) => [String(key ?? '').trim().toLowerCase(), value])
+  );
+  const absorbElementList = rawByKey.get('absorbelementlist');
+  return {
+    element: {
+      slash: Number(rawByKey.get('slash') ?? 0),
+      stab: Number(rawByKey.get('stab') ?? 0),
+      strike: Number(rawByKey.get('strike') ?? 0),
+      fire: Number(rawByKey.get('fire') ?? 0),
+      ice: Number(rawByKey.get('ice') ?? 0),
+      thunder: Number(rawByKey.get('thunder') ?? 0),
+      light: Number(rawByKey.get('light') ?? 0),
+      dark: Number(rawByKey.get('dark') ?? 0),
+      nonelement: Number(rawByKey.get('nonelement') ?? 0),
+      absorb_element_list: Array.isArray(absorbElementList) ? absorbElementList : [],
+    },
+  };
+}
+
+function buildOrbBossLevel4Enemies(battles = []) {
+  if (!Array.isArray(battles)) {
+    return [];
+  }
+  const entries = [];
+  const seenLabels = new Set();
+  for (const battle of battles) {
+    const battleId = Number(battle?.id ?? battle?.battle_id);
+    for (const [enemyIndex, enemy] of (battle?.enemy_list ?? []).entries()) {
+      const label = String(enemy?.label ?? '');
+      if (!ORB_BOSS_LEVEL4_LABEL_SET.has(label) || seenLabels.has(label)) {
+        continue;
+      }
+      const presetId = buildBattleEnemyPresetId(battleId, enemyIndex);
+      if (presetId === null) {
+        continue;
+      }
+      seenLabels.add(label);
+      entries.push({
+        id: presetId,
+        name: enemy?.name ?? label,
+        label,
+        in_date: battle?.in_date ?? null,
+        flags: { is_boss: true },
+        base_param: {
+          dp: enemy?.base_param?.dp ?? 0,
+          od_rate: enemy?.base_param?.od_rate ?? 0,
+          max_d_rate: enemy?.base_param?.max_d_rate ?? 999,
+          d_rate: enemy?.base_param?.d_rate ?? DEFAULT_D_RATE_RAW,
+          param_border: enemy?.base_param?.param_border ?? 0,
+          param_def: enemy?.base_param?.param_def ?? 0,
+        },
+        resistances: buildBattleEnemyResistanceMap(enemy?.resist),
+      });
+    }
+  }
+  return ORB_BOSS_LEVEL4_LABELS
+    .map((label) => entries.find((enemy) => enemy.label === label))
+    .filter(Boolean);
+}
 
 export function formatEnemyPresetMonthCategoryLabel(yyyymm) {
   const numeric = Number(yyyymm);
@@ -260,6 +340,10 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     );
   }
 
+  const orbBossList = buildOrbBossLevel4Enemies(options?.battles).map((enemy) =>
+    mapEnemy(enemy, ENEMY_PRESET_ORB_BOSS_CATEGORY_KEY, ENEMY_PRESET_ORB_BOSS_CATEGORY_LABEL)
+  );
+
   const recentBosses = dedupeEnemiesByNameKeepingHighestId(
     rawEnemies.filter(
       (enemy) =>
@@ -278,5 +362,5 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     );
   });
 
-  return [...alwaysList, ...normalCategoryList, ...recentList];
+  return [...alwaysList, ...normalCategoryList, ...orbBossList, ...recentList];
 }

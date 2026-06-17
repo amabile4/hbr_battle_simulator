@@ -190,6 +190,7 @@
 - `異時層EX` は `Ex_...` label の enemy をまとめる通常 enemy 用カテゴリとし、`デススラッグEX 第一形態` / `デススラッグEX 第二形態`、`ロータリーモールEX`、`レッドクリムゾンEX` へ到達できるよう同名重複を保持する
 - `異時層EX` のカテゴリ内並びは初出の年月日昇順とし、同日内は enemy id 昇順で安定化する
 - `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
+- `オーブボス` は `battles.json` の Lv.4 実戦闘 enemy から `エグゾウォッチャーΩ : Lv.4` / `レクタス・ニールΩ : Lv.4` / `シニスター・ニールΩ : Lv.4` の 3 件を合成し、Enemy Setup の通常カテゴリとして選択できるようにする
 - 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
 - `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する
 - manual Eシールド編集結果は `enemy.enemySlots[*].manual.e_shield` と legacy flat `enemy.e_shield` の両方へ乗せ、session save/load でも保持する

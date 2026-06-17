@@ -35,6 +35,10 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     effectiveDamageRatesByEnemy: {},
     enemyParamBorderByEnemy: {},
     enemyDpByEnemy: {},
+    remainingDpByEnemy: {},
+    enemyHpByEnemy: {},
+    remainingHpByEnemy: {},
+    extraHpGaugeStateByEnemy: {},
     enemyNamesByEnemy: {},
     destructionRateByEnemy: {},
     destructionRateCapByEnemy: {},
@@ -117,6 +121,21 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
       1: null,
       2: 'bad',
     },
+    remainingDpByEnemy: {
+      0: '12345',
+      1: null,
+      2: 'bad',
+    },
+    enemyHpByEnemy: {
+      0: '67890',
+      1: null,
+      2: 'bad',
+    },
+    remainingHpByEnemy: {
+      0: '54321',
+      1: null,
+      2: 'bad',
+    },
     enemyNamesByEnemy: {
       0: '敵A',
       1: null,
@@ -158,6 +177,15 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
   assert.equal(context.enemyDpByEnemy[0], 4550000);
   assert.equal(context.enemyDpByEnemy[1], 0);
   assert.equal(Number.isNaN(context.enemyDpByEnemy[2]), true);
+  assert.equal(context.remainingDpByEnemy[0], 12345);
+  assert.equal(context.remainingDpByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.remainingDpByEnemy[2]), true);
+  assert.equal(context.enemyHpByEnemy[0], 67890);
+  assert.equal(context.enemyHpByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.enemyHpByEnemy[2]), true);
+  assert.equal(context.remainingHpByEnemy[0], 54321);
+  assert.equal(context.remainingHpByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.remainingHpByEnemy[2]), true);
   assert.equal(context.enemyNamesByEnemy[0], '敵A');
   assert.equal(context.enemyNamesByEnemy[1], '');
   assert.equal(context.enemyNamesByEnemy[2], '敵C');
@@ -183,6 +211,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   const attackReferencesByEnemy = { 0: ['Slash'] };
   const affinityContributionsByEnemy = { 0: [{ label: '斬相性', value: 1.5 }] };
   const accessoryContributions = [{ label: 'リング', value: 0.1 }];
+  const extraHpGaugeStateByEnemy = { 0: { total: 3, remaining: 2, values: [100, 200, 300] } };
   const selectedMindEyeEffects = [{ statusType: 'MindEye', power: 0.5 }];
   const criticalRateBreakdown = { criticalRatePercent: 100, isCriticalGuaranteed: true };
   const damageBreakdown = { version: 1, targetBreakdowns: [{ targetEnemyIndex: 0 }] };
@@ -234,6 +263,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
     enemyStatusEffects,
     attackReferencesByEnemy,
     affinityContributionsByEnemy,
+    extraHpGaugeStateByEnemy,
     hasPenetrationCritical: true,
     selectedMindEyeEffects,
     criticalRateBreakdown,
@@ -286,6 +316,8 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.deepEqual(context.affinityContributionsByEnemy, affinityContributionsByEnemy);
   assert.notEqual(context.accessoryContributions, accessoryContributions);
   assert.deepEqual(context.accessoryContributions, accessoryContributions);
+  assert.notEqual(context.extraHpGaugeStateByEnemy, extraHpGaugeStateByEnemy);
+  assert.deepEqual(context.extraHpGaugeStateByEnemy, extraHpGaugeStateByEnemy);
   assert.notEqual(context.selectedMindEyeEffects, selectedMindEyeEffects);
   assert.deepEqual(context.selectedMindEyeEffects, selectedMindEyeEffects);
   assert.notEqual(context.criticalRateBreakdown, criticalRateBreakdown);
@@ -296,6 +328,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.deepEqual(context.funnelEffects, funnelEffects);
 
   accessoryContributions[0].value = 0.9;
+  extraHpGaugeStateByEnemy[0].values[0] = 999;
   selectedMindEyeEffects[0].power = 0.9;
   criticalRateBreakdown.criticalRatePercent = 0;
   damageBreakdown.targetBreakdowns[0].targetEnemyIndex = 2;
@@ -313,6 +346,7 @@ test('buildDamageCalculationContext clones funnel effects and preserves numeric 
   assert.equal(context.enemyStatusEffects[0].power, 30);
   assert.deepEqual(context.attackReferencesByEnemy[0], ['Slash']);
   assert.equal(context.affinityContributionsByEnemy[0][0].value, 1.5);
+  assert.equal(context.extraHpGaugeStateByEnemy[0].values[0], 100);
   assert.equal(context.selectedMindEyeEffects[0].power, 0.5);
   assert.equal(context.criticalRateBreakdown.criticalRatePercent, 100);
   assert.equal(context.damageBreakdown.targetBreakdowns[0].targetEnemyIndex, 0);

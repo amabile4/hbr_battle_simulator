@@ -1267,7 +1267,11 @@ async function updateDestructionRateDisplay(pane) {
   const capPercent = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey);
 
   if (capNoteEl) {
-    capNoteEl.textContent = `${capPercent}%`;
+    if (hasExplicitDestructionRateCap(model, enemyKey)) {
+      capNoteEl.textContent = `${capPercent}%`;
+    } else {
+      capNoteEl.textContent = `${capPercent}% (デフォルト)`;
+    }
   }
 
   const actionBreakdown = getActionDestructionBreakdown(model, enemyKey);
@@ -1342,14 +1346,16 @@ function updateEnemyHpGauge(pane, enemyAdapter) {
     const currentIdx = totalInt - remainingInt;
     const rows = values.map((segHp, i) => {
       if (i < currentIdx) {
-        const label = `- / ${Math.round(segHp).toLocaleString()}`;
+        const label = `0 / ${Math.round(segHp).toLocaleString()}`;
         return buildEnemyGaugeRowHtml(0, 'hp', label, true);
       } else if (i === currentIdx && remainingInt > 0) {
-        const r = Number.isFinite(hpCurrent) && segHp > 0 ? hpCurrent / segHp : 1;
-        const label = Number.isFinite(hpCurrent)
-          ? `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`
-          : `- / ${Math.round(segHp).toLocaleString()}`;
-        return buildEnemyGaugeRowHtml(r, 'hp', label, false);
+        if (Number.isFinite(hpCurrent)) {
+          const r = segHp > 0 ? hpCurrent / segHp : 1;
+          const label = `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`;
+          return buildEnemyGaugeRowHtml(r, 'hp', label, false);
+        } else {
+          return buildEnemyGaugeRowHtml(1, 'hp', `${Math.round(segHp).toLocaleString()}`, false);
+        }
       } else {
         const label = `${Math.round(segHp).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`;
         return buildEnemyGaugeRowHtml(1, 'hp', label, false);
@@ -1384,6 +1390,26 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     ? destructionRatePercent / 100
     : 1;
   const enemyKey = String(Number(targetEnemyIndex));
+  const dpMax = resolveFiniteNumber(
+    model.damageContext?.enemyDpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.enemyDpByEnemy?.[enemyKey]
+  );
+  const dpCurrent = resolveFiniteNumber(
+    model.damageContext?.remainingDpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.remainingDpByEnemy?.[enemyKey]
+  );
+  const hpMax = resolveFiniteNumber(
+    model.damageContext?.enemyHpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.enemyHpByEnemy?.[enemyKey]
+  );
+  const hpCurrent = resolveFiniteNumber(
+    model.damageContext?.remainingHpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.remainingHpByEnemy?.[enemyKey]
+  );
+  const extraHpGaugeState = resolveDamageCalculatorExtraHpGaugeState(model, enemyKey);
+  const resolvedHpCurrent = Number.isFinite(hpCurrent)
+    ? hpCurrent
+    : resolveActionExtraHpGaugeCurrent(model?.action, enemyKey, extraHpGaugeState);
   return {
     targetEnemyIndex,
     enemyName: getDamageTargetLabel(targetBreakdown),
@@ -1393,21 +1419,59 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     destructionRate,
     destructionRatePercent: destructionRate * 100,
     affinityRate: Number.isFinite(affinityRate) ? affinityRate / 100 : undefined,
-    dpMax: Number.isFinite(Number(model.enemyDestructionState?.enemyDpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.enemyDpByEnemy[enemyKey])
-      : null,
-    dpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingDpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.remainingDpByEnemy[enemyKey])
-      : null,
-    hpMax: Number.isFinite(Number(model.enemyDestructionState?.enemyHpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.enemyHpByEnemy[enemyKey])
-      : null,
-    hpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingHpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.remainingHpByEnemy[enemyKey])
-      : null,
-    extraHpGaugeState: model.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ?? null,
+    dpMax,
+    dpCurrent,
+    hpMax,
+    hpCurrent: resolvedHpCurrent,
+    extraHpGaugeState,
     destructionRateCapPercent: resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey),
   };
+}
+
+function resolveDamageCalculatorExtraHpGaugeState(model, enemyKey) {
+  const hpBreakEnemyIndexes = new Set(
+    (Array.isArray(model?.action?.manualHpBreakEnemyIndexes) ? model.action.manualHpBreakEnemyIndexes : [])
+      .map((value) => String(Number(value)))
+  );
+  if (hpBreakEnemyIndexes.has(String(Number(enemyKey)))) {
+    return (
+      model?.enemyDestructionState?.before?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      model?.damageContext?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      model?.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      null
+    );
+  }
+  return (
+    model?.damageContext?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+    model?.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+    null
+  );
+}
+
+function resolveActionExtraHpGaugeCurrent(action, enemyKey, extraHpGaugeState) {
+  if (!extraHpGaugeState || typeof extraHpGaugeState !== 'object') {
+    return null;
+  }
+  const values = Array.isArray(extraHpGaugeState.values) ? extraHpGaugeState.values : [];
+  const totalInt = Math.round(Number(extraHpGaugeState.total ?? values.length ?? 0));
+  const remainingInt = Math.round(Number(extraHpGaugeState.remaining ?? 0));
+  const currentIdx = totalInt - remainingInt;
+  const segMax = Number(values[currentIdx] ?? 0);
+  if (!(segMax > 0) || !Number.isFinite(segMax)) {
+    return null;
+  }
+  const hpBreakEnemyIndexes = new Set(
+    (Array.isArray(action?.manualHpBreakEnemyIndexes) ? action.manualHpBreakEnemyIndexes : [])
+      .map((value) => String(Number(value)))
+  );
+  if (hpBreakEnemyIndexes.has(String(Number(enemyKey)))) {
+    return 0;
+  }
+  const hpDamage = Number(action?.totalHpDamageByEnemy?.[enemyKey]);
+  if (!Number.isFinite(hpDamage) || hpDamage <= 0) {
+    return null;
+  }
+  return Math.max(0, segMax - Math.min(segMax, hpDamage));
 }
 
 export function resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey) {
@@ -1625,10 +1689,13 @@ async function updateDamageCalculatorPane(pane) {
       const remainingInt = Math.round(remaining ?? 0);
       const currentIdx = totalInt - remainingInt;
       const segMax = values?.[currentIdx] ?? 0;
-      const hpText = Number.isFinite(hpCurrent)
-        ? `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segMax).toLocaleString()}`
-        : `- / ${Math.round(segMax).toLocaleString()}`;
-      hpStatusEl.textContent = `${hpText} (${remainingInt}/${totalInt})`;
+      if (Number.isFinite(hpCurrent)) {
+        hpStatusEl.textContent =
+          `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segMax).toLocaleString()} (${remainingInt}/${totalInt})`;
+      } else {
+        hpStatusEl.textContent =
+          `${Math.round(segMax).toLocaleString()} HP (${remainingInt}/${totalInt})`;
+      }
     } else if (Number.isFinite(hpCurrent) && Number.isFinite(hpMax)) {
       hpStatusEl.textContent = `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(hpMax).toLocaleString()}`;
     } else if (Number.isFinite(hpMax) && hpMax > 0) {

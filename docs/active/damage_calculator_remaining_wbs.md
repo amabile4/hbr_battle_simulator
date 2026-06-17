@@ -1,6 +1,6 @@
 # ダメージ計算機 完成までの残タスク WBS
 
-> **作成日**: 2026-06-07 | **ステータス**: 🟢 進行中 | **最終更新**: 2026-06-13
+> **作成日**: 2026-06-07 | **ステータス**: 🟢 進行中 | **最終更新**: 2026-06-17
 > **対象ブランチ**: `feature/destruction-rate-popup`（→ main へ最終 merge）
 >
 > 計算の最終的な正確性を得るまでに何が必要かを整理したマスター WBS。
@@ -17,7 +17,7 @@
 |---|---|
 | A-1 〜 A-7 | DP ダメージ MVP: charge 修正・attacker source PartySetup 化・read-only stat 表示・DP 固定・invariant・敵 param_border 実値配線 |
 | 倍率内訳 | 7カテゴリ（buff / crit-mindeye / funnel / token-passive / debuff / affinity / vulnerability）表示 |
-| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加。2026-06-13 に hbr_calc の `resolveEffectPowerFromPart` を turn engine へ接続し、`diff_for_max > 0` の自己バフ / 敵デバフ / DamageRateUp / DestructionUp 入力を実 stats・敵 border で解決するよう更新 |
+| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加。2026-06-13 に hbr_calc の `resolveEffectPowerFromPart` を turn engine へ接続し、`diff_for_max > 0` の自己バフ / 敵デバフ / DamageRateUp / DestructionUp 入力を実 stats・敵 border で解決するよう更新。2026-06-17 に damageContext へ行動時点の `remainingDpByEnemy` / `remainingHpByEnemy` / `extraHpGaugeStateByEnemy` を追加し、威力詳細の現DP/現HP表示を計算入力と同じ時点へ統一。多段HPゲージ遷移後は本来破壊率・本来capを保持しつつ、強ダウン一時capはHPゲージ破壊またはDownTurn解除で本来capへ復元する。HPゲージ破壊アクションの表示は破壊対象ゲージで打ち切り、超過分を次ゲージへ持ち越さない。空の replay cap override による上書き低下も修正 |
 
 ---
 
@@ -76,18 +76,35 @@
 |---|---|---|---|---|
 | D-1 | ✅ | 破壊率上昇式・cap・適用条件の現行仮説整理（calculateDestruction 実装済み） | ✅ 現行実装仮説 H-2026-06-15B として運用。実測値と乖離した場合は実測値を優先して再検討 | — |
 | D-2 | 🔴 | **turn engine 記録検証**: `destructionRateByEnemy` が攻撃進行（DP ダメージ発生ごと）を実際に反映しているか確認。空オブジェクトのまま進行しないか | ✅ 完了（攻撃進行では未更新、break/reset/superDown 系のみ更新と確認） | D-1 |
-| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | ✅ 完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。通常攻撃も `calculateDestruction` の `isNormalAttack` 分岐へ統一し、`raw d_rate/100` と超越ゲージ100%時×1.10を適用。超越バースト中の一致属性攻撃は破壊率上昇量+10%とcap+300%を適用し、SuperBreak/強ブレイクcapとは加算しない。非一致属性攻撃や SuperDown の敵状態更新ではバーストcapを参照しない。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
-| D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） | D-2, D-3 |
+| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | ✅ 完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。通常攻撃も `calculateDestruction` の `isNormalAttack` 分岐へ統一し、`raw d_rate/100` と超越ゲージ100%時×1.10を適用。超越バースト中の一致属性攻撃は破壊率上昇量+10%とcap+300%を適用し、SuperBreak/強ブレイクcapとは非加算。多段HPゲージ遷移では本来破壊率・本来capを保持し、強ダウン一時capはHPゲージ破壊またはDownTurn解除で本来capへ復元する。replay の空 `enemyDestructionRateCaps` で計算済みcapを潰さない。非一致属性攻撃や SuperDown の敵状態更新ではバーストcapを参照しない。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
+| D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換。2026-06-17 に `remainingDpByEnemy` / `remainingHpByEnemy` / `extraHpGaugeStateByEnemy` も action-time context として保持し、威力詳細表示は stateAfter ではなく damageContext を優先） | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | ✅ 完了（右クリック威力詳細で DP/HP の非クリ・クリティカル期待値と現在破壊率を同時表示） | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、通常攻撃 `raw d_rate/100` と超越×1.10・補正非適用、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示、超越バーストの攻撃/critical/バフ・デバフ効果量/破壊率cap非重複、未発動時ゼロ、非一致属性cap非適用、高い保存capへの非加算、`damageContext.destructionRateCapByEnemy` 経由の威力詳細手入力cap反映、通常攻撃の威力詳細手入力が `d_rate=10` で100→110になること、`DestructionUp` 保存 ratio の calculateDestruction percent 入力変換、stat/border 解決されるバフ・デバフ効果量を固定。現行仮説 H-2026-06-15B として、2026-06-15 session fixture でコードダクネスの接触9hit / 計算9hit / effective weight `[0.1,0.1,0.1,0.2,0.2,0.3,0.25,0.25,0.25]` / Break hit 7 / 破壊率weight 0.75/1.75 / 100%→132.63% と #2美也 132.63%→717.34%（+584.71%）を engine-level と Playwright E2E で固定。`destructionWeight` 単体回帰を追加） | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、通常攻撃 `raw d_rate/100` と超越×1.10・補正非適用、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示、超越バーストの攻撃/critical/バフ・デバフ効果量/破壊率cap非重複、未発動時ゼロ、非一致属性cap非適用、高い保存capへの非加算、`damageContext.destructionRateCapByEnemy` 経由の威力詳細手入力cap反映、通常攻撃の威力詳細手入力が `d_rate=10` で100→110になること、`DestructionUp` 保存 ratio の calculateDestruction percent 入力変換、stat/border 解決されるバフ・デバフ効果量を固定。現行仮説 H-2026-06-15B として、2026-06-15 session fixture でコードダクネスの接触9hit / 計算9hit / effective weight `[0.1,0.1,0.1,0.2,0.2,0.3,0.25,0.25,0.25]` / Break hit 7 / 破壊率weight 0.75/1.75 / 100%→132.63% と #2美也 132.63%→717.34%（+584.71%）を engine-level と Playwright E2E で固定。`destructionWeight` 単体回帰、action-time DP/HP表示、空cap override保持、多段HPゲージ遷移後の本来破壊率・本来cap保持、強ダウン一時cap復元、HPゲージ破壊アクションの次ゲージ非持ち越し、実セッションのHPダメージ表示回帰を追加） | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
+
+### 大分類 G: DP複数ゲージ対応
+
+> アモンΩ Lv.2 の実データ確認で、`battles.json` には `base_param.eg.dp = [1216800, 1216800, 1216800]` が存在する一方、敵選択時の現行 runtime は `enemies.json` の `base_param.dp = 0` のみを参照し、`enemyDpByEnemy['0'] = 0` / `remainingDpByEnemy = null` / `extraDpGaugeStateByEnemy` なしとして扱うことを確認済み。
+> 現状は「次のDPゲージまで削れる」バグは起きないが、DP複数ゲージ敵そのものが未対応。HP複数ゲージとは異なり、DPは同一バトルターン中に1本だけ破壊可能で、余剰ダメージは次DPゲージの残DP1まで反映できる。追加ターン・ODターンなど敵行動へ進まない継続行動は同一バトルターンとして扱う。
+
+| ID | 優先度 | 内容 | 状態 | 依存 |
+|---|---|---|---|---|
+| G-1 | 🔴 | **データ正本の確定**: DP複数ゲージ値の正本を `battles.json.enemy_list[].base_param.eg.dp` とするか、`enemies.json` / override へ補完するか決める。Enemy Setup のカテゴリ選択が battle 文脈を持てない場合の対応（battle enemy ID mapping / override JSON / snapshot 補完）も決める | 🔶 部分完了（runtime は `battles.json.enemy_list[].base_param.eg.dp` を参照し、battle enemy ID / name から補完。override 方針は未整理） | — |
+| G-2 | 🔴 | **状態モデル追加**: `extraDpGaugeStateByEnemy` 相当を追加し、`{ total, remaining, values }` で現在DP段階を表現する。`enemyDpByEnemy` は現在段階の最大DP互換値として維持し、既存単一DP敵との後方互換を保つ | ✅ 完了（`extraDpGaugeStateByEnemy` と同一バトルターン内の破壊済み判定用 `dpGaugeBreakTurnByEnemy` を追加） | G-1 |
+| G-3 | 🔴 | **初期化・snapshot 経路**: `BattleStateManager` / Enemy Setup snapshot / session normalize に DP複数ゲージを通す。アモンΩ Lv.2 選択時に `enemyDpByEnemy['0'] = 1216800`、`remainingDpByEnemy['0'] = 1216800`、`extraDpGaugeStateByEnemy['0'] = { total: 3, remaining: 3, values: [...] }` になる回帰を追加 | 🔶 部分完了（`BattleStateManager` と初期 snapshot に配線し、アモンΩ Lv.2 / レイジングエクリプス / ダイヤモンドアイS の初期化回帰を追加。同名通常個体より `eg.dp` 複数定義を優先するよう修正。既存 session normalize の網羅は未完） | G-1, G-2 |
+| G-4 | 🔴 | **DPゲージ破壊処理の集約**: DP減算・Break付与・DownTurn付与・残DP更新・次DPゲージ遷移を単一 helper にまとめる。同一バトルターン中は1本だけ破壊可能とし、余剰ダメージは次DPゲージの残DP1まで反映する。次のバトルターンへ進むまで2本目は破壊しない | ✅ 完了（`consumeEnemyDpGaugeForAction` へ集約し、`turnIndex` 単位で1本制限・次ゲージDP1 clamp を固定） | G-2, G-3 |
+| G-5 | 🔴 | **Break解除・次ゲージ復帰**: DownTurn解除 / HPゲージ破壊 / manual解除など既存のBreak解除経路で、複数DPゲージの次段階 max/current を復元する。`resetEnemyRemainingDpToMax` の単一 `enemyDpByEnemy` 参照を段階 aware に置き換える | 🔶 部分完了（`resetEnemyRemainingDpToMax` は現在DP段階 max 参照に変更。DownTurn/manual 解除全経路の実データ網羅は未完） | G-4 |
+| G-6 | 🟡 | **威力詳細・敵表示**: DPバー表示を単一バーから複数段階表示へ拡張する。action-time `remainingDpByEnemy` / `extraDpGaugeStateByEnemy` を damageContext に渡し、破壊 action では破壊対象DPゲージの `0 / max` を表示する | ❌ 未着手 | G-3, G-4 |
+| G-7 | 🟡 | **破壊率連動の確認**: DPゲージ破壊直後のBreak/StrongBreak/破壊率加算開始hit、Eシールド破壊との同一action順序、HP複数ゲージ遷移との相互作用を再検証する。HPゲージ破壊で強ダウンcap復元する既存修正と競合しないことを固定 | 🔶 部分完了（非最終DPゲージ破壊ではBreak/DownTurnを付与しない回帰を追加。Eシールド・HP複数ゲージとの組み合わせ網羅は未完） | G-4, G-5 |
+| G-8 | 🟡 | **テスト追加**: unitでアモンΩ Lv.2 初期化、DP1本目破壊で次ゲージ非持ち越し、DownTurn解除後に2本目DPへ復帰、3本破壊後の挙動を固定。PlaywrightではEnemy SetupでアモンΩを選び、威力詳細DPバーとBreak表示を確認する | 🔶 部分完了（unit でアモンΩ Lv.2 / レイジングエクリプス / ダイヤモンドアイS 初期化と同一 `turnIndex` 内1本制限・次ゲージDP1 clamp を追加。Playwright と3本完走は未完） | G-3, G-4, G-5, G-6 |
+| G-9 | ⚪ | **移行・互換整理**: 既存 session の `enemyDpByEnemy` / `remainingDpByEnemy` だけを持つデータは単一DPとして扱う。DP複数ゲージ情報は計算生成値として再導出し、保存JSONに過剰な計算結果を固定しない方針を確認する | 🔶 部分完了（`extraDpGaugeStateByEnemy` がない既存 state は単一DPとして維持。保存JSON純度の網羅検証は未完） | G-2, G-3 |
 
 ### 2026-06-07 コードダクネス検算で判明した不足機能
 
 | ID | 優先度 | 内容 | 状態 | 備考 |
 |---|---|---|---|---|
 | CD-1 | 🔴 | `criticalDamageUpRate` / `criticalRateUpRate` の summary rate を威力詳細 breakdown に接続する | ✅ 完了 | 具体 `activeStatusEffects` が欠けていても不足分だけを静的 contribution として加算し、二重計上を避ける |
-| CD-2 | 🔴 | 敵の現在DPを `damageContext` に渡す | 🔶 新規 EnemySetup snapshot では配線済み | `enemyDpByEnemy` を追加。既存保存セッションには `dp` がないため、load migration または HbrDataStore への敵マスタ保持が必要 |
+| CD-2 | 🔴 | 敵の現在DPを `damageContext` に渡す | ✅ 完了 | `enemyDpByEnemy` に加えて action-time の `remainingDpByEnemy` を保持し、威力詳細の現DP表示も damageContext を優先。既存保存セッションで敵DP snapshot がない場合のマスタ補完は CD-5 に分離 |
 | CD-3 | 🔴 | 多段攻撃中にDPが割れた場合、break hit 以降の hit だけ HP ダメージ・破壊率上昇として按分する | ✅ 完了 | Eシールド/OD用の接触hit（`baseHitCount + funnelHitBonus`）と、破壊率/DP/HP按分用の effective weight（スキル本体 `power_ratio` + Funnel `funnelRate`）を分離。コードダクネスは接触9hit・計算9hitで、Break hit 7 以降の Funnel 3hit がHP側weight 0.75として破壊率 +32.63% に寄与し、威力詳細にhit種別・weight・DP/HP按分・破壊率前後を表示 |
 | CD-4 | 🟡 | 属性クリティカル威力UPなど、属性条件付きクリティカル威力が `criticalDamageUpRate` として action に入る実データ回帰を固定する | 🔶 summary 接続済み・実データ検証待ち | スクショの `トロピカルスクランブル 90%` 相当を検証対象にする |
 | CD-5 | 🟡 | 既存セッションでも選択敵IDから敵DPを補完できるデータ経路を作る | ❌ 未実装 | 現在の `HbrDataStore` には enemies がなく、ブラウザ上は EnemySetup snapshot の `dp` 追加で新規保存分のみ対応 |

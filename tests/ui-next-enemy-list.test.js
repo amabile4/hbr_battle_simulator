@@ -445,3 +445,66 @@ test('buildEnemyList places 異時層EX after templates and keeps EX battle vari
   assert.equal(dimensionExEntries.every((enemy) => enemy.categoryKey === 'normal:dimension-ex'), true);
   assert.equal(result.some((enemy) => enemy.id === 514), false);
 });
+
+test('buildEnemyList exposes オーブボス category with the three Lv.4 orb bosses from battles', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      in_date: '2023-06-24',
+    }),
+  ];
+  const battles = [
+    {
+      id: 8022604,
+      enemy_list: [
+        {
+          label: 'ExoWatcherDefault01_04',
+          name: 'エグゾウォッチャーΩ : Lv.4',
+          base_param: { dp: 2_100_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [
+            ['Fire', -300],
+            ['Ice', -300],
+            ['Thunder', -300],
+            ['Light', -300],
+            ['Dark', -300],
+            ['AbsorbElementList', null],
+          ],
+        },
+      ],
+    },
+    {
+      id: 8022704,
+      enemy_list: [
+        { label: 'IgnoredOrbSupport', name: '除外敵', base_param: { dp: 1 } },
+        {
+          label: 'DiamondEyeballRectusDefault01_04',
+          name: 'レクタス・ニールΩ : Lv.4',
+          base_param: { dp: 800_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [['Fire', -300]],
+        },
+        {
+          label: 'DiamondEyeballSinisterDefault01_04',
+          name: 'シニスター・ニールΩ : Lv.4',
+          base_param: { dp: 800_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [['Fire', -300]],
+        },
+      ],
+    },
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'), { battles });
+  const orbBossEntries = result.filter((enemy) => enemy.categoryLabel === 'オーブボス');
+
+  assert.deepEqual(
+    orbBossEntries.map((enemy) => [enemy.id, enemy.name, enemy.dp, enemy.categoryKey]),
+    [
+      [-80226041, 'エグゾウォッチャーΩ : Lv.4', 2_100_000, 'normal:orb-boss'],
+      [-80227042, 'レクタス・ニールΩ : Lv.4', 800_000, 'normal:orb-boss'],
+      [-80227043, 'シニスター・ニールΩ : Lv.4', 800_000, 'normal:orb-boss'],
+    ],
+  );
+  assert.equal(orbBossEntries[0].param_border, 610);
+  assert.equal(orbBossEntries[0].resistances.element.fire, 400);
+  assert.equal(orbBossEntries[0].resistances.element.slash, 100);
+});

@@ -6,6 +6,7 @@ import {
 import { cloneDpState } from '../domain/dp-state.js';
 import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
+import { cloneEnemyExtraDpGaugeState } from '../domain/enemy-extra-dp-gauge.js';
 import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
 const DEFAULT_ENEMY_PARAM_BORDER = 770;
@@ -167,7 +168,9 @@ export function createInitialTurnState() {
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraDpGaugeStateByEnemy: {},
       extraHpGaugeStateByEnemy: {},
+      dpGaugeBreakTurnByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
@@ -268,6 +271,15 @@ export function cloneTurnState(turnState) {
                     .filter(([, state]) => Boolean(state))
                 )
               : {},
+          extraDpGaugeStateByEnemy:
+            turnState.enemyState.extraDpGaugeStateByEnemy &&
+            typeof turnState.enemyState.extraDpGaugeStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.extraDpGaugeStateByEnemy)
+                    .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraDpGaugeState(state)])
+                    .filter(([, state]) => Boolean(state))
+                )
+              : {},
           extraHpGaugeStateByEnemy:
             turnState.enemyState.extraHpGaugeStateByEnemy &&
             typeof turnState.enemyState.extraHpGaugeStateByEnemy === 'object'
@@ -275,6 +287,16 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.extraHpGaugeStateByEnemy)
                     .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(state)])
                     .filter(([, state]) => Boolean(state))
+                )
+              : {},
+          dpGaugeBreakTurnByEnemy:
+            turnState.enemyState.dpGaugeBreakTurnByEnemy &&
+            typeof turnState.enemyState.dpGaugeBreakTurnByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.dpGaugeBreakTurnByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : 0,
+                  ])
                 )
               : {},
           breakStateByEnemy:
@@ -420,7 +442,9 @@ export function cloneTurnState(turnState) {
           absorbElementsByEnemy: {},
           odRateByEnemy: {},
           eShieldStateByEnemy: {},
+          extraDpGaugeStateByEnemy: {},
           extraHpGaugeStateByEnemy: {},
+          dpGaugeBreakTurnByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           paramBorderByEnemy: {},

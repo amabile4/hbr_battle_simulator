@@ -4215,7 +4215,7 @@ test('char detail popup damage tab previews normal attack destruction from raw d
     }
   }));
 
-test('char detail popup damage tab shows normal enemy HP current and max', () =>
+test('char detail popup damage tab shows action-time enemy DP and HP from damage context', () =>
   withDom(({ win }) => {
     const targetMember = {
       characterId: 'NNanase',
@@ -4247,6 +4247,10 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
               effectiveHitCountPerEnemy: 1,
               destructionRateByEnemy: { 0: 100 },
               destructionRateCapByEnemy: { 0: 300 },
+              enemyDpByEnemy: { 0: 67890.6 },
+              remainingDpByEnemy: { 0: 12345.4 },
+              enemyHpByEnemy: { 0: 54321.6 },
+              remainingHpByEnemy: { 0: 23456.4 },
               enemyNamesByEnemy: { 0: 'E1' },
               effectiveDamageRatesByEnemy: { 0: 100 },
               damageBreakdown: {
@@ -4278,8 +4282,8 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
         enemyDestructionState: {
           remainingDpByEnemy: { 0: 12345.4 },
           enemyDpByEnemy: { 0: 67890.6 },
-          remainingHpByEnemy: { 0: 12345.4 },
-          enemyHpByEnemy: { 0: 67890.6 },
+          remainingHpByEnemy: { 0: 11111.4 },
+          enemyHpByEnemy: { 0: 99999.6 },
         },
       }
     );
@@ -4293,7 +4297,7 @@ test('char detail popup damage tab shows normal enemy HP current and max', () =>
     const dpStatus = popup.querySelector('[data-role="damage-calc-dp-status"]');
     assert.equal(dpStatus?.textContent?.trim(), '12,345 / 67,891');
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
-    assert.equal(hpStatus?.textContent?.trim(), '12,345 / 67,891');
+    assert.equal(hpStatus?.textContent?.trim(), '23,456 / 54,322');
   }));
 
 test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>
@@ -4372,6 +4376,104 @@ test('char detail popup damage tab prefers extra HP gauge over normal HP fields'
 
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
     assert.equal(hpStatus?.textContent?.trim(), '12,345 / 100 (2/4)');
+  }));
+
+test('char detail popup damage tab stops extra HP gauge display at the broken segment', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: 'HPゲージ破壊テスト',
+            manualHpBreakEnemyIndexes: [0],
+            totalHpDamageByEnemy: { 0: 4543009 },
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999004,
+              skillName: 'HPゲージ破壊テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 999 },
+              destructionRateCapByEnemy: { 0: 999 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              extraHpGaugeStateByEnemy: {
+                0: { total: 3, remaining: 2, values: [75000000, 150000000, 200000000] },
+              },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: true,
+        enemyDestructionState: {
+          extraHpGaugeStateByEnemy: {
+            0: { total: 3, remaining: 2, values: [75000000, 150000000, 200000000] },
+          },
+          before: {
+            extraHpGaugeStateByEnemy: {
+              0: { total: 3, remaining: 3, values: [75000000, 150000000, 200000000] },
+            },
+          },
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
+    assert.equal(hpStatus?.textContent?.trim(), '0 / 75,000,000 (3/3)');
+    const hpRows = Array.from(popup.querySelectorAll('[data-role="damage-calc-hp-gauge"] .char-popup-enemy-gauge__row'))
+      .map((row) => ({
+        text: row.textContent?.trim(),
+        width: row.querySelector('.char-popup-enemy-gauge__bar--hp')?.style.width,
+      }));
+    assert.deepEqual(hpRows, [
+      { text: '0 / 75,000,000', width: '0%' },
+      { text: '150,000,000 / 150,000,000', width: '100%' },
+      { text: '200,000,000 / 200,000,000', width: '100%' },
+    ]);
   }));
 
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>
