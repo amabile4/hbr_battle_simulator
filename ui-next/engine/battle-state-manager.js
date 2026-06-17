@@ -313,7 +313,16 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   const selectedEnemyId = Number(slot?.selectedEnemyId);
   const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
-  return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
+  if (Number.isFinite(baseHp) && baseHp >= 0) {
+    return baseHp;
+  }
+  const selectedEnemyName = String(slot?.selectedEnemyName ?? '').trim();
+  const battleEnemyByName =
+    selectedEnemyName && typeof dataStore?.battleEnemiesByName?.get === 'function'
+      ? dataStore.battleEnemiesByName.get(selectedEnemyName)
+      : null;
+  const battleBaseHp = Number(battleEnemyByName?.base_param?.hp ?? battleEnemyByName?.hp);
+  return Number.isFinite(battleBaseHp) && battleBaseHp >= 0 ? battleBaseHp : 0;
 }
 
 function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {

@@ -901,6 +901,7 @@ async function main() {
       epRuleOverrides,
       transcendenceRuleOverrides,
       enemyEShieldOverrides,
+      battles,
       supportSkills,
     ] = await Promise.all([
       fetchJson('../json/characters.json'),
@@ -912,6 +913,7 @@ async function main() {
       fetchJson('../json/ep_rule_overrides.json'),
       fetchJson('../json/transcendence_rule_overrides.json'),
       fetchJsonOrFallback('../json/enemy_eshield_overrides.json', []),
+      fetchJsonOrFallback('../json/battles.json', []),
       fetchJsonOrFallback('../json/support_skills.json', []),
     ]);
     const payload = {
@@ -924,6 +926,7 @@ async function main() {
       epRuleOverrides,
       transcendenceRuleOverrides,
       enemyEShieldOverrides,
+      battles,
       supportSkills,
     };
     bootProfiler.mark('data:fetch:done');

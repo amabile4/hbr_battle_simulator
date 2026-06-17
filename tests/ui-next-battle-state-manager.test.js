@@ -393,6 +393,31 @@ for (const enemyCase of NON_AMON_MULTI_DP_ENEMY_CASES) {
   });
 }
 
+test('BattleStateManager resolves selected Lv.4 needle orb boss HP from battle enemy names', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: -80227042,
+        selectedEnemyName: 'レクタス・ニールΩ : Lv.4',
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: -80227043,
+        selectedEnemyName: 'シニスター・ニールΩ : Lv.4',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], 'レクタス・ニールΩ : Lv.4');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], 'シニスター・ニールΩ : Lv.4');
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 3_400_000);
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['1'], 3_400_000);
+  assert.equal(state.turnState.enemyState.remainingHpByEnemy, null);
+});
+
 test('BattleStateManager defaults missing selected enemy d_rate to raw 5', () => {
   const store = Object.create(getStore());
   store.enemies = [];

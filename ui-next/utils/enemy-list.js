@@ -15,6 +15,7 @@ const ORB_BOSS_LEVEL4_LABELS = Object.freeze([
   'ExoWatcherDefault01_04',
   'DiamondEyeballRectusDefault01_04',
   'DiamondEyeballSinisterDefault01_04',
+  'BigotryGateAmonDefault01_04',
 ]);
 const ORB_BOSS_LEVEL4_LABEL_SET = new Set(ORB_BOSS_LEVEL4_LABELS);
 const ENEMY_PRESET_ELEMENT_KEYS = Object.freeze([
@@ -30,13 +31,39 @@ const ENEMY_PRESET_ELEMENT_KEYS = Object.freeze([
 ]);
 const DIMENSION_X_NORMAL_ENEMY_PATTERN = /^Dimension_\d+_X_/;
 const DIMENSION_EX_ENEMY_PATTERN = /^Ex_/;
+const DIMENSION_HARD_ENEMY_PATTERN = /^Hard_/;
 const ENEMY_PRESET_DISPLAY_NAME_BY_LABEL = Object.freeze({
+  Hard_DeathSlug1st: '異時層 デススラッグ 第一形態',
+  Hard_DeathSlug2nd: '異時層 デススラッグ 第二形態',
+  Hard_RotaryMole_1st: '異時層 ロータリーモール 第一形態',
+  Hard_RotaryMole_2nd: '異時層 ロータリーモール 第二形態',
+  Hard_RedCrimson: '異時層 レッドクリムゾン',
+  Hard_Feeler: '異時層 フィーラー',
+  Hard_FlatHand1st: '異時層 フラットハンド 第一形態',
+  Hard_FlatHand2nd: '異時層 フラットハンド 第二形態',
+  Hard_FlatHand3rd: '異時層 フラットハンド 第三形態',
+  Hard_FlatHandChild: '異時層 フィーラー',
+  Hard_UltimateFeeler: '異時層 アルティメットフィーラー',
+  Hard_UltimateHand3rd_MC04: '異時層 フラットハンド 最終形態',
+  Hard_DesertDendron_MC04B: '異時層 デザートデンドロン',
+  Hard_SkullFeatherHead1st_MC04BDay14: '異時層 スカルフェザー[Head] 第一形態',
+  Hard_SkullFeatherTail_MC04BDay14: '異時層 スカルフェザー[Tail]',
   Ex_DeathSlug1st: 'デススラッグEX 第一形態',
   Ex_DeathSlug2nd: 'デススラッグEX 第二形態',
   Hard_SkullFeatherHead2nd_MC04BDay14: '異時層 スカルフェザー 最終形態',
 });
 const SUMMON_ENEMY_LABEL_SUFFIX = '_Summon';
 const NORMAL_ENEMY_CATEGORY_DEFINITIONS = Object.freeze([
+  Object.freeze({
+    key: 'normal:dimension-hard',
+    label: '異時層',
+    dedupeByName: false,
+    sortOrder: 'firstSeenDateAsc',
+    match(enemy) {
+      const label = String(enemy?.label ?? '');
+      return DIMENSION_HARD_ENEMY_PATTERN.test(label);
+    },
+  }),
   Object.freeze({
     key: 'normal:dimension-ex',
     label: '異時層EX',
