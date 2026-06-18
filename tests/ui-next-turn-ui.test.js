@@ -3975,6 +3975,14 @@ test('char detail popup damage tab shows FightingSpirit stat delta and attacker 
                 skillId: 999001,
                 skillName: '闘志反映テスト',
                 fightingSpiritBonusValue: 2,
+                activeStatusEffects: [
+                  {
+                    statusType: 'AttackUp',
+                    sourceSkillName: '茜色',
+                    power: 2.79,
+                    remaining: 1,
+                  },
+                ],
                 damageBreakdown: {
                   version: 1,
                   targetBreakdowns: [
@@ -4015,6 +4023,10 @@ test('char detail popup damage tab shows FightingSpirit stat delta and attacker 
       assert.equal(
         damagePanel.querySelector('[data-role="damage-calc-attacker-note"]')?.value,
         '闘志[全ステータス+2]'
+      );
+      assert.doesNotMatch(
+        damagePanel.querySelector('[data-role="damage-calc-attacker-note"]')?.value ?? '',
+        /茜色|攻撃力アップ/
       );
     } finally {
       globalThis.fetch = previousFetch;

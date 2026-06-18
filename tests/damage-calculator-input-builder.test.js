@@ -189,6 +189,14 @@ test('buildDamageCalculationInput applies FightingSpirit as flat attacker stat b
     buffDelta: 2,
     debuffDelta: 0,
     resolved: 822,
+    sources: [
+      {
+        id: 'fightingSpirit',
+        label: '闘志',
+        delta: 2,
+        statKeys: ['str', 'dex', 'wis', 'spr', 'luk', 'con'],
+      },
+    ],
   });
 
   const data = loadDamageCalculationData();
@@ -310,6 +318,7 @@ test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes witho
     buffDelta: 0,
     debuffDelta: 0,
     resolved: 777,
+    sources: [],
   });
   assert.deepEqual(viewModel.enemy.str, {
     base: 810,

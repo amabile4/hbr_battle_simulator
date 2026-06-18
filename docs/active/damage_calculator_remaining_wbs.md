@@ -49,7 +49,7 @@
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
 | S-1 | 🔴 | **攻撃者 stats 実値配線**: PartySetup スナップショットにキャラ str/dex/wis/spr/luk/con を追加し、`openCharDetailPopup` 経由で `attackerInput` に実値を渡す。凸・role はすでに連携済み | ✅ 完了（commit 6067712） | PartySetup stats 欄実装 |
-| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | 🔶 部分完了（2026-06-16 に `FightingSpirit` / 闘志を固定値 stat 加算として接続。攻撃者全 stat に `fightingSpiritBonusValue` を flat 加算し、威力詳細 stat grid と計算入力へ反映。AttackUp 等は倍率カテゴリで別管理） | S-1, C-1 |
+| S-2 | 🟡 | **stat delta 実値化（攻撃者）**: バフ適用後の実効 stat（resolved = base + buffDelta - debuffDelta）を `buildDamageStatDeltaViewModel` に実装。現状 delta=0 固定 | 🔶 部分完了（2026-06-16 に `FightingSpirit` / 闘志を固定値 stat 加算として接続。攻撃者全 stat に `fightingSpiritBonusValue` を flat 加算し、威力詳細 stat grid と計算入力へ反映。2026-06-18 に威力詳細の攻撃側補足欄も stat delta 反映対象のみへ限定。AttackUp 等は倍率カテゴリで別管理） | S-1, C-1 |
 | S-3 | 🟡 | **stat delta 実値化（敵）**: 敵の DefenseDown 等の数値を stat 列の delta として表示。enemyAllAbilityDownByEnemy の計算式確定が必要 | ✅ 完了（`enemyAllAbilityDownByEnemy` を敵 stat 行の `debuffDelta` として表示。base=paramBorder、delta=-penalty、resolved=paramBorder-penalty） | C-2, E-1 |
 
 ---

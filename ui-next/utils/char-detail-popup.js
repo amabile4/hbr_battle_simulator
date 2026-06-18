@@ -1585,36 +1585,48 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
     detailsHtml;
 }
 
-// ステータスグリッドの delta 値を引き起こすエフェクトのみ補足表示する
-const STAT_AFFECTING_SELF_TYPES = new Set([
-  'AttackUp', 'AttackDown', 'AttackUpIncludeNormal',
-  'DefenseUp', 'DefenseDown', 'ToughnessUpValue',
-  'FightingSpirit', 'Morale', 'Motivation', 'EternalOath',
-  'HighBoost', 'SpeedUp', 'SpeedDown',
-]);
-
-function buildSelfStatEffectText(model) {
-  const damageCtx = model?.damageContext ?? {};
-  const selfEffects = (damageCtx.activeStatusEffects ?? []).filter(
-    (e) => STAT_AFFECTING_SELF_TYPES.has(e?.statusType)
-  );
-  const selfLines = selfEffects.map((e) => {
-    const label = STATUS_LABELS[e.statusType] ?? e.statusType;
-    const power = Number(e.power ?? 0);
-    if (e.statusType === 'FightingSpirit') {
-      const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
-      const text = `${label} 全ステータス+${power}`;
-      return src ? `${src}[${text}]` : `${label}[全ステータス+${power}]`;
-    }
-    const powerStr = power !== 0 ? `${power > 0 ? '+' : ''}${Math.round(power * 100)}%` : '';
-    const src = String(e.sourceSkillName ?? e.sourceCharacterName ?? '').trim();
-    return src ? `${src}[${label}${powerStr}]` : `${label}${powerStr}`;
-  });
-  const fsBonus = Number(damageCtx.fightingSpiritBonusValue ?? 0);
-  if (fsBonus > 0 && !selfEffects.some((e) => e?.statusType === 'FightingSpirit')) {
-    selfLines.unshift('闘志[全ステータス+' + fsBonus + ']');
+function formatStatDeltaSourceText(source = {}) {
+  const label = String(source?.label ?? '').trim();
+  const delta = Number(source?.delta);
+  if (!label || !Number.isFinite(delta) || delta === 0) {
+    return '';
   }
-  return selfLines.join(' / ');
+  const statKeys = Array.isArray(source?.statKeys) ? source.statKeys : [];
+  const scope = DAMAGE_CALC_STAT_KEYS.every((statKey) => statKeys.includes(statKey))
+    ? '全ステータス'
+    : statKeys
+        .map((statKey) => DAMAGE_CALC_STAT_LABELS[statKey] ?? statKey)
+        .filter(Boolean)
+        .join('/');
+  const deltaText = `${delta > 0 ? '+' : ''}${Math.round(delta)}`;
+  const text = `${label} ${scope ? `${scope}${deltaText}` : deltaText}`;
+  const sourceName = String(source?.sourceName ?? '').trim();
+  return sourceName ? `${sourceName}[${text}]` : `${label}[${scope ? `${scope}${deltaText}` : deltaText}]`;
+}
+
+function buildSelfStatEffectText(statViewModel = {}) {
+  const seen = new Set();
+  const lines = [];
+  const rows = statViewModel?.attacker ?? {};
+  for (const row of Object.values(rows)) {
+    const delta = Number(row?.buffDelta ?? 0) - Number(row?.debuffDelta ?? 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      continue;
+    }
+    for (const source of row?.sources ?? []) {
+      const text = formatStatDeltaSourceText(source);
+      if (!text) {
+        continue;
+      }
+      const key = String(source?.id ?? text);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      lines.push(text);
+    }
+  }
+  return lines.join(' / ');
 }
 
 function buildEnemyStatEffectText(model, enemyKey) {
@@ -1734,7 +1746,7 @@ async function updateDamageCalculatorPane(pane) {
   updateDestructionHitSummary(pane, model, enemyKey);
 
   const attackerNoteEl = pane.querySelector('[data-role="damage-calc-attacker-note"]');
-  if (attackerNoteEl) attackerNoteEl.value = buildSelfStatEffectText(model);
+  if (attackerNoteEl) attackerNoteEl.value = buildSelfStatEffectText(statViewModel);
   const enemyNoteEl = pane.querySelector('[data-role="damage-calc-note"]');
   if (enemyNoteEl) enemyNoteEl.value = buildEnemyStatEffectText(model, enemyKey);
 
