@@ -785,6 +785,46 @@ function formatDamageCalculatorNumber(value, digits = 0) {
   return Number.isFinite(numeric) ? numeric.toLocaleString('ja-JP', { maximumFractionDigits: digits }) : '-';
 }
 
+function sumPositiveHitBreakdownField(rows, fieldName) {
+  if (!Array.isArray(rows)) {
+    return null;
+  }
+  let hasFiniteValue = false;
+  let total = 0;
+  for (const row of rows) {
+    const value = Number(row?.[fieldName]);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    hasFiniteValue = true;
+    total += Math.max(0, value);
+  }
+  return hasFiniteValue ? total : null;
+}
+
+function buildActualDamageSummaryHtml(action, enemyKey) {
+  const hitBreakdown = action?.destructionBreakdownByEnemy?.[enemyKey]?.hitBreakdown;
+  const breakdownDpDamage = sumPositiveHitBreakdownField(hitBreakdown, 'dpConsumed');
+  const breakdownHpDamage = sumPositiveHitBreakdownField(hitBreakdown, 'hpApplied');
+  const totalDpDamage = Number(action?.totalDpDamageByEnemy?.[enemyKey]);
+  const totalHpDamage = Number(action?.totalHpDamageByEnemy?.[enemyKey]);
+  const dpDamage = breakdownDpDamage !== null ? breakdownDpDamage : totalDpDamage;
+  const hpDamage = breakdownHpDamage !== null && breakdownHpDamage > 0 ? breakdownHpDamage : totalHpDamage;
+  const parts = [];
+  if (Number.isFinite(dpDamage)) {
+    parts.push(`<span>DP ${esc(formatDamageCalculatorNumber(dpDamage))}</span>`);
+  }
+  if (Number.isFinite(hpDamage)) {
+    parts.push(`<span>HP ${esc(formatDamageCalculatorNumber(hpDamage))}</span>`);
+  }
+  if (Number.isFinite(dpDamage) || Number.isFinite(hpDamage)) {
+    parts.push(`<span class="char-popup-damage-calc-actual-total">Total ${esc(formatDamageCalculatorNumber(
+      (Number.isFinite(dpDamage) ? dpDamage : 0) + (Number.isFinite(hpDamage) ? hpDamage : 0)
+    ))}</span>`);
+  }
+  return parts.length > 0 ? parts.join('<span class="char-popup-damage-calc-actual-separator"> / </span>') : '-';
+}
+
 function formatDamageCalculatorMultiplier(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? `${numeric.toFixed(2)}x` : '-';
@@ -848,7 +888,13 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
   );
   return (
     `<aside class="char-popup-damage-calc" data-role="damage-calc-pane" data-action-key="${esc(actionKey)}">` +
-    `<div class="char-popup-damage-calc-tabs" data-role="damage-calc-enemy-tabs">${buildDamageCalculatorTargetTabsHtml(targetBreakdowns)}</div>` +
+    `<div class="char-popup-damage-calc-tabs" data-role="damage-calc-enemy-tabs">` +
+    `<div class="char-popup-damage-calc-targets">${buildDamageCalculatorTargetTabsHtml(targetBreakdowns)}</div>` +
+    `<div class="char-popup-damage-calc-actual" data-role="damage-calc-actual-damage-wrap">` +
+    `<span>実ダメージ</span>` +
+    `<strong data-role="damage-calc-actual-damage">-</strong>` +
+    `</div>` +
+    `</div>` +
     `<div class="char-popup-damage-calc-summary" data-role="damage-calc-result">` +
     `<div class="char-popup-damage-calc-summary-row"><span>DP</span><strong data-role="damage-calc-dp-status">-</strong></div>` +
     `<div class="char-popup-enemy-gauge-wrap" data-role="damage-calc-dp-gauge"></div>` +
@@ -879,10 +925,6 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `<section class="char-popup-damage-calc-section">` +
     `<div class="char-popup-damage-calc-section-header">` +
     `<span class="char-popup-damage-calc-section-title">敵</span>` +
-    `<div class="char-popup-damage-calc-enemy-meta">` +
-    `<span data-role="damage-calc-enemy-name">-</span>` +
-    `<span>境界 <strong data-role="damage-calc-enemy-border">${DAMAGE_CALC_DEFAULT_ENEMY_BORDER}</strong></span>` +
-    `</div>` +
     `</div>` +
     `<div class="char-popup-stat-with-note">` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-enemy-stats">` +
@@ -1522,36 +1564,6 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
     summaryEl.replaceChildren();
     return;
   }
-  const contactHitCount = Number(breakdown.contactHitCount ?? breakdown.hitCount ?? model?.action?.skillHitCount ?? 0);
-  const calculationHitCount = Number(breakdown.calculationHitCount ?? breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
-  const baseHitCount = Number(breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
-  const funnelHitCount = Number(breakdown.funnelHitCount ?? model?.action?.skillFunnelHitBonus ?? 0);
-  const destructionFunnelHitCount = Number(breakdown.destructionFunnelHitCount ?? funnelHitCount);
-  const funnelMultiplier = Number(breakdown.funnelMultiplier);
-  const breakHitNumber = Number(breakdown.breakHitNumber);
-  const destructionHitCount = Number(breakdown.destructionHitCount);
-  const totalDestructionWeight = Number(breakdown.totalDestructionWeight);
-  const appliedDestructionWeight = Number(breakdown.appliedDestructionWeight);
-  const hitRatios = Array.isArray(breakdown.hitRatios) ? breakdown.hitRatios : [];
-  const parts = [
-    `接触hit ${Number.isFinite(contactHitCount) ? contactHitCount : '-'}`,
-    `計算hit ${Number.isFinite(calculationHitCount) ? calculationHitCount : '-'}`,
-    `base ${Number.isFinite(baseHitCount) ? baseHitCount : '-'}`,
-    `連撃 +${Number.isFinite(funnelHitCount) ? funnelHitCount : '-'}`,
-    `破壊率連撃 +${Number.isFinite(destructionFunnelHitCount) ? destructionFunnelHitCount : '-'}`,
-    `連撃倍率 ${Number.isFinite(funnelMultiplier) ? `x${funnelMultiplier.toFixed(2)}` : '-'}`,
-    `hit ratio [${hitRatios.map((ratio) => formatDamageCalculatorOptionalRatio(ratio)).join(',')}]`,
-    `Break hit ${Number.isFinite(breakHitNumber) ? breakHitNumber : '-'}`,
-    `HP適用 ${Number.isFinite(destructionHitCount) ? destructionHitCount : '-'}hit`,
-    `破壊率weight ${
-      Number.isFinite(appliedDestructionWeight) && Number.isFinite(totalDestructionWeight)
-        ? `${formatDamageCalculatorOptionalRatio(appliedDestructionWeight)}/${formatDamageCalculatorOptionalRatio(totalDestructionWeight)}`
-        : '-'
-    }`,
-    `DP ${formatDamageCalculatorOptionalNumber(breakdown.totalDpDamage)}`,
-    `HP ${formatDamageCalculatorOptionalNumber(breakdown.totalHpDamage)}`,
-    `破壊率 +${formatDamageCalculatorOptionalPercent(breakdown.appliedGainPercent)}`,
-  ];
   const rows = Array.isArray(breakdown.hitBreakdown) ? breakdown.hitBreakdown : [];
   const tableHtml = rows.length > 0
     ? '<table class="char-popup-destruction-hit-table"><thead><tr>' +
@@ -1575,14 +1587,12 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
       '</tbody></table>'
     : '';
   const detailsHtml = tableHtml
-    ? `<details class="char-popup-destruction-hit-details">` +
+    ? `<details class="char-popup-destruction-hit-details" open>` +
       `<summary>▶ hit 内訳詳細</summary>` +
       `<div class="char-popup-destruction-hit-table-wrapper">${tableHtml}</div>` +
       `</details>`
     : '';
-  summaryEl.innerHTML =
-    `<div class="char-popup-destruction-hit-parts">${esc(parts.join(' / '))}</div>` +
-    detailsHtml;
+  summaryEl.innerHTML = detailsHtml;
 }
 
 function formatStatDeltaSourceText(source = {}) {
@@ -1673,8 +1683,12 @@ async function updateDamageCalculatorPane(pane) {
   const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const statViewModel = buildDamageStatDeltaViewModel(model.damageContext, attackerInput, enemyAdapter);
   updateDamageCalculatorStatGrid(pane, statViewModel);
-  pane.querySelector('[data-role="damage-calc-enemy-name"]').textContent = enemyAdapter.enemyName;
-  pane.querySelector('[data-role="damage-calc-enemy-border"]').textContent = String(enemyAdapter.paramBorder);
+  const enemyNameEl = pane.querySelector('[data-role="damage-calc-enemy-name"]');
+  if (enemyNameEl) enemyNameEl.textContent = enemyAdapter.enemyName;
+  const actualDamageEl = pane.querySelector('[data-role="damage-calc-actual-damage"]');
+  if (actualDamageEl) actualDamageEl.innerHTML = buildActualDamageSummaryHtml(model.action, enemyKey);
+  const enemyBorderEl = pane.querySelector('[data-role="damage-calc-enemy-border"]');
+  if (enemyBorderEl) enemyBorderEl.textContent = String(enemyAdapter.paramBorder);
   const capSuffix = hasExplicitDestructionRateCap(model, enemyKey)
     ? ` / ${enemyAdapter.destructionRateCapPercent.toFixed(2)}%`
     : '';

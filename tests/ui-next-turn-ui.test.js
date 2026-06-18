@@ -4228,7 +4228,7 @@ test('char detail popup damage tab previews normal attack destruction from raw d
   }));
 
 test('char detail popup damage tab shows action-time enemy DP and HP from damage context', () =>
-  withDom(({ win }) => {
+  withDom(async ({ win }) => {
     const targetMember = {
       characterId: 'NNanase',
       characterName: '七瀬 七海',
@@ -4247,6 +4247,16 @@ test('char detail popup damage tab shows action-time enemy DP and HP from damage
           {
             actorCharacterId: 'NNanase',
             skillName: 'HP表示テスト',
+            totalDpDamageByEnemy: { 0: 55545.2 },
+            totalHpDamageByEnemy: { 0: 1000000000 },
+            destructionBreakdownByEnemy: {
+              0: {
+                hitBreakdown: [
+                  { dpConsumed: 5000.4, hpApplied: 400000000 },
+                  { dpConsumed: 7345, hpApplied: 700000000 },
+                ],
+              },
+            },
             damageContext: {
               actorCharacterId: 'NNanase',
               actorStyleId: 1000001,
@@ -4310,6 +4320,124 @@ test('char detail popup damage tab shows action-time enemy DP and HP from damage
     assert.equal(dpStatus?.textContent?.trim(), '12,345 / 67,891');
     const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
     assert.equal(hpStatus?.textContent?.trim(), '23,456 / 54,322');
+    const actualDamage = popup.querySelector('[data-role="damage-calc-actual-damage"]');
+    assert.equal(actualDamage?.textContent?.trim(), 'DP 12,345 / HP 1,100,000,000 / Total 1,100,012,345');
+    const actualDamageWrap = actualDamage
+      ?.closest('[data-role="damage-calc-enemy-tabs"]')
+      ?.querySelector('[data-role="damage-calc-actual-damage-wrap"]');
+    assert.equal(
+      actualDamageWrap?.textContent?.trim(),
+      '実ダメージDP 12,345 / HP 1,100,000,000 / Total 1,100,012,345'
+    );
+    assert.equal(
+      actualDamage?.querySelector('.char-popup-damage-calc-actual-total')?.textContent?.trim(),
+      'Total 1,100,012,345'
+    );
+    assert.equal(actualDamage?.closest('.char-popup-damage-calc-damage-row'), null);
+    assert.equal(
+      Array.from(popup.querySelectorAll('.char-popup-damage-calc-damage-row'))
+        .some((row) => row.textContent?.includes('実ダメージ')),
+      false
+    );
+    const enemyHeader = popup.querySelector(
+      '.char-popup-damage-calc-section:nth-of-type(2) .char-popup-damage-calc-section-header'
+    );
+    assert.equal(enemyHeader?.textContent?.trim(), '敵');
+    assert.equal(popup.querySelector('[data-role="damage-calc-enemy-name"]'), null);
+    assert.equal(popup.querySelector('[data-role="damage-calc-enemy-border"]'), null);
+    for (let attempt = 0; attempt < 20 && !popup.querySelector('.char-popup-destruction-hit-details'); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.equal(popup.querySelector('.char-popup-destruction-hit-parts'), null);
+    const hitDetails = popup.querySelector('.char-popup-destruction-hit-details');
+    assert.ok(hitDetails);
+    assert.equal(hitDetails.open, true);
+  }));
+
+test('char detail popup actual damage falls back to calculated HP damage when hit HP is zero', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: '討伐済みHP表示テスト',
+            totalDpDamageByEnemy: { 0: 0 },
+            totalHpDamageByEnemy: { 0: 20465232 },
+            destructionBreakdownByEnemy: {
+              0: {
+                hitBreakdown: [
+                  { dpConsumed: 0, hpApplied: 0 },
+                ],
+              },
+            },
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999102,
+              skillName: '討伐済みHP表示テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 100 },
+              destructionRateCapByEnemy: { 0: 300 },
+              enemyDpByEnemy: { 0: 0 },
+              remainingDpByEnemy: { 0: 0 },
+              enemyHpByEnemy: { 0: 1000000000 },
+              remainingHpByEnemy: { 0: 0 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
+          },
+        ],
+      },
+      { x: 200, y: 120, isCommitted: false }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const actualDamage = popup.querySelector('[data-role="damage-calc-actual-damage"]');
+    assert.equal(actualDamage?.textContent?.trim(), 'DP 0 / HP 20,465,232 / Total 20,465,232');
+    assert.equal(
+      actualDamage?.querySelector('.char-popup-damage-calc-actual-total')?.textContent?.trim(),
+      'Total 20,465,232'
+    );
   }));
 
 test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>

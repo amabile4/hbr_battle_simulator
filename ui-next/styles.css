@@ -2860,8 +2860,50 @@
 
 .char-popup-damage-calc-tabs {
   display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-targets {
+  display: flex;
+  min-width: 0;
+  flex: 1;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.char-popup-damage-calc-actual {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 12rem;
+  color: #94a3b8;
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.char-popup-damage-calc-actual strong {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 2px 6px;
+  color: #f8fafc;
+  font-size: 12px;
+}
+
+.char-popup-damage-calc-actual-separator {
+  color: #64748b;
+  font-size: 11px;
+}
+
+.char-popup-damage-calc-actual-total {
+  color: #facc15;
+  font-size: 14px;
+  font-weight: 900;
 }
 
 .char-popup-damage-calc-target {
@@ -3174,10 +3216,6 @@
 [data-role="destruction-hit-summary"] {
   color: #e2e8f0;
   font-size: 12px;
-}
-
-.char-popup-destruction-hit-parts {
-  line-height: 1.5;
 }
 
 .char-popup-destruction-hit-details {
