@@ -14,10 +14,10 @@
     "analyze:migration:all": "npm run analyze:migration && npm run analyze:migration:delta"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^1.0.4",
-    "@vitest/ui": "^1.0.4",
-    "jsdom": "^23.0.1",
+    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/ui": "^4.1.9",
+    "jsdom": "^28.1.0",
     "playwright": "^1.58.2",
-    "vitest": "^1.0.4"
+    "vitest": "^4.1.9"
   }
 }
