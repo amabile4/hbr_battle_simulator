@@ -23626,6 +23626,79 @@ for (const { weaponType, pursuedHitCount, skillId } of [
   });
 }
 
+const OD_GAUGE_GAIN_BONUS_PERCENT = 5;
+const NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE = 99400;
+const PURSUIT_OD_TEST_SKILL_ID_BASE = 99410;
+const PURSUIT_HIT_COUNT = 2;
+
+test('ODゲージ上昇量補正は通常攻撃3回には適用されず、合計22.5%となる', () => {
+  const normalAttackSkill = (id) => ({
+    id,
+    name: '通常攻撃',
+    label: `NormalAttackOdBonus${id}`,
+    hit_count: 1,
+    sp_cost: 0,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+  });
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 2
+      ? {
+          skills: [normalAttackSkill(NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + idx)],
+        }
+      : {
+          skills: [createProtectionSkill(NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: OD_GAUGE_GAIN_BONUS_PERCENT },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + 1, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + 2, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 22.5);
+});
+
+for (const { repeatCount, expectedOdGauge } of [
+  { repeatCount: 4, expectedOdGauge: 20 },
+  { repeatCount: 5, expectedOdGauge: 25 },
+]) {
+  test(`ODゲージ上昇量補正は2hit追撃${repeatCount}回には適用されず、合計${expectedOdGauge}%となる`, () => {
+    const pursuitSkillId = PURSUIT_OD_TEST_SKILL_ID_BASE + repeatCount;
+    const party = createSixMemberManualParty((idx) => ({
+      skills: [createProtectionSkill(pursuitSkillId + idx)],
+    }));
+    let state = createBattleStateFromParty(party, { enemyCount: 1 });
+    state.stageSetupEnchantEffects = [
+      { effectType: 'odGaugeGainBonusPercent', amount: OD_GAUGE_GAIN_BONUS_PERCENT },
+    ];
+
+    for (let index = 0; index < repeatCount; index += 1) {
+      const preview = previewTurn(state, {
+        0: {
+          characterId: 'M1',
+          skillId: pursuitSkillId,
+          targetEnemyIndex: 0,
+          pursuedHitCount: PURSUIT_HIT_COUNT,
+        },
+      });
+      ({ nextState: state } = commitTurn(state, preview));
+    }
+
+    assert.equal(state.turnState.odGauge, expectedOdGauge);
+  });
+}
+
+test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は通常攻撃3回のODゲージを23.61%にする');
+test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃4回のODゲージを20.96%にする');
+test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃5回のODゲージを26.2%にする');
+
 test('追撃は属性ベルト効果を受けない無属性扱いで、通常攻撃の hit のみが E-shield を減らす', () => {
   // 属性ベルト Fire + E-shield Fire 一致 → 通常攻撃の hit 数だけ E-shield が減る。
   // 追撃は無属性扱いで属性ベルトが乗らないため、pursuedHitCount は E-shield を減らさない。
