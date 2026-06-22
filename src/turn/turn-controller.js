@@ -5472,6 +5472,98 @@ function consumeEnemyDpGaugeForAction({
   };
 }
 
+// 追撃の破壊率計算は前衛行動と別に解決する。通常の追撃バフ非適用規則を維持しつつ、
+// calculateDestruction の通常攻撃・追撃専用の超越例外だけを追撃元へ適用する独立ブロック。
+function applyPursuitDestructionRateFromAction(state, actionEntry) {
+  const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+  const pursuitSourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
+  const targetIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
+    ? Number(actionEntry.pursuedTargetEnemyIndex)
+    : Number(actionEntry?.targetEnemyIndex ?? NaN);
+  if (pursuedHitCount <= 0 || !pursuitSourceCharacterId || !Number.isInteger(targetIndex)) {
+    return;
+  }
+
+  const pursuitActor = findMemberByCharacterId(state, pursuitSourceCharacterId);
+  const pursuitSkill = pursuitActor?.getSkill?.(Number(actionEntry?.pursuitSourceSkillId ?? 0));
+  if (
+    !pursuitActor ||
+    !pursuitSkill ||
+    !isEnemyAlive(state?.turnState, targetIndex) ||
+    isEnemyEShieldActive(getEnemyEShieldStateByTarget(state?.turnState, targetIndex)) ||
+    !hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK)
+  ) {
+    return;
+  }
+
+  const effectiveParts = resolveEffectiveSkillParts(pursuitSkill, state, pursuitActor);
+  const attackPart = findAttackPart({ parts: effectiveParts });
+  if (!attackPart) {
+    return;
+  }
+
+  const currentRatePercent = getEnemyDestructionRatePercent(state.turnState, targetIndex);
+  const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex, pursuitActor);
+  const rawDestructionMultiplier = Number(
+    state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? DEFAULT_ENEMY_D_RATE_RAW
+  );
+  const transcendenceBurstModifiers = resolveTranscendenceBurstModifiersForMember(state, pursuitActor);
+  const result = calculateDestruction(
+    {
+      attacker: {
+        styleId: Number(pursuitActor.styleId ?? 0),
+        statusEffects: normalizeDestructionUpStatusEffectsForCalculation(pursuitActor.statusEffects),
+        accessoryDestructionRateBonus: Number(pursuitActor?.blastPiercePercent ?? 0) / 100,
+        flatDestructionRateBonus: Number(pursuitActor?.chainDestructionRateBonus ?? 0),
+        transcendenceBurstDestructionRateGainBonusRate: Number(
+          transcendenceBurstModifiers.destructionRateGainBonusRate ?? 0
+        ),
+        resonanceDestructionRateBonus: 0,
+      },
+      defender: {
+        enemyId: null,
+        destructionRate: currentRatePercent / 100,
+        destructionLimit: capPercent / 100,
+        destructionMultiplier: rawDestructionMultiplier,
+        dp: 0,
+      },
+      skill: {
+        skillId: Number(pursuitSkill.skillId ?? pursuitSkill.id ?? 0),
+        name: String(pursuitSkill.name ?? '追撃'),
+        isPursuit: true,
+        spCostOverride: Number(pursuitSkill.spCost ?? pursuitSkill.sp_cost ?? 0),
+        baseHitCount: pursuedHitCount,
+        attackPart,
+        parts: effectiveParts,
+      },
+      hits: buildDestructionHitsForAction(pursuedHitCount, 0),
+      autoBreak: false,
+    },
+    DESTRUCTION_CALCULATION_DATA_FALLBACK
+  );
+  const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? currentRatePercent / 100) * 100);
+  if (!Number.isFinite(nextRatePercent) || nextRatePercent <= currentRatePercent) {
+    return;
+  }
+
+  if (!actionEntry.pursuitDestructionBreakdownByEnemy) {
+    actionEntry.pursuitDestructionBreakdownByEnemy = {};
+  }
+  actionEntry.pursuitDestructionBreakdownByEnemy[String(targetIndex)] = {
+    characterId: pursuitActor.characterId,
+    characterName: pursuitActor.characterName,
+    skillId: Number(pursuitSkill.skillId ?? pursuitSkill.id ?? 0),
+    skillName: String(pursuitSkill.name ?? '追撃'),
+    targetIndex,
+    rateBefore: currentRatePercent,
+    rateAfter: nextRatePercent,
+    appliedGainPercent: nextRatePercent - currentRatePercent,
+    hitCount: pursuedHitCount,
+    breakdown: result?.breakdown ?? null,
+  };
+  setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
+}
+
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
@@ -5528,6 +5620,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
 
     const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
     if (!hasDamagePartInParts(effectiveParts)) {
+      applyPursuitDestructionRateFromAction(state, actionEntry);
       continue;
     }
     const destructionAttackPart = findAttackPart({ parts: effectiveParts });
@@ -5879,6 +5972,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         );
       }
     }
+    applyPursuitDestructionRateFromAction(state, actionEntry);
   }
 
   // DP 残量をターン状態に永続化（ターンをまたいだ引き継ぎのため）

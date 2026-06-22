@@ -38,7 +38,7 @@ $$
 
 部分HP時の最新仮説は、実際に画面へ表示される damage hit の effective weight で按分する、というもの。スキル本体は `hits[].power_ratio`、Funnel は `funnelRate` を1追加hitぶんの weight として、`[base ratios..., funnelRate, funnelRate, ...]` の順にDPを削る。Break hitがHPへ突き抜けた場合は、そのhitの weight を満額加算対象に含める。
 
-通常攻撃は現時点の実機実測に基づき、別式として `d_rate / 100` を使用する。追撃は実機データ未確定のため既存式を維持する。
+通常攻撃は現時点の実機実測に基づき、別式として `d_rate / 100` を使用する。通常攻撃・追撃は通常の破壊率上昇バフを受けないが、超越ゲージ100%時の属性一致スタイルだけは、超越の破壊率上昇量ボーナスを適用する。
 
 ---
 
@@ -66,8 +66,8 @@ $$
 $$D_{\text{base}} = \frac{d\_rate}{100} \times (1.0 + \text{transcendenceBurstDestructionRateGainBonusRate})$$
 
 #### ② 追撃の場合
-追撃はブラスター補正やバフを受けません。
-$$D_{\text{base}} = dr \times 8.0 \times \frac{d\_rate}{100}$$
+追撃はブラスター補正や通常の破壊率上昇バフを受けません。超越ゲージ100%時の属性一致スタイルだけは、通常攻撃と同じく超越の破壊率上昇量ボーナスを適用します。
+$$D_{\text{base}} = dr \times \frac{d\_rate}{100} \times (1.0 + \text{transcendenceBurstDestructionRateGainBonusRate})$$
 
 #### ③ スキル攻撃の場合
 スキルの `dr` と敵 raw `d_rate` で基礎値を作り、破壊率上昇量ボーナスを一つの加算グループとして適用し、小数点以下4桁で切り捨てます。Blaster ロール固有の `+2.0` 補正、ヒット数スロープ、`baseHitCount / 8` 補正はゲーム仕様に存在しないため使用しません。

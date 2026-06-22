@@ -9,6 +9,19 @@ import {
 
 const RATIO_PERCENT_DENOMINATOR = 100;
 
+// 通常攻撃・追撃は通常の破壊率上昇バフを受けない。ただし、属性一致を呼び出し側で
+// 判定済みの超越ゲージ100%補正だけは、両方の行動種別へ適用する例外として独立させる。
+function resolveTranscendenceBurstActionDestructionMultiplier({
+  isNormalAttack,
+  isPursuit,
+  destructionRateGainBonusRate,
+}) {
+  if (!isNormalAttack && !isPursuit) {
+    return 1;
+  }
+  return 1 + destructionRateGainBonusRate;
+}
+
 /**
  * 破壊率（Destruction Rate）の計算およびヒットごとの累積シミュレーションを行う
  */
@@ -190,12 +203,15 @@ export function calculateDestruction(input, data) {
     flatDestructionBonus +
     accessoryBonus +
     resonanceBonus;
+  const transcendenceBurstActionMultiplier = resolveTranscendenceBurstActionDestructionMultiplier({
+    isNormalAttack,
+    isPursuit,
+    destructionRateGainBonusRate: transcendenceBurstDestructionRateGainBonusRate,
+  });
 
   let baseDestruction = 0.0;
-  if (isNormalAttack) {
-    baseDestruction = baseDestRate * (1.0 + transcendenceBurstDestructionRateGainBonusRate);
-  } else if (isPursuit) {
-    baseDestruction = baseDestRate;
+  if (isNormalAttack || isPursuit) {
+    baseDestruction = baseDestRate * transcendenceBurstActionMultiplier;
   } else {
     baseDestruction = Math.floor(baseDestRate * (1.0 + bonusSum) * 10000.0) / 10000.0;
   }
@@ -297,6 +313,7 @@ export function calculateDestruction(input, data) {
       accessoryBonus,
       flatDestructionBonus,
       transcendenceBurstDestructionRateGainBonusRate,
+      transcendenceBurstActionMultiplier,
       markDestructionRateGainBonusRate,
       bonusSum,
       destResist,

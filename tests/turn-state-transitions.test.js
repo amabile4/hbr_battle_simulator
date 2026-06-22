@@ -6132,6 +6132,53 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 591.0999999999999);
 });
 
+test('transcendence burst applies its destruction bonus to the matching-element pursuit source', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  const pursuitSource = state.party[3];
+  pursuitSource.elements = ['Ice'];
+  pursuitSource.skills = Object.freeze([
+    {
+      id: 15221,
+      skillId: 15221,
+      name: 'Ice Pursuit',
+      hitCount: 1,
+      sp_cost: 0,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } }],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 1 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 999 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 10 };
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: 'TC1',
+      skillId: 15000,
+      targetEnemyIndex: 0,
+      pursuedHitCount: 1,
+      pursuitSourceCharacterId: pursuitSource.characterId,
+      pursuitSourcePosition: pursuitSource.position,
+      pursuitSourceSkillId: 15221,
+    },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'TC1');
+
+  // 追撃基礎 +10% に、属性一致した超越バーストの +10% が掛かる。
+  assert.ok(Math.abs(nextState.turnState.enemyState.destructionRateByEnemy['0'] - 111) < 1e-9);
+  assert.ok(Math.abs(action.pursuitDestructionBreakdownByEnemy['0'].appliedGainPercent - 11) < 1e-9);
+  assert.equal(
+    action.pursuitDestructionBreakdownByEnemy['0'].breakdown.transcendenceBurstActionMultiplier,
+    1.1
+  );
+});
+
 test('transcendence burst destruction cap is actor-element gated and does not add to higher stored cap', () => {
   const createState = (characterId, elements, storedRate, storedCap) => {
     const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
