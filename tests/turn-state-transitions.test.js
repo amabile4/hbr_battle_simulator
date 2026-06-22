@@ -23630,6 +23630,38 @@ const OD_GAUGE_GAIN_BONUS_PERCENT = 5;
 const NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE = 99400;
 const PURSUIT_OD_TEST_SKILL_ID_BASE = 99410;
 const PURSUIT_HIT_COUNT = 2;
+const MIZUHARA_AINA_STYLE_ID = 1005601;
+const MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID = 46005601;
+const MIZUHARA_AINA_ATTACK_SKILL_ID = 46005602;
+const MIZUHARA_AINA_PURSUIT_SKILL_ID = 46005691;
+const MIZUHARA_AINA_MASTER_PASSIVE_SKILL_ID = 46515601;
+const MIZUHARA_AINA_DRIVE_PIERCE_PERCENT = 15;
+const PROTECTION_SKILL_ID = 46300004;
+const UNSCOPED_OD_RATE_UP_POWER = 0.5;
+
+function buildMizuharaAinaMasterPassiveParty(store, {
+  mizuharaPosition = 0,
+  skillSetsByPartyIndex = {},
+  drivePierceByPartyIndex = {},
+} = {}) {
+  const fillerStyleIds = getSixUsableStyleIds(store).filter((styleId) => styleId !== MIZUHARA_AINA_STYLE_ID);
+  const styleIds = [...fillerStyleIds];
+  styleIds.splice(mizuharaPosition, 0, MIZUHARA_AINA_STYLE_ID);
+  styleIds.length = 6;
+  const mizuharaSkillIds = [
+    ...(skillSetsByPartyIndex[mizuharaPosition] ?? []),
+    MIZUHARA_AINA_MASTER_PASSIVE_SKILL_ID,
+  ];
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    drivePierceByPartyIndex,
+    skillSetsByPartyIndex: {
+      ...skillSetsByPartyIndex,
+      [mizuharaPosition]: mizuharaSkillIds,
+    },
+  });
+}
 
 test('ODゲージ上昇量補正は通常攻撃3回には適用されず、合計22.5%となる', () => {
   const normalAttackSkill = (id) => ({
@@ -23695,9 +23727,131 @@ for (const { repeatCount, expectedOdGauge } of [
   });
 }
 
-test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は通常攻撃3回のODゲージを23.61%にする');
-test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃4回のODゲージを20.96%にする');
-test.todo('瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃5回のODゲージを26.2%にする');
+test('瑞原あいなのマスターパッシブ「母の灯を継いで」は通常攻撃3回のODゲージを23.61%にする', () => {
+  const store = getStore();
+  let state = createBattleStateFromParty(
+    buildMizuharaAinaMasterPassiveParty(store, {
+      skillSetsByPartyIndex: { 0: [MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID] },
+    }),
+    { enemyCount: 1 }
+  );
+
+  for (let turn = 0; turn < 3; turn += 1) {
+    applyPassiveTiming(state, 'OnPlayerTurnStart');
+    const actor = state.party[0];
+    const preview = previewTurn(state, {
+      0: {
+        characterId: actor.characterId,
+        skillId: MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID,
+        targetEnemyIndex: 0,
+      },
+    });
+    ({ nextState: state } = commitTurn(state, preview));
+  }
+
+  assert.equal(state.turnState.odGauge, 23.61);
+});
+
+for (const { repeatCount, expectedOdGauge } of [
+  { repeatCount: 4, expectedOdGauge: 20.96 },
+  { repeatCount: 5, expectedOdGauge: 26.2 },
+]) {
+  test(`瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃${repeatCount}回のODゲージを${expectedOdGauge}%にする`, () => {
+    const store = getStore();
+    let state = createBattleStateFromParty(
+      buildMizuharaAinaMasterPassiveParty(store, {
+        mizuharaPosition: 3,
+        skillSetsByPartyIndex: {
+          0: [PROTECTION_SKILL_ID],
+          3: [MIZUHARA_AINA_PURSUIT_SKILL_ID],
+        },
+      }),
+      { enemyCount: 1 }
+    );
+
+    for (let turn = 0; turn < repeatCount; turn += 1) {
+      applyPassiveTiming(state, 'OnPlayerTurnStart');
+      const pursuitSource = state.party[3];
+      const actor = state.party[0];
+      const preview = previewTurn(state, {
+        0: {
+          characterId: actor.characterId,
+          skillId: PROTECTION_SKILL_ID,
+          targetEnemyIndex: 0,
+          pursuedHitCount: PURSUIT_HIT_COUNT,
+          pursuitSourceCharacterId: pursuitSource.characterId,
+          pursuitSourcePosition: pursuitSource.position,
+          pursuitSourceSkillId: MIZUHARA_AINA_PURSUIT_SKILL_ID,
+        },
+      });
+      ({ nextState: state } = commitTurn(state, preview));
+    }
+
+    assert.equal(state.turnState.odGauge, expectedOdGauge);
+  });
+}
+
+test('瑞原あいなのOD上昇量はスキルでドライブピアス補正と固定5%を加算する', () => {
+  const store = getStore();
+  let state = createBattleStateFromParty(
+    buildMizuharaAinaMasterPassiveParty(store, {
+      drivePierceByPartyIndex: { 0: MIZUHARA_AINA_DRIVE_PIERCE_PERCENT },
+      skillSetsByPartyIndex: { 0: [MIZUHARA_AINA_ATTACK_SKILL_ID] },
+    }),
+    { enemyCount: 1 }
+  );
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const actor = state.party[0];
+  const preview = previewTurn(state, {
+    0: {
+      characterId: actor.characterId,
+      skillId: MIZUHARA_AINA_ATTACK_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+  });
+  ({ nextState: state } = commitTurn(state, preview));
+
+  // 1hit のドライブピアス +15% は +5%、母の灯を継いでの固定 +5% と加算される。
+  assert.equal(state.turnState.odGauge, 2.75);
+});
+
+test('scope指定のないOverDriveRateUpは通常攻撃・追撃のOD上昇量に影響しない', () => {
+  const pursuitSkillId = PURSUIT_OD_TEST_SKILL_ID_BASE + 20;
+  const normalAttackSkill = {
+    id: pursuitSkillId,
+    name: '通常攻撃',
+    label: 'UnscopedOverDriveRateUpNormalAttack',
+    hit_count: 1,
+    sp_cost: 0,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+  };
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [idx === 0 ? normalAttackSkill : createProtectionSkill(pursuitSkillId + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.party[0].addStatusEffect({
+    statusType: 'OverDriveRateUp',
+    power: UNSCOPED_OD_RATE_UP_POWER,
+    limitType: 'None',
+    exitCond: 'Eternal',
+    remaining: 0,
+  });
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: pursuitSkillId,
+      targetEnemyIndex: 0,
+      pursuedHitCount: PURSUIT_HIT_COUNT,
+      pursuitSourceCharacterId: state.party[0].characterId,
+    },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃 7.5% + scope なしOverDriveRateUpを持つ追撃 2hit × 2.5% = 12.5%
+  assert.equal(nextState.turnState.odGauge, 12.5);
+});
 
 test('追撃は属性ベルト効果を受けない無属性扱いで、通常攻撃の hit のみが E-shield を減らす', () => {
   // 属性ベルト Fire + E-shield Fire 一致 → 通常攻撃の hit 数だけ E-shield が減る。

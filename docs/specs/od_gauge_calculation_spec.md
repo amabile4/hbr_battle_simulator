@@ -65,9 +65,9 @@ gain_all = trunc2(per_hit * (h_od * N))
 ## 瑞原あいなマスターパッシブ「母の灯を継いで」のOD補正
 
 `母の灯を継いで`（`46515601`）は、自身の ODゲージ上昇量を固定で `+5%` する。
-実機では通常攻撃・追撃にも有効であるため、データ上の `OverDriveRateUp` だけから導けない適用範囲を、この固有スキルの特例として扱う。
+実機では通常攻撃・追撃にも有効であるため、`skill_rule_overrides.json` の `odGaugeGainScopes` で `skill` / `normalAttack` / `pursuit` を明示する。エンジンはスキルID・キャラクターIDを判定せず、このscopeメタデータを持つ有効な `OverDriveRateUp` 状態だけを行動種別ごとに解決する。
 
-> 実装状況（2026-06-22）: 本節は実機挙動に基づく目標仕様として先行記載している。シミュレーターの通常攻撃・追撃経路への配線は未実装で、対応する回帰テストは `TODO`。
+> 実装状況（2026-06-22）: 実装済み。scope未指定の `OverDriveRateUp` は `skill` のみへ適用し、scopeを明示した状態だけが通常攻撃・追撃にも適用される。
 
 - **対象**: パッシブを所持する瑞原あいなのスキル攻撃、通常攻撃、および瑞原あいなが追撃元となる追撃。
 - **補正枠**: ODピアス由来の補正率と加算する。同じ行動に既存のドライブピアス補正率がある場合、`ドライブピアス補正率 + 5%` を使う。
@@ -78,7 +78,7 @@ gain_all = trunc2(per_hit * (h_od * N))
 - **小数処理**: 既存どおり各 hit / 各アクションで `trunc2` を行う。
 
 ```
-masterly_od_bonus_percent = actor_or_pursuit_source_is_AMizuhara_with_masterly ? 5 : 0
+masterly_od_bonus_percent = active OverDriveRateUp with matching scope ? 5 : 0
 combined_od_bonus_percent = existing_drive_pierce_bonus_percent + masterly_od_bonus_percent
 
 // 通常攻撃（瑞原）

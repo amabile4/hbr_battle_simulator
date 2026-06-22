@@ -41,5 +41,20 @@
       }
     ],
     "notes": "Upstream data inconsistency: DownTurn branch (46005617) should consume SP0."
+  },
+  {
+    "id": 46515601,
+    "label": "AMizuharaMasterlyPassiveSkill01",
+    "name": "母の灯を継いで",
+    "parts": [
+      {
+        "odGaugeGainScopes": [
+          "skill",
+          "normalAttack",
+          "pursuit"
+        ]
+      }
+    ],
+    "notes": "Game behavior applies this OverDriveRateUp to normal attacks and pursuits although the upstream data does not express those scopes."
   }
 ]

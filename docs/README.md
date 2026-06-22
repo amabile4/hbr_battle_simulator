@@ -143,7 +143,7 @@ docs/
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
 | [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール、実装者自身によるテスト責務 | 2026-03-15 |
-| [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（通常攻撃 `7.5%` 固定、od_rate の1hit単位切り捨て・共鳴OD重複防止・Stage Setup `ODゲージ上昇量（%）` 任意値の `ODピアス` 同枠加算、瑞原あいな「母の灯を継いで」の通常攻撃・追撃への固定 `+5%` 特例の目標仕様を追記） | 2026-06-22 |
+| [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（通常攻撃 `7.5%` 固定、od_rate の1hit単位切り捨て・共鳴OD重複防止・Stage Setup `ODゲージ上昇量（%）` 任意値の `ODピアス` 同枠加算、瑞原あいな「母の灯を継いで」のscope付き固定 `+5%` を通常攻撃・追撃まで実装済み） | 2026-06-22 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 | [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
 | [specs/ui_next_game_rules_index.md](specs/ui_next_game_rules_index.md) | UI Next 旧実装参照インデックス：旧UIファイル構造・spec要素対応表・エンジン層ゲームルール辞書（A〜E カテゴリ） | 2026-03-16 |

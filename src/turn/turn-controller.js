@@ -226,6 +226,7 @@ const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   DefenseUp: 'DefenseUp',
   CriticalRateUp: 'CriticalRateUp',
   CriticalDamageUp: 'CriticalDamageUp',
+  OverDriveRateUp: 'OverDriveRateUp',
 });
 const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
   new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
@@ -9167,6 +9168,35 @@ function resolveBabiedOdGaugeGainBonusPercent(actionEntry) {
   );
 }
 
+const OD_GAUGE_GAIN_SCOPES = Object.freeze(new Set(['skill', 'normalAttack', 'pursuit']));
+
+function normalizeOdGaugeGainScopes(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.map((scope) => String(scope ?? '').trim()).filter((scope) => OD_GAUGE_GAIN_SCOPES.has(scope)))];
+}
+
+function resolveOdGaugeGainBonusPercent(state, member, scope) {
+  if (!state || !member || !OD_GAUGE_GAIN_SCOPES.has(scope)) {
+    return 0;
+  }
+  const effects = typeof member.getStatusEffectsByType === 'function'
+    ? member.getStatusEffectsByType('OverDriveRateUp', { activeOnly: true })
+    : [];
+  return truncateToTwoDecimals(
+    effects.reduce((sum, effect) => {
+      const scopes = normalizeOdGaugeGainScopes(effect?.metadata?.odGaugeGainScopes);
+      const appliesToScope = scopes.length === 0 ? scope === 'skill' : scopes.includes(scope);
+      if (!appliesToScope) {
+        return sum;
+      }
+      const rate = Number(effect?.power ?? 0) * 100;
+      return Number.isFinite(rate) ? sum + rate : sum;
+    }, 0)
+  );
+}
+
 function isFrontlinePosition(position) {
   return Number.isInteger(position) && position >= 0 && position <= 2;
 }
@@ -9418,7 +9448,7 @@ function computeOverDrivePointUpGainPercent(
     state,
     baseHitCount,
     member?.drivePiercePercent ?? 0
-  );
+  ) + resolveOdGaugeGainBonusPercent(state, member, 'skill');
   const driveMultiplier = 1 + driveBonusPercent / 100;
 
   let total = 0;
@@ -9511,12 +9541,15 @@ function computeOdGaugeGainPercentBySkill(
   let attackGain = 0;
   if (hasDamage && targetEnemyIndexes.length > 0) {
     if (isNormalAttackSkill(skill)) {
+      const bonusPercent = resolveOdGaugeGainBonusPercent(state, member, 'normalAttack');
+      const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
         targetEnemyIndexes.reduce((sum, targetEnemyIndex) => {
           const perHitGain = truncateToTwoDecimals(
             OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state?.turnState, targetEnemyIndex)
           );
-          return sum + truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+          const baseGain = truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+          return sum + truncateToTwoDecimals(baseGain * multiplier);
         }, 0)
       );
     } else {
@@ -9525,7 +9558,9 @@ function computeOdGaugeGainPercentBySkill(
           state,
           baseHitCount,
           member?.drivePiercePercent ?? 0
-        ) + resolveBabiedOdGaugeGainBonusPercent(actionEntry)
+        ) +
+          resolveBabiedOdGaugeGainBonusPercent(actionEntry) +
+          resolveOdGaugeGainBonusPercent(state, member, 'skill')
       );
       const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
@@ -9657,10 +9692,14 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     const pursuedTargetEnemyIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
       ? Number(actionEntry.pursuedTargetEnemyIndex)
       : (Number.isFinite(Number(actionEntry?.targetEnemyIndex)) ? Number(actionEntry.targetEnemyIndex) : null);
+    const pursuitSourceMember = findMemberByCharacterId(state, actionEntry?.pursuitSourceCharacterId);
+    const pursuitMultiplier = 1 + resolveOdGaugeGainBonusPercent(state, pursuitSourceMember, 'pursuit') / 100;
     const pursuitPerHitGain =
       Number.isInteger(pursuedTargetEnemyIndex) && isEnemyAlive(state?.turnState, pursuedTargetEnemyIndex)
         ? truncateToTwoDecimals(
-            OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state.turnState, pursuedTargetEnemyIndex)
+            OD_GAUGE_PER_HIT_PERCENT *
+              pursuitMultiplier *
+              resolveEnemyOdRateMultiplier(state.turnState, pursuedTargetEnemyIndex)
           )
         : 0;
     const pursuitOdGain =
@@ -10365,11 +10404,12 @@ function addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart 
     sourceCharacterId: String(actor?.characterId ?? ''),
     sourceCharacterName: String(actor?.characterName ?? ''),
     sourceSkillDesc: String(skill?.desc ?? ''),
-    metadata: {
-      activeBuffStatus: true,
-      effectName,
-      includeNormalAttack: skillType === 'AttackUpIncludeNormal',
-      onlyGroupKey: `${statusType}|${effectName}|${normalizeStatusEffectElements(part?.elements).join(',')}`,
+      metadata: {
+        activeBuffStatus: true,
+        effectName,
+        includeNormalAttack: skillType === 'AttackUpIncludeNormal',
+        odGaugeGainScopes: normalizeOdGaugeGainScopes(part?.odGaugeGainScopes),
+        onlyGroupKey: `${statusType}|${effectName}|${normalizeStatusEffectElements(part?.elements).join(',')}`,
       targetType: String(part?.target_type ?? ''),
       sourceSkillType: skillType,
     },
@@ -13630,6 +13670,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'EpLimitOverwrite' &&
           skillType !== 'TokenSet' &&
           skillType !== 'OverDrivePointUp' &&
+          skillType !== 'OverDriveRateUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
           skillType !== 'Funnel' &&
@@ -13874,6 +13915,33 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           );
           matched = true;
           totalOdGaugeDelta += Number(amount);
+          continue;
+        }
+
+        if (skillType === 'OverDriveRateUp') {
+          const targets = resolvePassiveTargetMembers(
+            state,
+            member,
+            part,
+            options.targetCharacterId ?? null
+          );
+          for (const target of targets) {
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const added = addActiveBuffStatusEffect(state, member, target, passive, part);
+            if (!added) {
+              continue;
+            }
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              effectId: Number(added.effectId ?? 0),
+              statusType: String(added.statusType ?? skillType),
+              exitCond: String(added.exitCond ?? ''),
+              remaining: Number(added.remaining ?? 0),
+            });
+            matched = true;
+          }
           continue;
         }
 
