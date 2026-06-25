@@ -3070,12 +3070,12 @@ test('御祈祷オーバーヒート resolves SpecialStatusCountByType(146) in o
 
   let preview = previewActorSkill(state, skillId);
   assert.equal(preview.actions[0].spCost, 8);
-  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 3);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 18);
 
   state.party[0].applySpecialStatus(146, 3, 'PlayerTurnEnd', {});
   preview = previewActorSkill(state, skillId);
   assert.equal(preview.actions[0].spCost, 16);
-  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 18);
+  assert.equal(preview.actions[0]._effectiveSkillSnapshot.parts[0].multipliers.dr, 3);
 });
 
 test('にゃんこ大魔法 halves SP cost when enemy DefenseDown is active in real data', () => {
