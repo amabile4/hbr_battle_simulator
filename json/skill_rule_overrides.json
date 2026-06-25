@@ -26,6 +26,43 @@
     "notes": "Source data does not explicitly encode the partial extra-turn restriction. Remove when upstream data has dedicated flags."
   },
   {
+    "id": 46005511,
+    "label": "ADateSkill53",
+    "name": "御祈祷オーバーヒート",
+    "parts": [
+      {
+        "cond": "CountBC(IsPlayer() == 1 && IsCharacter(ADate) == 1 && SpecialStatusCountByType(146) < 1) > 0",
+        "strval": [
+          {
+            "id": 46005512,
+            "label": "ADateSkill53a",
+            "desc": "ネガティブじゃない",
+            "sp_cost": 8,
+            "parts": [
+              {
+                "skill_type": "AttackSkill",
+                "multipliers": { "dp": 1.5, "hp": 1.0, "dr": 18.0 }
+              }
+            ]
+          },
+          {
+            "id": 46005513,
+            "label": "ADateSkill53b",
+            "desc": "ネガティブ中",
+            "sp_cost": 16,
+            "parts": [
+              {
+                "skill_type": "AttackSkill",
+                "multipliers": { "dp": 1.5, "hp": 1.0, "dr": 3.0 }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "notes": "Upstream data inconsistency: cond (ネガティブ>0) と desc「ネガティブ状態でないときSP半減かつ破壊率特大」および strval の SP/破壊率が逆転していた。strValue1=true はネガティブじゃない(sp8, dr18)、strValue2=false はネガティブ中(sp16, dr3) となるよう cond を < 1 に正しく反転して説明文と整合させた。"
+  },
+  {
     "id": 46005616,
     "label": "AMizuharaSkill54",
     "name": "レインボーミラクルスライダー",
@@ -41,5 +78,20 @@
       }
     ],
     "notes": "Upstream data inconsistency: DownTurn branch (46005617) should consume SP0."
+  },
+  {
+    "id": 46515601,
+    "label": "AMizuharaMasterlyPassiveSkill01",
+    "name": "母の灯を継いで",
+    "parts": [
+      {
+        "odGaugeGainScopes": [
+          "skill",
+          "normalAttack",
+          "pursuit"
+        ]
+      }
+    ],
+    "notes": "Game behavior applies this OverDriveRateUp to normal attacks and pursuits although the upstream data does not express those scopes."
   }
 ]
