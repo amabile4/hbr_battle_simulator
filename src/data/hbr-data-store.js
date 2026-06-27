@@ -9,7 +9,11 @@ import {
   isNormalAttackSkill as isNormalAttackSkillClassifier,
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
 } from '../domain/skill-classifiers.js';
-import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
+import {
+  DEFAULT_INITIAL_SP,
+  buildMarkEffectsFromDefineValues,
+  buildHighBoostDefaultsFromDefineValues,
+} from '../config/battle-defaults.js';
 import {
   resolveSupportPassiveEntry,
   buildSupportPassive,
@@ -445,6 +449,12 @@ export class HbrDataStore {
     this.supportSkillsByLabel = new Map(
       this.supportSkills.map((g) => [String(g.label ?? ''), g])
     );
+
+    this.defineValues = payload.defineValues && typeof payload.defineValues === 'object'
+      ? payload.defineValues
+      : {};
+    this.markEffectsConfig = buildMarkEffectsFromDefineValues(this.defineValues);
+    this.highBoostDefaults = buildHighBoostDefaultsFromDefineValues(this.defineValues);
   }
 
   buildCharacterSortMetaByLabel(characters) {
@@ -513,6 +523,7 @@ export class HbrDataStore {
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       enemyEShieldOverrides: readJsonOrFallback(resolve(dir, 'enemy_eshield_overrides.json'), []),
       supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
+      defineValues: readJsonOrFallback(resolve(dir, 'define_values.json'), {}),
     });
   }
 
@@ -533,6 +544,7 @@ export class HbrDataStore {
       enemyEShieldOverrides: payload.enemyEShieldOverrides ?? [],
       skillAvailability: payload.skillAvailability ?? {},
       supportSkills: payload.supportSkills ?? [],
+      defineValues: payload.defineValues ?? {},
     });
   }
 

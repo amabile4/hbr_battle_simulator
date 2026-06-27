@@ -4735,7 +4735,7 @@ function resolveIntrinsicMarkEnabledElementsFromParty(party = []) {
   return enabledElements;
 }
 
-function resolveIntrinsicMarkModifiersForMember(member) {
+function resolveIntrinsicMarkModifiersForMember(member, markEffectsConfig = INTRINSIC_MARK_EFFECTS_BY_ELEMENT) {
   if (!member) {
     return {
       attackUpRate: 0,
@@ -4747,6 +4747,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
     };
   }
 
+  const effectiveMarkConfig = markEffectsConfig ?? INTRINSIC_MARK_EFFECTS_BY_ELEMENT;
   let attackUpRate = 0;
   let damageTakenDownRate = 0;
   let destructionRateGainBonusRate = 0;
@@ -4755,7 +4756,7 @@ function resolveIntrinsicMarkModifiersForMember(member) {
   const matchedElements = [];
 
   for (const element of member.elements ?? []) {
-    const config = INTRINSIC_MARK_EFFECTS_BY_ELEMENT[String(element ?? '').trim()];
+    const config = effectiveMarkConfig[String(element ?? '').trim()];
     if (!config) {
       continue;
     }
@@ -4791,15 +4792,16 @@ function resolveIntrinsicMarkModifiersForMember(member) {
   };
 }
 
-function applyIntrinsicMarkTurnStartRecovery(party) {
+function applyIntrinsicMarkTurnStartRecovery(party, markEffectsConfig = null) {
+  const effectiveMarkConfig = markEffectsConfig ?? INTRINSIC_MARK_EFFECTS_BY_ELEMENT;
   const recoveryEvents = [];
 
   for (const member of party ?? []) {
     if (!member?.isFront()) {
       continue;
     }
-    for (const { element, level } of resolveIntrinsicMarkModifiersForMember(member).matchedElements) {
-      const config = INTRINSIC_MARK_EFFECTS_BY_ELEMENT[String(element ?? '').trim()];
+    for (const { element, level } of resolveIntrinsicMarkModifiersForMember(member, effectiveMarkConfig).matchedElements) {
+      const config = effectiveMarkConfig[String(element ?? '').trim()];
       const amount = Number(config?.extraFrontSpAtTurnStartAtLevel6 ?? 0);
       if (level < 6 || !Number.isFinite(amount) || amount === 0) {
         continue;
@@ -10719,7 +10721,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     member,
     member.dpState
   );
-  const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member);
+  const intrinsicMarkModifiers = resolveIntrinsicMarkModifiersForMember(member, state?.gameConfig?.markEffectsConfig);
   const activeBuffStatusModifiers = resolveActiveBuffStatusModifiersForAction(
     state,
     member,
@@ -12563,6 +12565,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'HighBoost') {
+          const hbCfg = state?.gameConfig?.highBoostDefaults;
           const targetCharacterIds = resolveSupportTargetCharacterIds(
             state,
             member,
@@ -12582,7 +12585,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               limitType: 'Only',
               exitCond: 'Eternal',
               remaining: 0,
-              power: HIGH_BOOST_SKILL_ATK_RATE,
+              power: hbCfg?.skillAtkRate ?? HIGH_BOOST_SKILL_ATK_RATE,
               sourceType: 'passive',
               sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
               sourceSkillLabel: String(passive?.label ?? passive?.name ?? ''),
@@ -12590,11 +12593,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               metadata: {
                 onlyGroupKey: HIGH_BOOST_ONLY_GROUP_KEY,
                 effectName: HIGH_BOOST_STATUS_TYPE,
-                spCostIncrease: HIGH_BOOST_SP_COST_INCREASE,
-                skillAtkRate: HIGH_BOOST_SKILL_ATK_RATE,
-                attackBuffMultiplier: HIGH_BOOST_ATTACK_BUFF_MULTIPLIER,
-                debuffMultiplier: HIGH_BOOST_DEBUFF_MULTIPLIER,
-                dpHealMultiplier: HIGH_BOOST_DP_HEAL_MULTIPLIER,
+                spCostIncrease: hbCfg?.spCostIncrease ?? HIGH_BOOST_SP_COST_INCREASE,
+                skillAtkRate: hbCfg?.skillAtkRate ?? HIGH_BOOST_SKILL_ATK_RATE,
+                attackBuffMultiplier: hbCfg?.attackBuffMultiplier ?? HIGH_BOOST_ATTACK_BUFF_MULTIPLIER,
+                debuffMultiplier: hbCfg?.debuffMultiplier ?? HIGH_BOOST_DEBUFF_MULTIPLIER,
+                dpHealMultiplier: hbCfg?.dpHealMultiplier ?? HIGH_BOOST_DP_HEAL_MULTIPLIER,
                 targetType: String(part?.target_type ?? ''),
               },
             });
@@ -13545,7 +13548,7 @@ function applyFieldStateFromActions(state, previewRecord) {
 function applyRecoveryPipeline(
   party,
   turnState,
-  { skipTurnStartRecovery = false, stageSetupTurnly = null, stageSetupEnchantEffects = null } = {}
+  { skipTurnStartRecovery = false, stageSetupTurnly = null, stageSetupEnchantEffects = null, markEffectsConfig = null } = {}
 ) {
   // extra turn のコミット時（T1EX→T2遷移）は skipTurnStartRecovery=false で呼ばれるため
   // T2のターン開始回復・OnEveryTurnを正常に計算する。
@@ -13582,7 +13585,7 @@ function applyRecoveryPipeline(
       }
     }
 
-    const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party);
+    const intrinsicMarkRecoveryEvents = applyIntrinsicMarkTurnStartRecovery(party, markEffectsConfig);
     if (intrinsicMarkRecoveryEvents.length > 0) {
       recoveryEvents.push(...intrinsicMarkRecoveryEvents);
     }
@@ -13805,9 +13808,9 @@ function computeNextTurnState(current, grantedExtraCharacterIds = [], options = 
   return next;
 }
 
-export function createBattleStateFromParty(party, turnState) {
+export function createBattleStateFromParty(party, turnState, gameConfig = null) {
   const members = Array.isArray(party) ? party : party.members;
-  const next = createBattleState(members, turnState);
+  const next = createBattleState(members, turnState, gameConfig);
   initializeIntrinsicMarkStatesFromParty(next.party);
   if (!next.turnState.transcendence) {
     next.turnState.transcendence = buildInitialTranscendenceStateFromParty(next.party);
@@ -14161,6 +14164,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     skipTurnStartRecovery: !nextTurnIndexAdvances,
     stageSetupTurnly: state.stageSetupTurnly,
     stageSetupEnchantEffects: state.stageSetupEnchantEffects,
+    markEffectsConfig: state.gameConfig?.markEffectsConfig,
   });
   const recoveryEvents = [...skillSpEvents, ...recovery.spEvents, ...spPassiveEvents];
   const epEvents = [...epSkillEvents, ...recovery.epEvents];
@@ -14565,7 +14569,7 @@ export function applyInitialPassiveState(state) {
   const battleStartResult = applyPassiveTimingInternal(state, BATTLE_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [...battleStartResult.passiveEvents];
   // ─── ② T1 ターン開始 ───
-  applyIntrinsicMarkTurnStartRecovery(state.party);
+  applyIntrinsicMarkTurnStartRecovery(state.party, state.gameConfig?.markEffectsConfig);
   const turnStartResult = applyPassiveTimingInternal(state, TURN_START_PASSIVE_TIMINGS);
   state.turnState.passiveEventsLastApplied = [
     ...state.turnState.passiveEventsLastApplied,

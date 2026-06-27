@@ -399,7 +399,10 @@ export function createInitializedBattleSnapshot({
     territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
   };
 
-  const state = createBattleStateFromParty(party, initialTurnState);
+  const state = createBattleStateFromParty(party, initialTurnState, {
+    markEffectsConfig: dataStore?.markEffectsConfig ?? null,
+    highBoostDefaults: dataStore?.highBoostDefaults ?? null,
+  });
   applyInitialPassiveState(state);
 
   return {
