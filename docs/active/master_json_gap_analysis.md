@@ -1,6 +1,6 @@
 # master_json ギャップ分析と回収タスク一覧
 
-> **ステータス**: 🟢 進行中 | 📅 作成: 2026-06-27
+> **ステータス**: ✅ 完了 | 📅 作成: 2026-06-27 | 📅 完了: 2026-06-27
 >
 > **調査経緯**: シミュレーターが参照する `json/`（`hbr_analysis` の view 変換出力）と
 > `golden/master_json/` の集合A（キャラ・カード・スキル・能力）を突き合わせ、
@@ -73,9 +73,9 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
 
 | ハードコード箇所 | 現在値 | master_json 側での確認状況 | 優先度 |
 |---|---|---|---|
-| `INTRINSIC_MARK_EFFECTS_BY_ELEMENT`<br>(`src/config/battle-defaults.js:17-58`) | Fire/Ice 等: 0.3/0.1/0.3/0.3/0.3 | MasterAbilityEffect に `abilityType` 23種あり。<br>印関連エントリの value1/value2 を要確認 | ★★ |
-| `HIGH_BOOST_SKILL_ATK_RATE = 1.8`<br>(`src/turn/turn-controller.js:85`) | 1.8 | passives.json の metadata で一部対応済み<br>（line 1090-1097）だが不完全 | ★★ |
-| `HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2` | 1.2 | 同上 | ★★ |
+| `INTRINSIC_MARK_EFFECTS_BY_ELEMENT`<br>(`src/config/battle-defaults.js:17-58`) | Fire/Ice 等: 0.3/0.1/0.3/0.3/0.3 | ✅ **調査完了（2026-06-27）**: MasterAbilityEffect の印関連エントリはすべて value1=value2=0。master_json に実効値なし → ゲーム側固定定数で確定。対応不要 | ★★ |
+| `HIGH_BOOST_SKILL_ATK_RATE = 1.8`<br>(`src/turn/turn-controller.js:85`) | 1.8 | ✅ **調査完了（2026-06-27）**: MasterPassiveSkill に HIGH_BOOST 倍率データなし（WaveBattle stage rule のみ1件）。line 1090-1097 の `effect?.metadata?.* ?? HARDCODED` フォールバックが正しい実装で追加配線不要 | ★★ |
+| `HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2` | 1.2 | ✅ 同上（HIGH_BOOST_SKILL_ATK_RATE と同結論） | ★★ |
 | `TALISMAN_PENALTY_PER_LEVEL = 10`<br>(`src/turn/turn-controller.js:67`) | 10（1レベルあたり%） | MasterSpecialStatus 等を要確認 | ★ |
 | `DISASTER_PENALTY_PER_LEVEL = 7`<br>(`src/turn/turn-controller.js:69`) | 7（1レベルあたり%） | 同上 | ★ |
 | `OD_GAUGE_PER_HIT_PERCENT = 2.5`<br>(`src/config/battle-defaults.js:63`) | 2.5% | ゲーム全体仕様として固定の可能性あり | ★ |
@@ -125,6 +125,8 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
 | クリティカルダメージ基本倍率 | 1.5 倍 | ゲーム全体仕様として固定 |
 | 破壊率グローバル上限 | 300% | ゲーム全体仕様として固定 |
 | 初期 SP | 3（= 1 + 2） | ゲーム全体仕様として固定 |
+| `INTRINSIC_MARK_EFFECTS_BY_ELEMENT`（印効果値） | 0.3/0.1/0.3/0.3/1 | MasterAbilityEffect 調査で value1=value2=0 確認。ゲーム側固定定数（2026-06-27）|
+| `HIGH_BOOST_SKILL_ATK_RATE = 1.8` ほか HIGH_BOOST 倍率 | 1.8 / 1.2 / 1.5 | MasterPassiveSkill に倍率データなし確認。ゲーム側固定定数（2026-06-27）|
 
 ---
 
@@ -141,13 +143,13 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
   → 使用回数対応コストを既存SP補正より前の基礎コストとして解決
   担当: Codex（完了）
 
-[T-C] INTRINSIC_MARK_EFFECTS_BY_ELEMENT の master_json 根拠確認
-  → MasterAbilityEffect の印関連エントリを調査し、現在値と一致するか検証
-  担当: Codex または Gemini による調査
+[T-C] INTRINSIC_MARK_EFFECTS_BY_ELEMENT の master_json 根拠確認 ✅
+  → MasterAbilityEffect 印関連エントリは全件 value1=value2=0
+     → ゲーム固定定数で確定。対応不要（2026-06-27）
 
-[T-D] HIGH_BOOST 補正値の passives metadata 完全配線
-  → 現在 line 1090-1097 で部分対応済み。残りのフィールドを確認
-  担当: 調査後に判断
+[T-D] HIGH_BOOST 補正値の passives metadata 完全配線 ✅
+  → MasterPassiveSkill に倍率データなし。line 1090-1097 フォールバックが正実装
+     → 追加配線不要（2026-06-27）
 ```
 
 ---
