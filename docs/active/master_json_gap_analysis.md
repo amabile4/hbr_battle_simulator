@@ -24,7 +24,7 @@
 | 対象スキル | `CathyCSkill51`「カラスの鳴き声で」（現在1件） |
 | 旧状態 | `skills.json` は `sp_cost=8` 固定 |
 | 新フィールド | `sp_cost_by_use_count: [8, 12, 16, 20]`（初回〜4回目以降の完全リスト） |
-| シミュレーター側残タスク | SP コスト解決時に `sp_cost_by_use_count` を参照するよう実装 |
+| シミュレーター側実装 | ✅ 使用前の使用回数に対応するコストを解決し、配列末尾を上限として適用 |
 
 ### 1-2. `interval_turn` — 再使用間隔（クールダウン）
 
@@ -34,23 +34,24 @@
 | 対象スキル | `RKayamoriSkill11`, `EAoiSkill08`, `KMaruyamaSkill53`, `KMaruyamaSkill08`, `KMaruyamaSkill09`（すべて 3 ターン） |
 | 旧状態 | `skills.json` に対応フィールドなし → 毎ターン使用可として誤判定 |
 | 新フィールド | `interval_turn: 3` |
-| シミュレーター側残タスク | スキル使用可否判定に `interval_turn` を組み込む（PRI-018 と関連） |
+| シミュレーター側実装 | ✅ 最終使用ターンを保持し、経過ターンが `interval_turn` 未満なら使用不可 |
 
 ---
 
-## 2. シミュレーター側の実装タスク（ビューに追加済み・未実装）
+## 2. シミュレーター側の実装タスク（完了）✅
 
-PR#2 がマージされ `json/` に `sp_cost_by_use_count` / `interval_turn` が含まれるようになった後、
-シミュレーター本体での配線が必要。
+PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を、
+シミュレーター本体へ配線した。
 
-### T-A: `interval_turn` 使用可否判定
+### T-A: `interval_turn` 使用可否判定 ✅
 
 - **場所**: `src/turn/turn-controller.js` のスキル使用可否チェック
 - **仕様**: 直前の使用ターンから `interval_turn` ターン経過するまで同スキルを使用不可
 - **関連**: PRI-018（スキル使用回数制約と回復機能）と同一領域
 - **優先度**: ★★★（5スキルで誤判定が確定）
+- **実装結果**: `CharacterStyle.skillLastUsedTurns` に最終使用ターンを保持。`interval_turn=3` は T1 使用後の T2/T3 を禁止し、T4 で再使用可能
 
-### T-B: `sp_cost_by_use_count` SP コスト解決
+### T-B: `sp_cost_by_use_count` SP コスト解決 ✅
 
 - **場所**: `src/domain/character-style.js` または SP コスト解決箇所
 - **仕様**: `sp_cost_by_use_count` が存在するスキルでは、使用回数インデックスに対応する値を使用
@@ -58,6 +59,9 @@ PR#2 がマージされ `json/` に `sp_cost_by_use_count` / `interval_turn` が
   - 1回目使用後 → インデックス 1
   - 末尾インデックスを超えた場合は末尾値を使用
 - **優先度**: ★★★（CathyCSkill51 の SP 管理が誤差確定）
+- **実装結果**: 使用前の `skillUseCounts` をインデックスとして解決。`CathyCSkill51` は `8 → 12 → 16 → 20 → 20` を適用
+
+**検証**: 対象統合テスト、clone 独立性、実データ6スキルのメタデータ正規化を追加し、`npm test` 1300件 PASS（2026-06-27）。
 
 ---
 
@@ -129,13 +133,13 @@ PR#2 がマージされ `json/` に `sp_cost_by_use_count` / `interval_turn` が
 ```
 優先順位順:
 
-[T-A] interval_turn 使用可否判定 (シミュレーター実装)
-  → PR#2 マージ後。PRI-018 に合流させるか独立タスクとするか検討
-  担当: Codex 推奨
+[T-A] interval_turn 使用可否判定 (シミュレーター実装) ✅
+  → 最終使用ターンを CharacterStyle に保持し、T1使用後はT4から再使用可能
+  担当: Codex（完了）
 
-[T-B] sp_cost_by_use_count SP コスト解決 (シミュレーター実装)
-  → PR#2 マージ後。CharacterStyle or ターンコントローラーのコスト解決箇所
-  担当: Codex 推奨
+[T-B] sp_cost_by_use_count SP コスト解決 (シミュレーター実装) ✅
+  → 使用回数対応コストを既存SP補正より前の基礎コストとして解決
+  担当: Codex（完了）
 
 [T-C] INTRINSIC_MARK_EFFECTS_BY_ELEMENT の master_json 根拠確認
   → MasterAbilityEffect の印関連エントリを調査し、現在値と一致するか検証

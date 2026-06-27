@@ -63,6 +63,10 @@ function normalizeSkill(skill) {
     desc: String(skill.desc ?? ''),
     targetType: String(skill.target_type ?? skill.targetType ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? 0),
+    spCostByUseCount: Array.isArray(skill.sp_cost_by_use_count ?? skill.spCostByUseCount)
+      ? (skill.sp_cost_by_use_count ?? skill.spCostByUseCount).map((value) => Number(value))
+      : null,
+    intervalTurn: Math.max(0, Number(skill.interval_turn ?? skill.intervalTurn ?? 0)),
     sourceType,
     isPassive,
     type: resolveSkillType(skill),
@@ -440,6 +444,13 @@ export class CharacterStyle {
       input.skillUseCounts && typeof input.skillUseCounts === 'object' ? input.skillUseCounts : {};
     this.skillUseCounts = new Map(
       Object.entries(skillUseCountsInput).map(([k, v]) => [String(k), Number(v)])
+    );
+    const skillLastUsedTurnsInput =
+      input.skillLastUsedTurns && typeof input.skillLastUsedTurns === 'object'
+        ? input.skillLastUsedTurns
+        : {};
+    this.skillLastUsedTurns = new Map(
+      Object.entries(skillLastUsedTurnsInput).map(([k, v]) => [String(k), Number(v)])
     );
 
     this._revision = 0;
@@ -1383,6 +1394,15 @@ export class CharacterStyle {
     return Number(this.skillUseCounts.get(key) ?? 0);
   }
 
+  getSkillLastUsedTurnByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key || !this.skillLastUsedTurns.has(key)) {
+      return null;
+    }
+    const turnIndex = Number(this.skillLastUsedTurns.get(key));
+    return Number.isFinite(turnIndex) ? turnIndex : null;
+  }
+
   incrementSkillUseByLabel(label) {
     const key = String(label ?? '').trim();
     if (!key) {
@@ -1393,13 +1413,17 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
-  incrementSkillUseById(skillId) {
+  incrementSkillUseById(skillId, turnIndex = null) {
     const skill = this.getSkill(skillId);
     const key = String(skill?.label ?? '').trim();
     if (!key) {
       return;
     }
     this.incrementSkillUseByLabel(key);
+    const normalizedTurnIndex = Number(turnIndex);
+    if (Number.isInteger(normalizedTurnIndex) && normalizedTurnIndex >= 0) {
+      this.skillLastUsedTurns.set(key, normalizedTurnIndex);
+    }
   }
 
   /**
@@ -1458,6 +1482,7 @@ export class CharacterStyle {
     c.epRule = this.epRule ? structuredClone(this.epRule) : null;
     c.statusEffects = structuredClone(this.statusEffects);
     c.skillUseCounts = new Map(this.skillUseCounts);
+    c.skillLastUsedTurns = new Map(this.skillLastUsedTurns);
     return c;
   }
 
@@ -1498,6 +1523,7 @@ export class CharacterStyle {
       epRule: this.epRule ? structuredClone(this.epRule) : null,
       statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
+      skillLastUsedTurns: Object.fromEntries(this.skillLastUsedTurns.entries()),
       revision: this._revision,
     };
   }

@@ -7366,12 +7366,26 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     return skill;
   }
   const variantResolved = resolveEffectiveSkillVariant(skill, state, member);
-  const overwriteSpCost = resolveOverwriteSpCostIfSatisfied(variantResolved, state, member);
+  const spCostsByUseCount = Array.isArray(variantResolved?.spCostByUseCount)
+    ? variantResolved.spCostByUseCount
+    : [];
+  const useCount = Math.max(
+    0,
+    Math.floor(Number(member.getSkillUseCountByLabel?.(variantResolved?.label) ?? 0))
+  );
+  const useCountSpCost = Number(
+    spCostsByUseCount[Math.min(useCount, spCostsByUseCount.length - 1)]
+  );
+  const useCountResolved =
+    spCostsByUseCount.length > 0 && Number.isFinite(useCountSpCost)
+      ? { ...variantResolved, spCost: useCountSpCost }
+      : variantResolved;
+  const overwriteSpCost = resolveOverwriteSpCostIfSatisfied(useCountResolved, state, member);
   const effective =
     overwriteSpCost === null
-      ? variantResolved
+      ? useCountResolved
       : {
-          ...variantResolved,
+          ...useCountResolved,
           spCost: overwriteSpCost,
         };
   const consumeType = String(effective?.consumeType ?? 'Sp');
@@ -10337,6 +10351,20 @@ function validateActionDict(state, actions, options = {}) {
       throw new Error(`Skill ${action.skillId} is not available for ${member.characterId}`);
     }
 
+    const intervalTurn = Math.max(0, Number(skill.intervalTurn ?? 0));
+    const lastUsedTurn = member.getSkillLastUsedTurnByLabel?.(skill.label) ?? null;
+    const currentTurn = Number(state.turnState?.turnIndex ?? 0);
+    if (
+      intervalTurn > 0 &&
+      lastUsedTurn !== null &&
+      Number.isFinite(Number(lastUsedTurn)) &&
+      currentTurn - Number(lastUsedTurn) < intervalTurn
+    ) {
+      throw new Error(
+        `Skill ${skill.skillId} cannot be used before interval_turn ${intervalTurn} elapses.`
+      );
+    }
+
     if (state.turnState.turnType === 'extra' && skill.additionalTurnRule?.skillUsableInExtraTurn === false) {
       throw new Error(`Skill ${skill.skillId} is not usable in extra turn.`);
     }
@@ -11242,7 +11270,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     actionEntry,
     Number(actionEntry?.killCount ?? derivedKillEnemyIndexes.length)
   );
-  member.incrementSkillUseById(actionEntry.skillId);
+  member.incrementSkillUseById(actionEntry.skillId, state.turnState?.turnIndex);
 
   return {
     removeDebuffEvents,
