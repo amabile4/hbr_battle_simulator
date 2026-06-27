@@ -36,6 +36,22 @@ test('Count型はダメージなしSkillで消費しない', () => {
   assert.equal(result.consumeAmount, 0);
 });
 
+test('SkillUse指定のCount型はダメージなしSkillでも消費する', () => {
+  const effect = createEffect({
+    statusType: 'Sprightly',
+    limitType: 'Once',
+    metadata: { consumeTrigger: 'SkillUse', consumeAmount: 1 },
+  });
+  const result = shouldConsume(
+    effect,
+    { actionType: 'Skill', hasDamage: false, turnPhase: 'PlayerTurn' }
+  );
+
+  assert.equal(result.shouldConsume, true);
+  assert.equal(result.consumeAmount, 1);
+  assert.deepEqual(validateBuffMetadata(effect), []);
+});
+
 test('Count型はAdditionalTurnのダメージ行動で消費する', () => {
   const result = shouldConsume(
     createEffect(),

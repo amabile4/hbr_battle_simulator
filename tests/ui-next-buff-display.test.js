@@ -21,6 +21,7 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     { statusType: 'Mocktail', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'Steak', remaining: 0, exitCond: 'Eternal' },
     { statusType: 'Gelato', remaining: 0, exitCond: 'Eternal' },
+    { statusType: 'Sprightly', remaining: 1, exitCond: 'Count', power: 0.5 },
     { statusType: 'AttackDown', remaining: 2 },
     { statusType: 'ConfusionRandom', remaining: 2 },
     { statusType: 'CriticalRateUp', remaining: 0 },
@@ -40,8 +41,18 @@ test('getDisplayableBuffs includes buff-like statuses and excludes debuffs', () 
     'Mocktail',
     'Steak',
     'Gelato',
+    'Sprightly',
     'CriticalDamageUp',
   ]);
+});
+
+test('buildBuffListHtml renders the Sprightly skill type icon', () => {
+  const html = buildBuffListHtml([
+    { statusType: 'Sprightly', remaining: 1, exitCond: 'Count', power: 0.2 },
+  ]);
+
+  assert.deepEqual(extractAltList(html), ['Sprightly']);
+  assert.match(html, /assets\/skill_type\/Sprightly\.webp/);
 });
 
 test('buildBuffListHtml follows status detail order and shows only adopted effects', () => {

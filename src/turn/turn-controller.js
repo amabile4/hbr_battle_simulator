@@ -85,6 +85,9 @@ const HIGH_BOOST_SKILL_ATK_RATE = 1.8;
 const HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2;
 const HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2;
 const HIGH_BOOST_DP_HEAL_MULTIPLIER = 1.5;
+const SPRIGHTLY_STATUS_TYPE = 'Sprightly';
+const SPRIGHTLY_MIN_SP_COST = 1;
+const SPRIGHTLY_CONSUME_TRIGGER = 'SkillUse';
 const MOCKTAIL_STATUS_TYPE = 'Mocktail';
 const MOCKTAIL_BASE_HEAL_MULTIPLIER = 1;
 const MOCKTAIL_DEFAULT_EXIT_COND = 'Eternal';
@@ -7433,6 +7436,20 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     return { ...effective, spCost: 0, actionSelectionPassiveEvents: [] };
   }
 
+  const sprightlyCostAdjustment = resolveSprightlyCostAdjustment(
+    member,
+    effective,
+    highBoostAdjustedSpCost
+  );
+  if (sprightlyCostAdjustment) {
+    return {
+      ...effective,
+      spCost: sprightlyCostAdjustment.spCostAfter,
+      actionSelectionPassiveEvents: structuredClone(reduceSp.matchedPassives ?? []),
+      sprightlyCostAdjustment,
+    };
+  }
+
   if (highBoostAdjustedSpCost === baseSpCost && (reduceSp.matchedPassives?.length ?? 0) === 0) {
     return effective;
   }
@@ -7440,6 +7457,40 @@ export function resolveEffectiveSkillForAction(state, member, skill) {
     ...effective,
     spCost: highBoostAdjustedSpCost,
     actionSelectionPassiveEvents: structuredClone(reduceSp.matchedPassives ?? []),
+  };
+}
+
+function resolveSprightlyCostAdjustment(member, effectiveSkill, spCostBefore) {
+  const parts = Array.isArray(effectiveSkill?.parts) ? effectiveSkill.parts : [];
+  if (parts.some((part) => String(part?.skill_type ?? '') === SPRIGHTLY_STATUS_TYPE)) {
+    return null;
+  }
+  const numericSpCost = Number(spCostBefore);
+  if (!Number.isFinite(numericSpCost) || numericSpCost <= 0) {
+    return null;
+  }
+  const effects = typeof member?.resolveEffectiveStatusEffects === 'function'
+    ? member.resolveEffectiveStatusEffects(SPRIGHTLY_STATUS_TYPE)
+    : [];
+  const selected = effects.find(
+    (effect) =>
+      String(effect?.exitCond ?? '') === 'Count' &&
+      Number.isFinite(Number(effect?.power)) &&
+      Number(effect.power) > 0
+  );
+  if (!selected) {
+    return null;
+  }
+  const reductionRate = Math.min(1, Number(selected.power));
+  const spCostAfter = Math.max(
+    SPRIGHTLY_MIN_SP_COST,
+    Math.ceil(numericSpCost * (1 - reductionRate))
+  );
+  return {
+    effectId: Number(selected.effectId),
+    reductionRate,
+    spCostBefore: numericSpCost,
+    spCostAfter,
   };
 }
 
@@ -8854,6 +8905,95 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
             limitType: effect.limitType,
             exitCond: effect.exitCond,
             remaining: effect.remaining,
+          })
+        );
+      }
+    }
+  }
+  return events;
+}
+
+function addSprightlyStatusEffect(target, part, source = {}) {
+  const power = Number(part?.power?.[0] ?? 0);
+  if (!target || !Number.isFinite(power) || power <= 0) {
+    return null;
+  }
+  return target.addStatusEffect({
+    statusType: SPRIGHTLY_STATUS_TYPE,
+    limitType: String(part?.effect?.limitType ?? 'Once'),
+    exitCond: String(part?.effect?.exitCond ?? 'Count'),
+    remaining: Number(part?.effect?.exitVal?.[0] ?? 1),
+    power,
+    sourceType: String(source.sourceType ?? 'skill'),
+    sourceSkillId: Number(source.sourceSkillId ?? 0),
+    sourceSkillLabel: String(source.sourceSkillLabel ?? ''),
+    sourceSkillName: String(source.sourceSkillName ?? ''),
+    sourceCharacterId: String(source.sourceCharacterId ?? ''),
+    sourceCharacterName: String(source.sourceCharacterName ?? ''),
+    sourceSkillDesc: String(source.sourceSkillDesc ?? ''),
+    metadata: {
+      consumeTrigger: SPRIGHTLY_CONSUME_TRIGGER,
+      consumeAmount: 1,
+      targetType: String(part?.target_type ?? ''),
+    },
+  });
+}
+
+function applySprightlyEffectsFromActions(state, previewRecord) {
+  const events = [];
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? actionEntry._effectiveSkillSnapshot
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+    for (const part of skill.parts ?? []) {
+      if (String(part?.skill_type ?? '') !== SPRIGHTLY_STATUS_TYPE) {
+        continue;
+      }
+      const targetCharacterIds = resolveSupportTargetCharacterIds(
+        state,
+        actor,
+        part?.target_type,
+        actionEntry?.targetCharacterId
+      );
+      for (const targetCharacterId of targetCharacterIds) {
+        const target = findMemberByCharacterId(state, targetCharacterId);
+        if (!target || !isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+          continue;
+        }
+        const effect = addSprightlyStatusEffect(target, part, {
+          sourceSkillId: Number(skill.skillId ?? skill.id ?? 0),
+          sourceSkillLabel: String(skill.label ?? ''),
+          sourceSkillName: String(skill.name ?? ''),
+          sourceCharacterId: String(actor.characterId ?? ''),
+          sourceCharacterName: String(actor.characterName ?? ''),
+          sourceSkillDesc: String(skill.desc ?? ''),
+        });
+        if (!effect) continue;
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: actor.characterId,
+            targetCharacterId,
+            skillId: Number(skill.skillId ?? skill.id ?? 0),
+            skillName: String(skill.name ?? ''),
+            effectId: effect.effectId,
+            statusType: SPRIGHTLY_STATUS_TYPE,
+            power: effect.power,
+            limitType: effect.limitType,
+            exitCond: effect.exitCond,
+            remaining: effect.remaining,
+            sourceSkillId: effect.sourceSkillId,
+            sourceSkillLabel: effect.sourceSkillLabel,
+            sourceSkillName: effect.sourceSkillName,
+            sourceCharacterId: effect.sourceCharacterId,
+            sourceCharacterName: effect.sourceCharacterName,
           })
         );
       }
@@ -10620,6 +10760,9 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     skillBaseHitCount: hitInfo.baseHitCount,
     skillFunnelHitBonus: hitInfo.funnelHitBonus,
     spCost: effectiveSkill.spCost,
+    sprightlyCostAdjustment: effectiveSkill?.sprightlyCostAdjustment
+      ? structuredClone(effectiveSkill.sprightlyCostAdjustment)
+      : null,
     consumeType: String(effectiveSkill.consumeType ?? 'Sp'),
     spChanges: [
       {
@@ -10916,6 +11059,25 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     baseRevision: actionEntry._baseRevision,
   });
 
+  const sprightlySkill =
+    actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+      ? actionEntry._effectiveSkillSnapshot
+      : member.getSkill(actionEntry.skillId);
+  const sprightlyEffectId = Number(actionEntry?.sprightlyCostAdjustment?.effectId ?? 0);
+  const consumedSprightlyEffects = sprightlyEffectId > 0
+    ? consumeSelectedCountStatusEffectsWithOrchestrator(
+        member,
+        SPRIGHTLY_STATUS_TYPE,
+        [sprightlyEffectId],
+        buildActionContext('Skill', sprightlySkill, {
+          actorCharacterId: member.characterId,
+          hasDamage: hasDamagePartInParts(sprightlySkill?.parts ?? []),
+          turnPhase: 'PlayerTurn',
+        })
+      )
+    : [];
+  actionEntry.consumedSprightlyEffects = structuredClone(consumedSprightlyEffects);
+
   const pursuitSkillSpEvents = [];
   const pursuitSourceSpCost = Math.max(0, Number(actionEntry?.pursuitSourceSpCost ?? 0));
   const pursuitSourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
@@ -11045,6 +11207,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   const fieldStateEvents = applyFieldStateFromActions(state, singleRecord);
   const doubleActionStatusEvents = applyDoubleActionExtraSkillEffectsFromActions(state, singleRecord);
   const funnelEvents = applyFunnelEffectsFromActions(state, singleRecord);
+  const sprightlyEvents = applySprightlyEffectsFromActions(state, singleRecord);
   const activeBuffStatusEvents = applyActiveBuffStatusEffectsFromActions(state, singleRecord);
   const guardEvents = applyGuardEffectsFromActions(state, singleRecord);
   const shreddingEvents = applyShreddingEffectsFromActions(state, singleRecord);
@@ -11133,6 +11296,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     fieldStateEvents: [...fieldStateEvents, ...moraleResult.fieldStateEvents, ...talismanFieldEvents],
     doubleActionStatusEvents,
     funnelEvents,
+    sprightlyEvents,
     activeBuffStatusEvents,
     buffStatusEvents,
     guardEvents,
@@ -11748,6 +11912,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
           skillType !== 'Funnel' &&
+          skillType !== SPRIGHTLY_STATUS_TYPE &&
           skillType !== 'HighBoost' &&
           skillType !== 'Talisman' &&
           skillType !== 'AdditionalTurn' &&
@@ -12308,6 +12473,46 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
                 damageBonus: Number.isFinite(damageBonus) ? damageBonus : 0,
                 targetType: String(part?.target_type ?? ''),
               },
+            });
+            matched = true;
+          }
+          continue;
+        }
+
+        if (skillType === SPRIGHTLY_STATUS_TYPE) {
+          const reductionRate = Number(part?.power?.[0] ?? 0);
+          if (!Number.isFinite(reductionRate) || reductionRate <= 0) {
+            continue;
+          }
+          const targetCharacterIds = resolveSupportTargetCharacterIds(
+            state,
+            member,
+            part?.target_type,
+            options.targetCharacterId ?? null
+          );
+          for (const targetCharacterId of targetCharacterIds) {
+            const target = findMemberByCharacterId(state, targetCharacterId);
+            if (!target || !isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const appliedStatus = addSprightlyStatusEffect(target, part, {
+              sourceType: 'passive',
+              sourceSkillId: Number(passive?.passiveId ?? passive?.id ?? 0),
+              sourceSkillLabel: String(passive?.label ?? ''),
+              sourceSkillName: String(passive?.name ?? ''),
+              sourceCharacterId: String(member?.characterId ?? ''),
+              sourceCharacterName: String(member?.characterName ?? ''),
+              sourceSkillDesc: String(passive?.desc ?? ''),
+            });
+            if (!appliedStatus) continue;
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              effectId: Number(appliedStatus.effectId),
+              statusType: SPRIGHTLY_STATUS_TYPE,
+              power: Number(appliedStatus.power),
+              limitType: String(appliedStatus.limitType),
+              exitCond: String(appliedStatus.exitCond),
+              remaining: Number(appliedStatus.remaining),
             });
             matched = true;
           }
@@ -13725,6 +13930,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   const fieldStateEvents = [];
   const doubleActionStatusEvents = [];
   const funnelEvents = [];
+  const sprightlyEvents = [];
   const activeBuffStatusEvents = [];
   const buffStatusEvents = [];
   const guardEvents = [];
@@ -13764,6 +13970,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     fieldStateEvents.push(...actionResult.fieldStateEvents);
     doubleActionStatusEvents.push(...actionResult.doubleActionStatusEvents);
     funnelEvents.push(...actionResult.funnelEvents);
+    sprightlyEvents.push(...actionResult.sprightlyEvents);
     activeBuffStatusEvents.push(...actionResult.activeBuffStatusEvents);
     buffStatusEvents.push(...actionResult.buffStatusEvents);
     guardEvents.push(...actionResult.guardEvents);
@@ -14134,6 +14341,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     );
     entry.statusEffectsApplied = [
       ...doubleActionStatusEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...sprightlyEvents.filter((ev) =>
         eventBelongsToActionEntry(entry, ev, {
           actorKey: 'actorCharacterId',
           skillKey: 'skillId',

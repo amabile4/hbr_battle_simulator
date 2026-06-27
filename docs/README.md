@@ -39,6 +39,31 @@ docs/
 
 ---
 
+## golden/（cond / overwrite_cond 正式パーサー・評価器パッケージ）
+
+`golden/` はマスターデータから抽出した全条件式を正式に構文解析・評価する自己完結パッケージ。本体（`src/`）とは独立して開発・検証し、将来的に統合する。読み取り専用の `master_json/` / `view_json/` を除き、`src/`・`tests/`・`docs/` が実装対象。
+
+| ドキュメント | ステータス | 概要 | 最終更新 |
+|-------------|---------|------|----------|
+| [golden/docs/cond_grammar_spec.md](../golden/docs/cond_grammar_spec.md) | 📚 参照 | 条件式文法 BNF（`||` / `&&` / 比較 + `CountBC` ネストのみ）と318 distinct 式の分析。case文・if(true/false)・三項は存在しない | 2026-06-27 |
+| [golden/docs/cond_evaluator_contract.md](../golden/docs/cond_evaluator_contract.md) | 📚 参照 | 評価器の入力（ConditionContext）/ 出力（EvaluationResult）契約。安全側 fallback 挙動、既存 turn-controller との対応表 | 2026-06-27 |
+| [golden/docs/special_status_type_map.md](../golden/docs/special_status_type_map.md) | 📚 参照 | `SpecialStatusCountByType(ID)` の完全対応表（MasterSpecialStatus 正本 + 補助28型）。既存マップの誤り修正（79=Restraint, 146=NegativeMind）と未対応9種の補完 | 2026-06-27 |
+
+### 検証結果（2026-06-27）
+
+- **全318式パース（master由来）**: 318/318 OK（51述語すべて抽出確認）
+- **全318式評価（master由来）**: 318/318 完全解決（unknownCount=0、fallback 不要）
+- **view_json 単体検証**: view_json 由来の全条件式が master_json 非依存でパース+評価可能（本体移植可能性証明）
+- **単体テスト**: 104 PASS（special-status-types 20 + cond-parser 26 + cond-evaluator 29 + cond-extract 14 + conditions-fixture 9 + conditions-fixture-view 6）
+
+### 依存関係（移植ガイド）
+
+評価コア（`cond-parser.js` / `cond-evaluator.js` / `special-status-types.js` の評価関数）は **master_json / view_json どちらにも依存しない純粋関数**。本体移植時は `json/`（view_json と同内容）の `cond`/`overwrite_cond` をそのまま渡すだけで動作し、`master_json/` の読み込みは不要。詳細は [cond_evaluator_contract.md §6](../golden/docs/cond_evaluator_contract.md) を参照。
+
+実行: `node --test golden/tests/*.test.js`
+
+---
+
 ## active/damage_calculator_integration_plan.md
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
@@ -86,8 +111,8 @@ docs/
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了）。バトル勝利時はOD/EX行動文脈をリセットし、ODゲージ値は次バトルへ維持する注記を反映 | 2026-05-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
-| [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | Phase 1: バフ消費ロジック現状分析 - Funnel/MindEye/Count型/ターン型各消費パターンの完全フロー図とコード参照 | 2026-03-30 |
-| [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | Phase 1/3: 統一バフスキーマ設計 - StatusEffect メタデータ統一仕様（exitCond/limitType/consumeTrigger）と ActionContext 型定義。Phase 3 runtime 接続注記を反映済み | 2026-03-31 |
+| [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | バフ消費ロジック現状分析。Funnel/MindEye/Count型/ターン型に加え、SprightlyのSkillUse選択・消費フローを反映 | 2026-06-27 |
+| [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | 統一バフスキーマ設計。StatusEffectメタデータとActionContextにSprightlyのSkillUseトリガーを反映 | 2026-06-27 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1/3: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表。P3-05 後の差分なし確認を追記済み | 2026-03-31 |
 
 ---

@@ -68,6 +68,7 @@ const STATUS_TYPE_ID_MAP = Object.freeze({
   Mocktail: 313,
   Steak: 330,
   Gelato: 331,
+  Sprightly: 334,
 });
 
 function getStatusTypeOrderValue(statusType) {

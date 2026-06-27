@@ -1,6 +1,6 @@
 # バフ消費ロジック統一スキーマ設計
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-31
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-06-27
 
 ## 概要
 
@@ -11,6 +11,7 @@
 > - `shouldConsume()` と `buildActionContext()` は runtime 経路に接続済み
 > - TurnEnd 系（Player/Enemy）は `ActionContext('TurnEnd')` ベースで判定
 > - `validateBuffMetadata()` は warning/strict gate 付きで runtime 接続済み
+> - `Sprightly` は `consumeTrigger: "SkillUse"` で非ダメージを含む対象SPスキル使用時に消費
 
 ---
 
@@ -24,7 +25,7 @@
 interface StatusEffect {
   effectId: number;
   statusType: string;
-  limitType: string;           // 'Default' | 'Only' | 'Special'
+  limitType: string;           // 'Default' | 'Only' | 'Once' | 'Special'
   exitCond: string;             // 'Count' | 'PlayerTurnEnd' | 'EnemyTurnEnd' | 'Eternal' | ...
   remaining: number;
   power: number;
@@ -47,7 +48,7 @@ interface StatusEffect {
 ```typescript
 interface BuffConsumptionMetadata {
   // 消費トリガーの明示（新規）
-  consumeTrigger: 'DamageDealt' | 'NormalAttack' | 'Pursuit' | 'TurnEnd' | 'SpecialStatus' | 'Manual';
+  consumeTrigger: 'DamageDealt' | 'NormalAttack' | 'Pursuit' | 'TurnEnd' | 'SpecialStatus' | 'Manual' | 'SkillUse';
   
   // 消費量（デフォルト1）
   consumeAmount?: number;
@@ -281,7 +282,7 @@ if (remaining <= 0 && exitCond !== 'Eternal') {
 
 ```
 map exitCond → trigger
-  - 'Count' → 'DamageDealt' | 'NormalAttack' | 'Pursuit' | 'Manual' | 'SpecialStatus'
+  - 'Count' → 'DamageDealt' | 'NormalAttack' | 'Pursuit' | 'Manual' | 'SpecialStatus' | 'SkillUse'
   - 'PlayerTurnEnd' → 'TurnEnd'
   - 'EnemyTurnEnd' → 'TurnEnd'
   - 'Eternal' → 'Manual' のみ
@@ -329,6 +330,7 @@ consumeAmount = metadata.consumeAmount ?? 1;
 | Count | Default | NormalAttack | true | ✓ | NormalAttackはダメージ行動 |
 | Count | Default | Skill | true | ✓ | Skillはダメージ行動 |
 | Count | Default | Skill | false | ✗ | ダメージなしスキルは非該当 |
+| Count | Once | Skill | false | ✓ | consumeTrigger=SkillUseの対象スキル |
 | Count | Default | Pursuit | true | ✓ | Pursuitはダメージ行動 |
 | Count | Default | TurnEnd | - | ✗ | TurnEndではCount型消費なし |
 | Count | Only | Skill | true | ✓ (限定) | Only型は呼び出し側で最強選出 |
@@ -348,7 +350,7 @@ consumeAmount = metadata.consumeAmount ?? 1;
 
 | exitCond | consumeTrigger | 説明 |
 |---------|--------------|------|
-| Count | DamageDealt / NormalAttack / Pursuit / Manual | 数制のバフ、複数トリガー可能 |
+| Count | DamageDealt / NormalAttack / Pursuit / Manual / SkillUse | 数制のバフ、複数トリガー可能 |
 | PlayerTurnEnd | TurnEnd | プレイヤーターン終了自動デクリメント |
 | EnemyTurnEnd | TurnEnd | 敵ターン終了自動デクリメント |
 | Eternal | Manual | 永続バフ、手動消費のみ |
@@ -359,6 +361,7 @@ consumeAmount = metadata.consumeAmount ?? 1;
 |----------|--------|------|
 | Default | なし | 複数同時に作用可能 |
 | Only | あり（同グループ内） | 同グループ内は最強1つのみ |
+| Once | なし | 1回の対象行動で1件を消費 |
 | Special | あり（特殊） | 例）特殊状態のみ（実装時に拡張） |
 
 ---
@@ -393,4 +396,3 @@ consumeAmount = metadata.consumeAmount ?? 1;
 3. **呼び出し側は軽く**: turn-controller は ActionContext を構築して `shouldConsume` を呼ぶだけ
 4. **段階移行**: 既存コードとの共存を前提に、新ロジックは opt-in 可能に設計
 5. **テスト駆動**: マトリクステストで判定の網羅性を常に検証
-

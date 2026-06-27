@@ -10,20 +10,7 @@
     "auto_priority": 6,
     "cond": "CountBC(IsPlayer())>1",
     "iuc_cond": "",
-    "parts": [
-      {},
-      {},
-      {
-        "skill_type": "AdditionalTurn",
-        "target_type": "Self",
-        "extra_turn_grant_enabled_in_extra_turn": false
-      }
-    ],
-    "extra_turn_rules": {
-      "skill_usable_in_extra_turn": true,
-      "additional_turn_grant_in_extra_turn": false
-    },
-    "notes": "Source data does not explicitly encode the partial extra-turn restriction. Remove when upstream data has dedicated flags."
+    "notes": "extra_turn_grant_enabled_in_extra_turn / extra_turn_rules removed: the partial extra-turn restriction is now derived from target_condition='SpecialStatusCountByType(20)==0' on the AdditionalTurn part."
   },
   {
     "id": 46005511,

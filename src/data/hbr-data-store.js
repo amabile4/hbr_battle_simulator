@@ -1171,12 +1171,9 @@ export class HbrDataStore {
     const partConditionFlags = additionalTurnEntries.map((entry) => entry.conditionFlags);
     const aggregatePartFlags = mergeConditionFlags(...partConditionFlags);
 
-    const defaultSkillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
-    const defaultAdditionalTurnGrantInExtraTurn =
-      defaultSkillUsableInExtraTurn && !aggregatePartFlags.excludesExtraTurn;
-    const overrideRules = skill.extra_turn_rules ?? {};
-    const hasGrantOverride = overrideRules.additional_turn_grant_in_extra_turn !== undefined;
-    const hasUsableOverride = overrideRules.skill_usable_in_extra_turn !== undefined;
+    const skillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
+    const additionalTurnGrantInExtraTurn =
+      skillUsableInExtraTurn && !aggregatePartFlags.excludesExtraTurn;
     const additionalTurnTargets = additionalTurnParts.map((part) => ({
       targetType: String(part.target_type ?? ''),
       targetCondition: String(part.target_condition ?? ''),
@@ -1185,10 +1182,8 @@ export class HbrDataStore {
 
     return {
       skillId: Number(skill.id),
-      skillUsableInExtraTurn:
-        overrideRules.skill_usable_in_extra_turn ?? defaultSkillUsableInExtraTurn,
-      additionalTurnGrantInExtraTurn:
-        overrideRules.additional_turn_grant_in_extra_turn ?? defaultAdditionalTurnGrantInExtraTurn,
+      skillUsableInExtraTurn,
+      additionalTurnGrantInExtraTurn,
       conditions: {
         requiresOverDrive:
           skillConditionFlags.requiresOverDrive || aggregatePartFlags.requiresOverDrive,
@@ -1199,7 +1194,7 @@ export class HbrDataStore {
       },
       additionalTurnTargets,
       additionalTurnTargetTypes,
-      source: hasGrantOverride || hasUsableOverride ? 'override' : 'derived',
+      source: 'derived',
     };
   }
 

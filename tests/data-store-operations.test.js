@@ -637,7 +637,7 @@ test('listEquipableSkillsByStyleId includes passives as equip-only entries', () 
   assert.equal(Boolean(masterPassive?.passive), true, 'master passive should keep passive metadata');
 });
 
-test('skill rule overrides can patch additional turn behavior without hardcoding', () => {
+test('additional turn extra-turn restriction is derived from target_condition without hardcoded overrides', () => {
   const store = getStore();
   const gokigen = store.getSkillById(46003115);
   const rule = store.getAdditionalTurnRule(46003115);
@@ -645,17 +645,22 @@ test('skill rule overrides can patch additional turn behavior without hardcoding
 
   assert.equal(gokigen?.name, 'ごきげんダンス');
   assert.equal(
-    gokigen?.parts?.[2]?.extra_turn_grant_enabled_in_extra_turn,
-    false,
-    'override should be merged into AdditionalTurn part'
+    gokigen?.parts?.[2]?.target_condition,
+    'SpecialStatusCountByType(20) == 0',
+    'upstream data encodes the extra-turn restriction via target_condition'
   );
   assert.equal(rule?.skillUsableInExtraTurn, true, 'skill should remain usable in extra turn');
   assert.equal(
     rule?.additionalTurnGrantInExtraTurn,
     false,
-    'additional turn grant should be disabled in extra turn by override'
+    'additional turn grant should be disabled in extra turn, derived from target_condition'
   );
-  assert.equal(rule?.source, 'override');
+  assert.equal(rule?.source, 'derived');
+  assert.equal(
+    rule?.conditions?.excludesExtraTurnForAdditionalTurnGrant,
+    true,
+    'excludesExtraTurnForAdditionalTurnGrant should be derived from target_condition'
+  );
   assert.equal(
     rule?.additionalTurnTargets?.some(
       (item) => item.targetType === 'Self' && item.targetCondition === 'SpecialStatusCountByType(20) == 0'

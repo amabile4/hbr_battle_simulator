@@ -1590,6 +1590,7 @@ export function shouldConsume(effect, actionContext, options = {}) {
 function shouldConsumeCountType(effect, actionContext) {
   const actionType = String(actionContext.actionType ?? '');
   const hasDamage = Boolean(actionContext.hasDamage);
+  const consumeTrigger = String(effect?.metadata?.consumeTrigger ?? '');
 
   // Count型の消費条件: ダメージを与える行動、または Manual
   if (actionType === 'Manual') {
@@ -1598,6 +1599,21 @@ function shouldConsumeCountType(effect, actionContext) {
       shouldConsume: true,
       reason: 'Manual consumption',
       consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  if (consumeTrigger === 'SkillUse') {
+    if (actionType === 'Skill') {
+      return {
+        shouldConsume: true,
+        reason: 'Count-type matches skill use',
+        consumeAmount: effect.metadata?.consumeAmount ?? 1,
+      };
+    }
+    return {
+      shouldConsume: false,
+      reason: `SkillUse trigger requires Skill action (got ${actionType})`,
+      consumeAmount: 0,
     };
   }
 
@@ -1718,7 +1734,7 @@ export function validateBuffMetadata(effect) {
   }
 
   // limitType のバリデーション
-  const validLimitTypes = ['Default', 'Only', 'Special'];
+  const validLimitTypes = ['Default', 'Only', 'Once', 'Special'];
   if (!validLimitTypes.includes(limitType)) {
     errors.push(`Invalid limitType: ${limitType} (must be one of: ${validLimitTypes.join(', ')})`);
   }
@@ -1730,7 +1746,7 @@ export function validateBuffMetadata(effect) {
 
   // metadata.consumeTrigger のバリデーション
   if (typeof metadata.consumeTrigger !== 'undefined') {
-    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus'];
+    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus', 'SkillUse'];
     if (!validTriggers.includes(metadata.consumeTrigger)) {
       errors.push(`Invalid consumeTrigger: ${metadata.consumeTrigger}`);
     }
