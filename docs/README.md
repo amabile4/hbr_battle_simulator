@@ -111,6 +111,7 @@ docs/
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了）。バトル勝利時はOD/EX行動文脈をリセットし、ODゲージ値は次バトルへ維持する注記を反映 | 2026-05-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
+| [active/cond_refactor_wbs.md](active/cond_refactor_wbs.md) | 🟢 進行中 | cond/overwrite_cond AST評価器移植 WBS。Phase 0完了（ブランチ `feature/cond-refactor-ast`）。Phase 1〜7の担当（Codex/Gemini/GLM/Claude Code）・依存関係・受け入れ基準を定義。ギャップ分析（IsTalisman追加・enemy member生成・specialStatuses Map変換）も収録 | 2026-06-27 |
 | [active/golden_cond_evaluator_migration_assessment.md](active/golden_cond_evaluator_migration_assessment.md) | 📦 スナップショット | `golden/` の cond/overwrite_cond パーサー・評価器（cond-parser.js / cond-evaluator.js）の本体移植可能性と可読性向上効果の評価。移植可能性=高・可読性向上=高・リスク=中。アダプタ関数1つで段階移植が可能。既存の正規表現ハードコード3箇所（parseConditionFlags / hasSpGreaterOrEqualZeroCondition）をAST走査で代替できる | 2026-06-27 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | バフ消費ロジック現状分析。Funnel/MindEye/Count型/ターン型に加え、SprightlyのSkillUse選択・消費フローを反映 | 2026-06-27 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | 統一バフスキーマ設計。StatusEffectメタデータとActionContextにSprightlyのSkillUseトリガーを反映 | 2026-06-27 |
