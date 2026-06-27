@@ -71,14 +71,41 @@ test('buildConditionContext: existing battle objects are mapped to ConditionCont
   assert.equal(context.skill.label, 'TestSkill');
   assert.equal(context.action.targetEnemyIndex, 0);
   assert.equal(context.party.length, 1);
-  assert.deepEqual(context.enemies, []);
+  assert.equal(context.enemies.length, 1);
+  assert.equal(context.enemies[0].isPlayer, false);
 });
 
-test('evaluateConditionExpression: returns an IsOverDrive result as boolean', () => {
+test('evaluateConditionExpression: returns evaluation result object', () => {
   const state = { turnState: { turnType: 'od' } };
 
-  const result = evaluateConditionExpression('IsOverDrive()', state, {}, {});
+  const evalResult = evaluateConditionExpression('IsOverDrive()', state, {}, {});
 
-  assert.equal(result, true);
-  assert.equal(typeof result, 'boolean');
+  assert.equal(evalResult.result, true);
+  assert.equal(evalResult.unknownCount, 0);
+  assert.equal(typeof evalResult.result, 'boolean');
+});
+
+test('evaluateConditionExpression: evaluates CountBC on enemies', () => {
+  const state = {
+    turnState: {
+      enemyState: {
+        enemyCount: 2,
+        statuses: [
+          { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1 },
+          { statusType: 'DownTurn', targetIndex: 1, remainingTurns: 0 },
+        ],
+      },
+    },
+  };
+
+  // One enemy is in breakdown turn > 0
+  const evalResult = evaluateConditionExpression(
+    'CountBC(IsPlayer()==0 && BreakDownTurn()>0) > 0',
+    state,
+    {},
+    {}
+  );
+
+  assert.equal(evalResult.result, true);
+  assert.equal(evalResult.unknownCount, 0);
 });

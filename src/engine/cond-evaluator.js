@@ -201,7 +201,11 @@ function resolveCountBc(node, context, acc) {
   const enemies = Array.isArray(context.enemies) ? context.enemies : [];
   let count = 0;
   for (const char of [...players, ...enemies]) {
-    const subContext = { ...context, member: char };
+    const subContext = {
+      ...context,
+      member: char,
+      target: char.isPlayer ? context.target : char,
+    };
     if (evalNode(node.inner, subContext, acc)) count += 1;
   }
   const rhsResolved = evalOperand(node.rhs, context, acc);

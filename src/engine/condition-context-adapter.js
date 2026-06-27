@@ -1,10 +1,25 @@
 import { createEmptyContext, evaluateCondition } from './cond-evaluator.js';
+import { getDpRate } from '../domain/dp-state.js';
+import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
+import {
+  isEnemyDead,
+  isEnemyBroken,
+  getEnemyDestructionRatePercent,
+  getEnemyStatusRemainingTurns,
+  isEnemyWeakToElement,
+  hasEnemySpecialStatusByType,
+  getConditionTargetEnemyIndex,
+  getEnemyState,
+  isHitWeakBySkillContext,
+} from '../turn/turn-controller.js';
 
 const DEFAULT_TURN_INDEX = 1;
 const DEFAULT_DP_RATE = 1;
 const DEFAULT_POSITION = 99;
 const DEFAULT_TARGET_ENEMY_INDEX = -1;
 const INACTIVE_FIELD_TYPE = 'None';
+const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
+const ENEMY_SPECIAL_STATUS_TYPE_IDS = [3, 12, 22, 57, 172];
 
 export function buildSpecialStatusesMap(member) {
   const map = new Map();
@@ -17,6 +32,23 @@ export function buildSpecialStatusesMap(member) {
       Number(effect?.remaining ?? 0) > 0;
     if (isActive) {
       map.set(typeId, (map.get(typeId) ?? 0) + 1);
+    }
+  }
+  // isExtraActive maps to special status type 20
+  if (member?.isExtraActive) {
+    map.set(20, 1);
+  }
+  return map;
+}
+
+function buildEnemySpecialStatusesMap(state, targetIndex) {
+  const map = new Map();
+  const turnState = state?.turnState;
+  if (!turnState) return map;
+
+  for (const typeId of ENEMY_SPECIAL_STATUS_TYPE_IDS) {
+    if (hasEnemySpecialStatusByType(turnState, targetIndex, typeId)) {
+      map.set(typeId, 1);
     }
   }
   return map;
@@ -51,7 +83,7 @@ function buildPlayerMember(member) {
     ...defaults,
     sp: { current: Number(member?.sp?.current ?? 0) },
     ep: { current: Number(member?.ep?.current ?? 0) },
-    dpRate: Number(member?.dpRate ?? DEFAULT_DP_RATE),
+    dpRate: member?.dpState ? getDpRate(member.dpState) : DEFAULT_DP_RATE,
     token: { current: Number(member?.token?.current ?? member?.tokenState?.current ?? 0) },
     morale: { current: Number(member?.morale?.current ?? member?.moraleState?.current ?? 0) },
     motivation: { current: Number(member?.motivation?.current ?? member?.motivationState?.current ?? 0) },
@@ -72,7 +104,7 @@ function buildPlayerMember(member) {
     isApplyLearning: Boolean(member?.isApplyLearning),
     debuffIconCount: Number(member?.debuffIconCount ?? 0),
     hasSkill: (label) =>
-      typeof member?.hasSkill === 'function' ? Boolean(member.hasSkill(label)) : false,
+      typeof member?.hasSkillReference === 'function' ? Boolean(member.hasSkillReference(label)) : false,
     getSkillUseCountByLabel: (label) =>
       typeof member?.getSkillUseCountByLabel === 'function'
         ? Number(member.getSkillUseCountByLabel(label) ?? 0)
@@ -80,9 +112,81 @@ function buildPlayerMember(member) {
   };
 }
 
-export function buildConditionContext(state, member, skill, actionEntry = null) {
-  const defaults = createEmptyContext();
+function buildEnemyMember(state, targetIndex, member = null, skill = null, actionEntry = null) {
+  const defaults = createEmptyContext().member;
   const turnState = state?.turnState;
+  const isAlive = !isEnemyDead(turnState, targetIndex);
+  const isBreak = isEnemyBroken(turnState, targetIndex);
+
+  return {
+    ...defaults,
+    isPlayer: false,
+    position: 99,
+    isAlive,
+    isBreak,
+    specialStatuses: buildEnemySpecialStatusesMap(state, targetIndex),
+    characterId: '',
+    team: '',
+    elements: [],
+    weaponElement: '',
+    role: '',
+    isWeakToElement: (el) => {
+      if (el) {
+        return isEnemyWeakToElement(turnState, targetIndex, el);
+      } else {
+        return isHitWeakBySkillContext(state, member, skill, actionEntry).value;
+      }
+    },
+    isTargetWeakNatureElement: (el) => false,
+    damageRate: getEnemyDestructionRatePercent(turnState, targetIndex),
+    breakDownTurn: isAlive
+      ? getEnemyStatusRemainingTurns(turnState, targetIndex, ENEMY_STATUS_DOWN_TURN)
+      : 0,
+    isBroken: isBreak,
+    isDead: !isAlive,
+    isCharging: hasEnemySpecialStatusByType(turnState, targetIndex, 25),
+  };
+}
+
+function buildTargetContext(state, targetEnemyIndex, member = null, skill = null, actionEntry = null) {
+  const defaults = createEmptyContext().target;
+  const turnState = state?.turnState;
+  const hasTarget = Number.isFinite(targetEnemyIndex) && targetEnemyIndex >= 0;
+  if (!hasTarget) {
+    return defaults;
+  }
+  const isAlive = !isEnemyDead(turnState, targetEnemyIndex);
+  const isBreak = isEnemyBroken(turnState, targetEnemyIndex);
+
+  return {
+    isWeakToElement: (el) => {
+      if (el) {
+        return isEnemyWeakToElement(turnState, targetEnemyIndex, el);
+      } else {
+        return isHitWeakBySkillContext(state, member, skill, actionEntry).value;
+      }
+    },
+    isTargetWeakNatureElement: (el) => false,
+    damageRate: getEnemyDestructionRatePercent(turnState, targetEnemyIndex),
+    breakDownTurn: isAlive
+      ? getEnemyStatusRemainingTurns(turnState, targetEnemyIndex, ENEMY_STATUS_DOWN_TURN)
+      : 0,
+    isBroken: isBreak,
+    isDead: !isAlive,
+    isCharging: hasEnemySpecialStatusByType(turnState, targetEnemyIndex, 25),
+    debuffIconCount: 0,
+  };
+}
+
+export function buildConditionContext(state, member, skill, actionEntry = null) {
+  const turnState = state?.turnState;
+  const targetEnemyIndex = getConditionTargetEnemyIndex(state, skill, actionEntry);
+
+  const enemyCount = getEnemyState(turnState).enemyCount;
+  const enemies = [];
+  for (let i = 0; i < enemyCount; i++) {
+    enemies.push(buildEnemyMember(state, i, member, skill, actionEntry));
+  }
 
   return {
     state: {
@@ -99,20 +203,25 @@ export function buildConditionContext(state, member, skill, actionEntry = null) 
       tier: String(skill?.tier ?? skill?.ct ?? ''),
       spCost: Number(skill?.spCost ?? 0),
       element: skill?.element ?? '',
-      isNormalAttack: Boolean(skill?.isNormalAttack),
+      isNormalAttack: isNormalAttackSkill(skill),
     },
     action: {
       breakHitCount: Number(actionEntry?.breakHitCount ?? 0),
       removeDebuffCount: Number(actionEntry?.removeDebuffCount ?? 0),
-      targetEnemyIndex: Number(actionEntry?.targetEnemyIndex ?? DEFAULT_TARGET_ENEMY_INDEX),
+      targetEnemyIndex: Number.isFinite(targetEnemyIndex) ? targetEnemyIndex : DEFAULT_TARGET_ENEMY_INDEX,
     },
-    target: defaults.target,
+    target: buildTargetContext(state, targetEnemyIndex, member, skill, actionEntry),
     party: (state?.party ?? []).map(buildPlayerMember),
-    enemies: [],
+    enemies,
   };
 }
 
 export function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
   const context = buildConditionContext(state, member, skill, actionEntry);
-  return evaluateCondition(expression, context).result;
+  const evalResult = evaluateCondition(expression, context);
+  return {
+    result: evalResult.result,
+    knownCount: evalResult.knownCount,
+    unknownCount: evalResult.unknownCount,
+  };
 }

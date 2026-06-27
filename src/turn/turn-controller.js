@@ -5,6 +5,7 @@ import {
   buildPositionMap,
   normalizeActionCastMetadata,
 } from '../contracts/interfaces.js';
+import { evaluateConditionExpression as evaluateConditionExpressionAdapter } from '../engine/condition-context-adapter.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
@@ -3181,7 +3182,7 @@ function getEnemyResistanceRatePercent(turnState, targetIndex, element) {
   return Number.isFinite(value) ? value : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
 }
 
-function isEnemyWeakToElement(turnState, targetIndex, element) {
+export function isEnemyWeakToElement(turnState, targetIndex, element) {
   return getEnemyResistanceRatePercent(turnState, targetIndex, element) > DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
 }
 
@@ -3196,7 +3197,7 @@ function countEnemiesWeakToElement(turnState, element) {
   return count;
 }
 
-function getConditionTargetEnemyIndex(state, skill, actionEntry) {
+export function getConditionTargetEnemyIndex(state, skill, actionEntry) {
   const skillTarget = Number(skill?.targetEnemyIndex);
   if (Number.isFinite(skillTarget) && skillTarget >= 0) {
     return skillTarget;
@@ -3233,7 +3234,7 @@ function getConditionSkillElements(skill, member = null) {
   return [...new Set(elements)];
 }
 
-function isHitWeakBySkillContext(state, member, skill, actionEntry) {
+export function isHitWeakBySkillContext(state, member, skill, actionEntry) {
   const targetIndex = getConditionTargetEnemyIndex(state, skill, actionEntry);
   if (!Number.isFinite(targetIndex) || targetIndex < 0) {
     return { known: false, value: true };
@@ -3365,7 +3366,7 @@ function actionTreatsEShieldAsWeakHit(state, actor, skill, actionEntry, targetEn
   );
 }
 
-function getEnemyDestructionRatePercent(turnState, targetIndex) {
+export function getEnemyDestructionRatePercent(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const value = Number(enemyState.destructionRateByEnemy?.[String(Number(targetIndex))]);
   return Number.isFinite(value) ? value : DEFAULT_DESTRUCTION_RATE_PERCENT;
@@ -3945,7 +3946,7 @@ function countAliveEnemiesWithStatus(turnState, statusType) {
   return targets.size;
 }
 
-function getEnemyStatusRemainingTurns(turnState, targetIndex, statusType) {
+export function getEnemyStatusRemainingTurns(turnState, targetIndex, statusType) {
   const target = Number(targetIndex);
   let remainingTurns = 0;
   for (const status of getActiveEnemyStatuses(turnState, statusType)) {
@@ -3961,7 +3962,7 @@ function getEnemySpecialStatusNameByType(typeId) {
   return ENEMY_SPECIAL_STATUS_TYPE_TO_NAME[Number(typeId)] ?? null;
 }
 
-function hasEnemySpecialStatusByType(turnState, targetIndex, typeId) {
+export function hasEnemySpecialStatusByType(turnState, targetIndex, typeId) {
   const numericTypeId = Number(typeId);
   const statusType = getEnemySpecialStatusNameByType(numericTypeId);
   if (!statusType) {
@@ -6527,38 +6528,7 @@ function evaluateSingleConditionClause(clause, state, member, skill, actionEntry
 }
 
 export function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
-  const text = String(expression ?? '').trim();
-  if (!text) {
-    return { result: true, knownCount: 0, unknownCount: 0 };
-  }
-
-  let knownCount = 0;
-  let unknownCount = 0;
-  const orClauses = splitTopLevel(text, '||');
-  let orResult = false;
-
-  for (const orClause of orClauses) {
-    const andClauses = splitTopLevel(orClause, '&&');
-    let andResult = true;
-    for (const clause of andClauses) {
-      const evaluated = evaluateSingleConditionClause(clause, state, member, skill, actionEntry);
-      if (evaluated.known) {
-        knownCount += 1;
-      } else {
-        unknownCount += 1;
-      }
-      if (!evaluated.value) {
-        andResult = false;
-        break;
-      }
-    }
-    if (andResult) {
-      orResult = true;
-      break;
-    }
-  }
-
-  return { result: orResult, knownCount, unknownCount };
+  return evaluateConditionExpressionAdapter(expression, state, member, skill, actionEntry);
 }
 
 function evaluateSkillConditionExpression(expression, state, member, skill) {
