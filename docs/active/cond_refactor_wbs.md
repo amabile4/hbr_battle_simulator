@@ -127,7 +127,7 @@ Phase 7     不要コード削除・最終回帰テスト
 
 **担当: Codex**（アダプタ本体） / **Gemini**（enemy member オブジェクト生成）
 
-### P2-1: specialStatuses Map 変換（Codex担当）
+### P2-1: specialStatuses Map 変換（Codex担当・完了）✅
 
 ```js
 // src/engine/condition-context-adapter.js（新規）に実装
@@ -172,7 +172,7 @@ function buildEnemyMember(state, targetIndex) {
 }
 ```
 
-### P2-3: buildConditionContext 本体（Codex担当）
+### P2-3: buildConditionContext 本体（Codex担当・完了）✅
 
 ```js
 export function buildConditionContext(state, member, skill, actionEntry) {
@@ -203,14 +203,14 @@ export function buildConditionContext(state, member, skill, actionEntry) {
 }
 ```
 
-### P2-4: evaluateConditionExpression ラッパー（Codex担当）
+### P2-4: evaluateConditionExpression ラッパー（Codex担当・完了）✅
 
 ```js
 // 既存の呼び出し側は変更不要（同名で上書き）
 export function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
   const ctx = buildConditionContext(state, member, skill, actionEntry);
   const result = evaluateCondition(expression, ctx);
-  return { result: result.result, knownCount: result.knownCount, unknownCount: result.unknownCount };
+  return result.result;
 }
 ```
 
@@ -429,7 +429,7 @@ Phase 1 と Phase 3/4 の一部は並列実行可能だが、
 |---|---|---|---|
 | Phase 0 | Claude Code | ✅ 完了 | 2026-06-27 |
 | Phase 1 | Codex | ✅ 完了 | 2026-06-27 |
-| Phase 2 | Codex + Gemini | ⬜ 未着手 | - |
+| Phase 2 | Codex + Gemini | 🟢 進行中（P2-1/P2-3/P2-4 完了） | - |
 | Phase 3 | GLM | ⬜ 未着手 | - |
 | Phase 4 | GLM | ⬜ 未着手 | - |
 | Phase 5 | Gemini | ⬜ 未着手 | - |
