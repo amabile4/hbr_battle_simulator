@@ -2,6 +2,7 @@ import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
 import { normalizeCharacterStats } from './character-stats.js';
 import { resolveShortCharacterName } from './character-name.js';
+import { parseCondition } from '../engine/cond-parser.js';
 import {
   getAlternateFormInfo,
   getCurrentFormInfo,
@@ -63,6 +64,10 @@ function normalizeSkill(skill) {
     desc: String(skill.desc ?? ''),
     targetType: String(skill.target_type ?? skill.targetType ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? 0),
+    spCostByUseCount: Array.isArray(skill.sp_cost_by_use_count ?? skill.spCostByUseCount)
+      ? (skill.sp_cost_by_use_count ?? skill.spCostByUseCount).map((value) => Number(value))
+      : null,
+    intervalTurn: Math.max(0, Number(skill.interval_turn ?? skill.intervalTurn ?? 0)),
     sourceType,
     isPassive,
     type: resolveSkillType(skill),
@@ -320,6 +325,27 @@ function normalizePassive(passive) {
   };
 }
 
+// AST ベースの Sp()>=0 検出ヘルパ（Phase 4: hasSpGreaterOrEqualZeroCondition の正規表現廃止）
+// turn-controller.js 側と同じ意味論。CountBC(...) の内側の Sp()>=0 はトップレベル条件と
+// みなさない（regex 版は誤検出のリスクがあったため AST 版で正確化）。
+function isSpGeqZeroCompareNode(node) {
+  return (
+    node?.type === 'compare' &&
+    node.op === '>=' &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'Sp' &&
+    (node.left.args?.length ?? 0) === 0 &&
+    Number(node.right?.value) === 0
+  );
+}
+
+function containsSpGeqZeroClause(ast) {
+  if (!ast) return false;
+  if (ast.type === 'or') return (ast.children ?? []).some(containsSpGeqZeroClause);
+  if (ast.type === 'and') return (ast.children ?? []).some(isSpGeqZeroCompareNode);
+  return isSpGeqZeroCompareNode(ast);
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -441,6 +467,13 @@ export class CharacterStyle {
     this.skillUseCounts = new Map(
       Object.entries(skillUseCountsInput).map(([k, v]) => [String(k), Number(v)])
     );
+    const skillLastUsedTurnsInput =
+      input.skillLastUsedTurns && typeof input.skillLastUsedTurns === 'object'
+        ? input.skillLastUsedTurns
+        : {};
+    this.skillLastUsedTurns = new Map(
+      Object.entries(skillLastUsedTurnsInput).map(([k, v]) => [String(k), Number(v)])
+    );
 
     this._revision = 0;
   }
@@ -544,7 +577,11 @@ export class CharacterStyle {
     const skillFromRegistry = this.getSkill(skill.skillId);
     const effectiveCond = String(skill.cond ?? skillFromRegistry?.cond ?? '');
     
-    const hasSpGreaterOrEqualZeroCondition = /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(effectiveCond);
+    const hasSpGreaterOrEqualZeroCondition = (() => {
+      // AST ベース検出: トップレベルの OR/AND 連鎖に Sp()>=0 が含まれるか
+      const parseResult = parseCondition(effectiveCond);
+      return parseResult.ok && containsSpGeqZeroClause(parseResult.ast);
+    })();
     const isSpConsumeSkill =
       consumeType !== 'Ep' &&
       consumeType !== 'Token' &&
@@ -1383,6 +1420,15 @@ export class CharacterStyle {
     return Number(this.skillUseCounts.get(key) ?? 0);
   }
 
+  getSkillLastUsedTurnByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key || !this.skillLastUsedTurns.has(key)) {
+      return null;
+    }
+    const turnIndex = Number(this.skillLastUsedTurns.get(key));
+    return Number.isFinite(turnIndex) ? turnIndex : null;
+  }
+
   incrementSkillUseByLabel(label) {
     const key = String(label ?? '').trim();
     if (!key) {
@@ -1393,13 +1439,17 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
-  incrementSkillUseById(skillId) {
+  incrementSkillUseById(skillId, turnIndex = null) {
     const skill = this.getSkill(skillId);
     const key = String(skill?.label ?? '').trim();
     if (!key) {
       return;
     }
     this.incrementSkillUseByLabel(key);
+    const normalizedTurnIndex = Number(turnIndex);
+    if (Number.isInteger(normalizedTurnIndex) && normalizedTurnIndex >= 0) {
+      this.skillLastUsedTurns.set(key, normalizedTurnIndex);
+    }
   }
 
   /**
@@ -1458,6 +1508,7 @@ export class CharacterStyle {
     c.epRule = this.epRule ? structuredClone(this.epRule) : null;
     c.statusEffects = structuredClone(this.statusEffects);
     c.skillUseCounts = new Map(this.skillUseCounts);
+    c.skillLastUsedTurns = new Map(this.skillLastUsedTurns);
     return c;
   }
 
@@ -1498,6 +1549,7 @@ export class CharacterStyle {
       epRule: this.epRule ? structuredClone(this.epRule) : null,
       statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
+      skillLastUsedTurns: Object.fromEntries(this.skillLastUsedTurns.entries()),
       revision: this._revision,
     };
   }

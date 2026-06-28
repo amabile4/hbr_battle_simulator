@@ -437,7 +437,7 @@ export function cloneTurnState(turnState) {
   };
 }
 
-export function createBattleState(partyMembers, turnState = createInitialTurnState()) {
+export function createBattleState(partyMembers, turnState = createInitialTurnState(), gameConfig = null) {
   if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
     throw new Error(`createBattleState requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);
   }
@@ -449,5 +449,6 @@ export function createBattleState(partyMembers, turnState = createInitialTurnSta
     turnState: cloneTurnState(turnState),
     positionMap: buildPositionMap(partyMembers),
     initialParty,
+    gameConfig: gameConfig && typeof gameConfig === 'object' ? { ...gameConfig } : null,
   };
 }

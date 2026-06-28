@@ -11,6 +11,28 @@ import {
 } from '../src/index.js';
 import { getStore, getSixUsableStyleIds } from './helpers.js';
 
+function buildProtectionMember(index, idBase) {
+  return new CharacterStyle({
+    characterId: `PROTECTION${index}`,
+    characterName: `Protection ${index}`,
+    styleId: idBase + index,
+    styleName: `Protection Style ${index}`,
+    partyIndex: index,
+    position: index,
+    skills: [
+      {
+        id: idBase * 10 + index,
+        label: 'Protection',
+        name: 'プロテクション',
+        sp_cost: 0,
+        target_type: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      },
+    ],
+    passives: [],
+  });
+}
+
 test('turn preview and commit work with revision guard', () => {
   const store = getStore();
   const styleIds = getSixUsableStyleIds(store);
@@ -145,5 +167,125 @@ test('commitTurn keeps damageContext for damage actions even when OD gain is zer
   assert.equal(
     action.damageContext.damageBreakdown.targetBreakdowns[0].groups.find((group) => group.dataGroup === 'affinity').multiplier,
     0.5
+  );
+});
+
+test('interval_turn blocks reuse until the configured turn difference elapses', () => {
+  const member = new CharacterStyle({
+    characterId: 'INTERVAL',
+    characterName: 'Interval Tester',
+    styleId: 9910,
+    styleName: 'Interval Style',
+    partyIndex: 0,
+    position: 0,
+    skills: [
+      {
+        id: 991001,
+        label: 'RKayamoriSkill11',
+        name: 'Interval Skill',
+        sp_cost: 0,
+        interval_turn: 3,
+        target_type: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      },
+      {
+        id: 991002,
+        label: 'Protection',
+        name: 'Protection',
+        sp_cost: 0,
+        target_type: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      },
+    ],
+    passives: [],
+  });
+  let state = createBattleStateFromParty(
+    new Party([member, buildProtectionMember(1, 9920), buildProtectionMember(2, 9920)])
+  );
+  const action = (skillId) => ({
+    0: { characterId: 'INTERVAL', skillId },
+  });
+
+  state = commitTurn(state, previewTurn(state, action(991001))).nextState;
+  assert.equal(state.party[0].getSkillLastUsedTurnByLabel('RKayamoriSkill11'), 1);
+  assert.throws(() => previewTurn(state, action(991001)), /interval_turn 3/);
+
+  state = commitTurn(state, previewTurn(state, action(991002))).nextState;
+  assert.throws(() => previewTurn(state, action(991001)), /interval_turn 3/);
+
+  state = commitTurn(state, previewTurn(state, action(991002))).nextState;
+  assert.equal(state.turnState.turnIndex, 4);
+  assert.doesNotThrow(() => previewTurn(state, action(991001)));
+});
+
+test('sp_cost_by_use_count resolves by prior uses and clamps to the final cost', () => {
+  const member = new CharacterStyle({
+    characterId: 'CATHY',
+    characterName: 'Cathy',
+    styleId: 9911,
+    styleName: 'Cost Style',
+    partyIndex: 0,
+    position: 0,
+    initialSP: 100,
+    skills: [
+      {
+        id: 991101,
+        label: 'CathyCSkill51',
+        name: 'カラスの鳴き声で',
+        sp_cost: 8,
+        sp_cost_by_use_count: [8, 12, 16, 20],
+        target_type: 'Self',
+        parts: [{ skill_type: 'Protection', target_type: 'Self' }],
+      },
+    ],
+    passives: [],
+  });
+  let state = createBattleStateFromParty(
+    new Party([member, buildProtectionMember(1, 9930), buildProtectionMember(2, 9930)])
+  );
+  const resolvedCosts = [];
+
+  for (let useIndex = 0; useIndex < 5; useIndex += 1) {
+    const preview = previewTurn(state, {
+      0: { characterId: 'CATHY', skillId: 991101 },
+    });
+    resolvedCosts.push(preview.actions[0].startSP - preview.actions[0].endSP);
+    state = commitTurn(state, preview).nextState;
+  }
+
+  assert.deepEqual(resolvedCosts, [8, 12, 16, 20, 20]);
+  assert.equal(state.party[0].getSkillUseCountByLabel('CathyCSkill51'), 5);
+});
+
+test('real skill metadata is normalized for all interval and use-count cost skills', () => {
+  const store = getStore();
+  const intervalLabels = [
+    'RKayamoriSkill11',
+    'EAoiSkill08',
+    'KMaruyamaSkill53',
+    'KMaruyamaSkill08',
+    'KMaruyamaSkill09',
+  ];
+  const labels = [...intervalLabels, 'CathyCSkill51'];
+  const rawSkills = labels.map((label) => store.skills.find((skill) => skill.label === label));
+  assert.equal(rawSkills.every(Boolean), true);
+
+  const member = new CharacterStyle({
+    characterId: 'REAL_METADATA',
+    characterName: 'Real Metadata',
+    styleId: 9912,
+    styleName: 'Real Metadata Style',
+    partyIndex: 0,
+    position: 0,
+    skills: rawSkills,
+    passives: [],
+  });
+
+  for (const label of intervalLabels) {
+    assert.equal(member.skills.find((skill) => skill.label === label)?.intervalTurn, 3, label);
+  }
+  assert.deepEqual(
+    member.skills.find((skill) => skill.label === 'CathyCSkill51')?.spCostByUseCount,
+    [8, 12, 16, 20]
   );
 });

@@ -9,11 +9,19 @@ import {
   isNormalAttackSkill as isNormalAttackSkillClassifier,
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
 } from '../domain/skill-classifiers.js';
-import { DEFAULT_INITIAL_SP } from '../config/battle-defaults.js';
+import {
+  DEFAULT_INITIAL_SP,
+  buildMarkEffectsFromDefineValues,
+  buildHighBoostDefaultsFromDefineValues,
+} from '../config/battle-defaults.js';
 import {
   resolveSupportPassiveEntry,
   buildSupportPassive,
 } from '../domain/support-skills-resolver.js';
+import {
+  parseCondition,
+  extractFunctionNames,
+} from '../engine/cond-parser.js';
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -164,17 +172,73 @@ const LIMIT_BREAK_MAX_BY_TIER = Object.freeze({
   SSR: 4,
 });
 
-const EXTRA_TURN_BLOCK_PATTERN = /SpecialStatusCountByType\(20\)\s*==\s*0/;
-const OVERDRIVE_PATTERN = /IsOverDrive\(\)/;
-const REINFORCED_PATTERN = /IsReinforcedMode\(\)/;
+// SpecialStatusCountByType(N) の typeId のうち、追加ターン除外を意味するもの。
+// 既存 regex /SpecialStatusCountByType\(20\)\s*==\s*0/ のハードコードから抽出した定数。
+const EXTRA_TURN_BLOCK_TYPE_ID = 20;
 
 function parseConditionFlags(expression) {
   const text = String(expression ?? '');
+  if (!text) {
+    return { excludesExtraTurn: false, requiresOverDrive: false, requiresReinforcedMode: false };
+  }
+
+  const parseResult = parseCondition(text);
+  if (!parseResult.ok) {
+    // パース失敗時は正規表現フォールバックで安全側に倒す
+    return {
+      excludesExtraTurn: /SpecialStatusCountByType\(20\)\s*==\s*0/.test(text),
+      requiresOverDrive: /IsOverDrive\(\)/.test(text),
+      requiresReinforcedMode: /IsReinforcedMode\(\)/.test(text),
+    };
+  }
+
+  const names = extractFunctionNames(parseResult.ast);
   return {
-    excludesExtraTurn: EXTRA_TURN_BLOCK_PATTERN.test(text),
-    requiresOverDrive: OVERDRIVE_PATTERN.test(text),
-    requiresReinforcedMode: REINFORCED_PATTERN.test(text),
+    requiresOverDrive: names.has('IsOverDrive'),
+    requiresReinforcedMode: names.has('IsReinforcedMode'),
+    excludesExtraTurn: containsSpecialStatusCountEqZero(parseResult.ast, EXTRA_TURN_BLOCK_TYPE_ID),
   };
+}
+
+// AST ノードを再帰的に走査し、SpecialStatusCountByType(typeId) == 0 を意味的に検出する。
+// cond-parser.js の walkAst と同等の分岐で or/and/compare/call/countBc 全ノードを辿る。
+function containsSpecialStatusCountEqZero(node, typeId) {
+  if (!node || typeof node !== 'object') {
+    return false;
+  }
+  if (
+    node.type === 'compare' &&
+    node.op === '==' &&
+    Number(node.right?.value) === 0 &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'SpecialStatusCountByType' &&
+    Number(node.left?.args?.[0]?.value) === typeId
+  ) {
+    return true;
+  }
+  // or / and: children 配列
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      if (containsSpecialStatusCountEqZero(child, typeId)) {
+        return true;
+      }
+    }
+  }
+  // compare: left, right
+  if (containsSpecialStatusCountEqZero(node.left, typeId)) {
+    return true;
+  }
+  if (containsSpecialStatusCountEqZero(node.right, typeId)) {
+    return true;
+  }
+  // countBc: inner, rhs
+  if (containsSpecialStatusCountEqZero(node.inner, typeId)) {
+    return true;
+  }
+  if (containsSpecialStatusCountEqZero(node.rhs, typeId)) {
+    return true;
+  }
+  return false;
 }
 
 function mergeConditionFlags(...flagsList) {
@@ -385,6 +449,12 @@ export class HbrDataStore {
     this.supportSkillsByLabel = new Map(
       this.supportSkills.map((g) => [String(g.label ?? ''), g])
     );
+
+    this.defineValues = payload.defineValues && typeof payload.defineValues === 'object'
+      ? payload.defineValues
+      : {};
+    this.markEffectsConfig = buildMarkEffectsFromDefineValues(this.defineValues);
+    this.highBoostDefaults = buildHighBoostDefaultsFromDefineValues(this.defineValues);
   }
 
   buildCharacterSortMetaByLabel(characters) {
@@ -453,6 +523,7 @@ export class HbrDataStore {
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       enemyEShieldOverrides: readJsonOrFallback(resolve(dir, 'enemy_eshield_overrides.json'), []),
       supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
+      defineValues: readJsonOrFallback(resolve(dir, 'define_values.json'), {}),
     });
   }
 
@@ -473,6 +544,7 @@ export class HbrDataStore {
       enemyEShieldOverrides: payload.enemyEShieldOverrides ?? [],
       skillAvailability: payload.skillAvailability ?? {},
       supportSkills: payload.supportSkills ?? [],
+      defineValues: payload.defineValues ?? {},
     });
   }
 

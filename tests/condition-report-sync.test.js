@@ -30,8 +30,14 @@ test('report helper treats implemented PRI-014 clauses as supported', () => {
   }
 });
 
-test('report helper keeps unknown enemy-side special status ids unresolved', () => {
-  const unresolved = 'CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(999)>0)>0';
+test('report helper accepts arbitrary enemy-side special status ids through the AST evaluator', () => {
+  const expression = 'CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(999)>0)>0';
+
+  assert.deepEqual(listUnsupportedConditionClausesByRuntimeSupport(expression), []);
+});
+
+test('report helper keeps unknown predicates unresolved', () => {
+  const unresolved = 'CountBC(IsPlayer() && UnknownPredicate()>0)>0';
 
   assert.deepEqual(listUnsupportedConditionClausesByRuntimeSupport(unresolved), [unresolved]);
 });

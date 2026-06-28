@@ -46,7 +46,7 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|---------|------|----------|
 | [golden/docs/cond_grammar_spec.md](../golden/docs/cond_grammar_spec.md) | 📚 参照 | 条件式文法 BNF（`||` / `&&` / 比較 + `CountBC` ネストのみ）と318 distinct 式の分析。case文・if(true/false)・三項は存在しない | 2026-06-27 |
-| [golden/docs/cond_evaluator_contract.md](../golden/docs/cond_evaluator_contract.md) | 📚 参照 | 評価器の入力（ConditionContext）/ 出力（EvaluationResult）契約。安全側 fallback 挙動、既存 turn-controller との対応表 | 2026-06-27 |
+| [golden/docs/cond_evaluator_contract.md](../golden/docs/cond_evaluator_contract.md) | 📚 参照 | 評価器の入力（ConditionContext）/ 出力（EvaluationResult）契約。安全側 fallback、CountBC生値API、既存 turn-controller との対応表 | 2026-06-28 |
 | [golden/docs/special_status_type_map.md](../golden/docs/special_status_type_map.md) | 📚 参照 | `SpecialStatusCountByType(ID)` の完全対応表（MasterSpecialStatus 正本 + 補助28型）。既存マップの誤り修正（79=Restraint, 146=NegativeMind）と未対応9種の補完 | 2026-06-27 |
 
 ### 検証結果（2026-06-27）
@@ -78,6 +78,7 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
+| [active/master_json_gap_analysis.md](active/master_json_gap_analysis.md) | 🟢 進行中 | `golden/master_json` 集合A（キャラ・カード・スキル・能力）と `json/` の突き合わせ調査。T-A/T-B として `interval_turn` のT1→T4再使用境界、`sp_cost_by_use_count` の使用回数別SP解決、最終使用ターンのclone/snapshot保持を実装し1300件PASS。残件は INTRINSIC_MARK_EFFECTS 等のハードコード根拠確認 | 2026-06-27 |
 | [active/eshield_per_stage_restore_wbs.md](active/eshield_per_stage_restore_wbs.md) | ✅ 完了 | `13312940` カレイドウロボロス・コスモスの HP 段階別 Eシールド復帰修正。`json/enemy_eshield_overrides.json` と Enemy Setup 手動入力で個別詳細データ由来の `30 -> 35 -> 40` を補完し、HPゲージ破壊後に次段階 max/current へ復帰させる。旧 replay の `EnemyEShields` override に `maxByStage` がなくても現在状態 / catalog 側から段階別 max を再導出し、DownTurn 自然回復も現在 HP 段階 max に統一。Enemy Setup は HP段階ごとの個別入力に対応し、単一最大値は段階1から派生する編集不可表示、コンマ区切りは表示用途のみ。段階別データ無し敵は従来 max 復帰 | 2026-06-06 |
 | [active/stage_setup_gimmick_pattern_analysis.md](active/stage_setup_gimmick_pattern_analysis.md) | 🟢 進行中 | Stage Setup 初期ギミック23項目の分類（A:初期状態注入, B:注入基盤追加, C:新規ロジック）と実装優先順位（Priority 1-3）。OD/SP 系 `enchantEffects` 5件と manual `毎ターンOD（%）` / `ODゲージ上昇量（%）` に加え、`毎ターンSP` / turn-start 条件付き SP の T1 反映と `Stage Setup` passive log 出力を shared helper 経由で整理。WBS は 14/23 完了(61%) のまま管理 | 2026-04-27 |
 | [active/byakko_rush_mode_wbs.md](active/byakko_rush_mode_wbs.md) | ✅ 完了 | `1002606 / 戦場の白き牙` Byakko06 のラッシュモード実装完了記録。`ByakkoDoubleActionAttackSkill` を DP100%以上の `OnPlayerTurnStart` 状態として実装し、既存 `DoubleActionExtraSkill` の二連発動基盤を攻撃スキル全般へ拡張。通常攻撃除外、EX残回数2未満単発、`獅子奮迅` の EX 後 SP+2 / SP30 上限突破、`シャドウ・ランペイジ` 二連時の Eternal + 3T Funnel 併用 OD 計算、追加ターン中のラッシュ継続、UI Next の `被弾` / `DP 100%` / `DP 99%` 操作を `EnemyAttackTargetCharacterIds` / `DpStateByPartyIndex` override 経由で保存・再計算するラッシュ ON/OFF 制御、三三七拍子で付与された追加ターン #2 の `ディスラプト` 二連 replay 回帰、DP100%未満時のラッシュ整理補償まで固定済み | 2026-05-24 |
@@ -111,6 +112,8 @@ docs/
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了）。バトル勝利時はOD/EX行動文脈をリセットし、ODゲージ値は次バトルへ維持する注記を反映 | 2026-05-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
+| [active/cond_refactor_wbs.md](active/cond_refactor_wbs.md) | ✅ 完了 | cond/overwrite_cond評価をAST evaluatorへ全面移行。旧regex evaluator・ホワイトリスト・support classifierを削除し、下僕人数別variantの生CountBC値もAST APIへ統合。unit 1317件・Golden 104件通過。E2E既知失敗4件はenemy preset catalog不整合 | 2026-06-28 |
+| [active/golden_cond_evaluator_migration_assessment.md](active/golden_cond_evaluator_migration_assessment.md) | 📦 スナップショット | `golden/` の cond/overwrite_cond パーサー・評価器（cond-parser.js / cond-evaluator.js）の本体移植可能性と可読性向上効果の評価。移植可能性=高・可読性向上=高・リスク=中。アダプタ関数1つで段階移植が可能。既存の正規表現ハードコード3箇所（parseConditionFlags / hasSpGreaterOrEqualZeroCondition）をAST走査で代替できる | 2026-06-27 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | バフ消費ロジック現状分析。Funnel/MindEye/Count型/ターン型に加え、SprightlyのSkillUse選択・消費フローを反映 | 2026-06-27 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | 統一バフスキーマ設計。StatusEffectメタデータとActionContextにSprightlyのSkillUseトリガーを反映 | 2026-06-27 |
 | [active/action_context_matrix.md](active/action_context_matrix.md) | 📚 参照 | Phase 1/3: アクション分類マトリクス - 行動種別 × exitCond 判定基準の完全参照表。P3-05 後の差分なし確認を追記済み | 2026-03-31 |

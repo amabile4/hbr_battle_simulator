@@ -388,18 +388,33 @@ export function createInitializedBattleSnapshot({
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
           : {},
-      talismanState: structuredClone(
-        baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 }
-      ),
-      disasterState: structuredClone(
-        baseTurnState.enemyState?.disasterState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }
-      ),
+      talismanState: {
+        ...structuredClone(
+          baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 }
+        ),
+        penaltyPerLevel:
+          dataStore?.defineValues?.TALISMAN_REF_PARAM_DOWN ??
+          baseTurnState.enemyState?.talismanState?.penaltyPerLevel ??
+          10,
+      },
+      disasterState: {
+        ...structuredClone(
+          baseTurnState.enemyState?.disasterState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }
+        ),
+        penaltyPerLevel:
+          dataStore?.defineValues?.SPECIAL_STATUS_DISASTER_REF_PARAM_DOWN ??
+          baseTurnState.enemyState?.disasterState?.penaltyPerLevel ??
+          7,
+      },
     },
     zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
     territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
   };
 
-  const state = createBattleStateFromParty(party, initialTurnState);
+  const state = createBattleStateFromParty(party, initialTurnState, {
+    markEffectsConfig: dataStore?.markEffectsConfig ?? null,
+    highBoostDefaults: dataStore?.highBoostDefaults ?? null,
+  });
   applyInitialPassiveState(state);
 
   return {
