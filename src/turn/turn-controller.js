@@ -586,8 +586,7 @@ function isSupportedPlayerConditionFunctionSyntax(name, argRaw) {
   }
 
   if (key === 'SpecialStatusCountByType') {
-    const typeId = Number(arg);
-    return typeId === EXTRA_ACTIVATION_STATUS_TYPE || IMPLEMENTED_SPECIAL_STATUS_TYPES.has(typeId);
+    return true;
   }
 
   return false;

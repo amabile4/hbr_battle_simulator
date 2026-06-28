@@ -85,6 +85,13 @@ test('evaluateConditionExpression: returns evaluation result object', () => {
   assert.equal(typeof evalResult.result, 'boolean');
 });
 
+test('evaluateConditionExpression: treats an unknown special status type as a known zero count', () => {
+  const evalResult = evaluateConditionExpression('SpecialStatusCountByType(999) == 0', {}, {}, {});
+
+  assert.equal(evalResult.result, true);
+  assert.equal(evalResult.unknownCount, 0);
+});
+
 test('evaluateConditionExpression: evaluates CountBC on enemies', () => {
   const state = {
     turnState: {
