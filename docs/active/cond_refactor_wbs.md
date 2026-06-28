@@ -78,10 +78,10 @@
 ```
 Phase 0 ✅  準備・初期コミット（完了）
 Phase 1 ✅  コアモジュール配備 + IsTalisman補完（完了）
-Phase 2     ConditionContext アダプタ層実装
-Phase 3     parseConditionFlags → AST走査置き換え
-Phase 4     hasSpGreaterOrEqualZeroCondition 廃止
-Phase 5     evaluateCountBCPredicate → golden CountBC 統合
+Phase 2 ✅  ConditionContext アダプタ層実装（完了）
+Phase 3 ✅  parseConditionFlags → AST走査置き換え（完了）
+Phase 4 ✅  hasSpGreaterOrEqualZeroCondition 廃止（完了）
+Phase 5 ✅  evaluateCountBCPredicate → golden CountBC 統合（完了）
 Phase 6     IMPLEMENTED_SPECIAL_STATUS_TYPES 廃止
 Phase 7     不要コード削除・最終回帰テスト
 ```
@@ -428,11 +428,11 @@ Phase 1 と Phase 3/4 の一部は並列実行可能だが、
 | フェーズ | 担当 | 状態 | 完了確認 |
 |---|---|---|---|
 | Phase 0 | Claude Code | ✅ 完了 | 2026-06-27 |
-| Phase 1 | Codex | ✅ 完了 | 2026-06-27 |
-| Phase 2 | Codex + Gemini | 🟢 進行中（P2-1/P2-3/P2-4 完了） | - |
-| Phase 3 | GLM | ⬜ 未着手 | - |
-| Phase 4 | GLM | ⬜ 未着手 | - |
-| Phase 5 | Gemini | ⬜ 未着手 | - |
+| Phase 1 | Codex | ✅ 完了 | 2026-06-27 (bb76061) |
+| Phase 2 | Codex + Gemini | ✅ 完了 | 2026-06-27 (41ef188 + 17e804e) |
+| Phase 3 | GLM | ✅ 完了 | 2026-06-27 (58a793c) |
+| Phase 4 | GLM | ✅ 完了 | 2026-06-28 (4137114) |
+| Phase 5 | Gemini | ✅ 完了 | 2026-06-27 (17e804e) |
 | Phase 6 | Codex | ⬜ 未着手 | - |
 | Phase 7 | Codex + Claude Code | ⬜ 未着手 | - |
 
