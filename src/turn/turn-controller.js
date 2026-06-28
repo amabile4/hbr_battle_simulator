@@ -6,6 +6,7 @@ import {
   normalizeActionCastMetadata,
 } from '../contracts/interfaces.js';
 import { evaluateConditionExpression as evaluateConditionExpressionAdapter } from '../engine/condition-context-adapter.js';
+import { parseCondition } from '../engine/cond-parser.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
@@ -10684,6 +10685,27 @@ function buildDerivedRepeatAction(action) {
   };
 }
 
+// AST ベースの Sp()>=0 検出ヘルパ（Phase 4: hasSpGreaterOrEqualZeroCondition の正規表現廃止）
+// 条件式のトップレベルの OR 分岐の AND 連鎖に Sp()>=0 が含まれるかを判定する。
+// CountBC(...) の内側の Sp()>=0 はトップレベル条件ではないため検出対象外。
+function isSpGeqZeroCompareNode(node) {
+  return (
+    node?.type === 'compare' &&
+    node.op === '>=' &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'Sp' &&
+    (node.left.args?.length ?? 0) === 0 &&
+    Number(node.right?.value) === 0
+  );
+}
+
+function containsSpGeqZeroClause(ast) {
+  if (!ast) return false;
+  if (ast.type === 'or') return (ast.children ?? []).some(containsSpGeqZeroClause);
+  if (ast.type === 'and') return (ast.children ?? []).some(isSpGeqZeroCompareNode);
+  return isSpGeqZeroCompareNode(ast);
+}
+
 function buildPreviewActionEntry(state, member, position, effectiveSkill, action, actionMetadata = {}) {
   const preview = member.previewSkillUseResolved(effectiveSkill);
   const hitInfo = resolveEffectivePreviewHitCount(effectiveSkill, state, member);
@@ -10919,7 +10941,12 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     ),
     insufficientSpWarning: String(preview.insufficientSpWarning ?? ''),
     // skill cond に "Sp()>=0" が含まれるか記録（warning 生成時の判定に使用）
-    hasSpGreaterOrEqualZeroCondition: /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(String(effectiveSkill?.cond ?? '')),
+    // 正規表現は Sp() が CountBC(...) の内側にある場合を誤検出する风险があったため、
+    // Phase 4 で AST ベースの意味的チェックに置き換え。
+    hasSpGreaterOrEqualZeroCondition: (() => {
+      const parseResult = parseCondition(String(effectiveSkill?.cond ?? ''));
+      return parseResult.ok && containsSpGeqZeroClause(parseResult.ast);
+    })(),
     _baseRevision: preview.baseRevision,
     _effectiveSkillSnapshot: structuredClone(effectiveSkill),
   };

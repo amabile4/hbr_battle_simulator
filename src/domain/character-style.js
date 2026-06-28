@@ -2,6 +2,7 @@ import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
 import { normalizeCharacterStats } from './character-stats.js';
 import { resolveShortCharacterName } from './character-name.js';
+import { parseCondition } from '../engine/cond-parser.js';
 import {
   getAlternateFormInfo,
   getCurrentFormInfo,
@@ -324,6 +325,27 @@ function normalizePassive(passive) {
   };
 }
 
+// AST ベースの Sp()>=0 検出ヘルパ（Phase 4: hasSpGreaterOrEqualZeroCondition の正規表現廃止）
+// turn-controller.js 側と同じ意味論。CountBC(...) の内側の Sp()>=0 はトップレベル条件と
+// みなさない（regex 版は誤検出のリスクがあったため AST 版で正確化）。
+function isSpGeqZeroCompareNode(node) {
+  return (
+    node?.type === 'compare' &&
+    node.op === '>=' &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'Sp' &&
+    (node.left.args?.length ?? 0) === 0 &&
+    Number(node.right?.value) === 0
+  );
+}
+
+function containsSpGeqZeroClause(ast) {
+  if (!ast) return false;
+  if (ast.type === 'or') return (ast.children ?? []).some(containsSpGeqZeroClause);
+  if (ast.type === 'and') return (ast.children ?? []).some(isSpGeqZeroCompareNode);
+  return isSpGeqZeroCompareNode(ast);
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -555,7 +577,11 @@ export class CharacterStyle {
     const skillFromRegistry = this.getSkill(skill.skillId);
     const effectiveCond = String(skill.cond ?? skillFromRegistry?.cond ?? '');
     
-    const hasSpGreaterOrEqualZeroCondition = /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(effectiveCond);
+    const hasSpGreaterOrEqualZeroCondition = (() => {
+      // AST ベース検出: トップレベルの OR/AND 連鎖に Sp()>=0 が含まれるか
+      const parseResult = parseCondition(effectiveCond);
+      return parseResult.ok && containsSpGeqZeroClause(parseResult.ast);
+    })();
     const isSpConsumeSkill =
       consumeType !== 'Ep' &&
       consumeType !== 'Token' &&
