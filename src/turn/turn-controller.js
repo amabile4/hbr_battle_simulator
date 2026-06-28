@@ -5,7 +5,10 @@ import {
   buildPositionMap,
   normalizeActionCastMetadata,
 } from '../contracts/interfaces.js';
-import { evaluateConditionExpression as evaluateConditionExpressionAdapter } from '../engine/condition-context-adapter.js';
+import {
+  evaluateConditionExpression as evaluateConditionExpressionAdapter,
+  evaluateCountBcValue,
+} from '../engine/condition-context-adapter.js';
 import { parseCondition } from '../engine/cond-parser.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
@@ -324,13 +327,11 @@ const STAGE_SETUP_PASSIVE_SOURCE = 'stage_setup';
 const STAGE_SETUP_PASSIVE_SOURCE_TYPE = 'stage_setup';
 // パーティーメンバーのパッシブ評価順序（ゲーム内行動順: partyIndex 1 が最初に行動）
 const PASSIVE_ACTION_ORDER = Object.freeze([1, 0, 2, 3, 4, 5]);
-const EXTRA_ACTIVATION_STATUS_TYPE = 20;
 const CONDITION_WHITESPACE_RE = /\s+/g;
 const PASSIVE_VARIANT_THRESHOLD_RE = /(?:[:：]\s*)?(?:下僕|しもべ)?\s*(\d+)人/;
 const CONDITION_COMPARISON_OP_PATTERN = String.raw`(==|!=|>=|<=|>|<)`;
 const CONDITION_INTEGER_PATTERN = String.raw`(-?\d+)`;
 const CONDITION_NUMERIC_PATTERN = String.raw`(-?\d+(?:\.\d+)?)`;
-const CONDITION_IDENTIFIER_PATTERN = String.raw`([A-Za-z_][A-Za-z0-9_]*)`;
 const DAMAGE_RATE_CONDITION_RE = new RegExp(
   String.raw`^DamageRate\(\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_NUMERIC_PATTERN}$`
 );
@@ -339,27 +340,9 @@ const IS_WEAK_ELEMENT_PREDICATE_RE = /^IsWeakElement\([^)]+\)(==1)?$/;
 const PLAYED_SKILL_COUNT_CONDITION_RE = new RegExp(
   String.raw`^PlayedSkillCount\(([^)]*)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
 );
-const SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE = new RegExp(
-  String.raw`^SpecialStatusCountByType\(${EXTRA_ACTIVATION_STATUS_TYPE}\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
-);
-const COUNT_BC_CONDITION_RE = new RegExp(
-  String.raw`^CountBC\((.+)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_INTEGER_PATTERN}$`
-);
-const FUNCTION_COMPARISON_CONDITION_RE = new RegExp(
-  String.raw`^${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_NUMERIC_PATTERN}$`
-);
-const REVERSE_FUNCTION_COMPARISON_CONDITION_RE = new RegExp(
-  String.raw`^${CONDITION_NUMERIC_PATTERN}\s*${CONDITION_COMPARISON_OP_PATTERN}\s*${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)$`
-);
-const BARE_FUNCTION_CALL_CONDITION_RE = new RegExp(
-  String.raw`^${CONDITION_IDENTIFIER_PATTERN}\(([^)]*)\)$`
-);
 const IS_CHARACTER_TARGET_CONDITION_RE = new RegExp(
   String.raw`^IsCharacter\(([^)]+)\)\s*${CONDITION_COMPARISON_OP_PATTERN}\s*([01])$`
 );
-const EXTRA_ACTIVE_COUNT_BC_GT_ZERO = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})>0`;
-const EXTRA_ACTIVE_COUNT_BC_GE_ONE = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})>=1`;
-const EXTRA_ACTIVE_COUNT_BC_EQ_ZERO = `IsPlayer()==1&&SpecialStatusCountByType(${EXTRA_ACTIVATION_STATUS_TYPE})==0`;
 export const SUPPORTED_PASSIVE_TIMINGS = Object.freeze([
   'OnOverdriveStart',
   'OnBattleStart',
@@ -421,15 +404,8 @@ export const CONDITION_SUPPORT_MATRIX = Object.freeze({
   IsZone: Object.freeze({ tier: 'implemented', note: 'turn state zone state is tracked now' }),
   IsTerritory: Object.freeze({ tier: 'implemented', note: 'turn state territory state is tracked now' }),
 });
-const DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER = Object.freeze({
-  A: 0,
-  S: 0,
-  SS: 0,
-  SSR: 0,
-});
 const BABIED_STATUS_TYPE = 'Babied';
 const DIVA_STATUS_TYPE = 'Diva';
-const SPECIAL_STATUS_TYPE_BUFF_CHARGE = 25;
 const SPECIAL_STATUS_TYPE_DIVA = 144;
 const SPECIAL_STATUS_TYPE_BABIED = 258;
 const SPECIAL_STATUS_TYPE_CURRY = 303;
@@ -537,197 +513,17 @@ export function analyzePassiveConditionSupport(passives = []) {
   };
 }
 
-function isSupportedPlayerConditionFunctionSyntax(name, argRaw) {
-  const key = String(name ?? '').trim();
-  const arg = String(argRaw ?? '').trim();
-  if (MARK_LEVEL_CONDITION_TO_ELEMENT[key]) {
-    return !arg;
-  }
-
-  if (!arg) {
-    return (
-      key === 'BreakHitCount' ||
-      key === 'OverDriveGauge' ||
-      key === 'Sp' ||
-      key === 'Ep' ||
-      key === 'ConquestBikeLevel' ||
-      key === 'Random' ||
-      key === 'Token' ||
-      key === 'MoraleLevel' ||
-      key === 'MotivationLevel' ||
-      key === 'DpRate' ||
-      key === 'IsOverDrive' ||
-      key === 'IsReinforcedMode' ||
-      key === 'IsShredding' ||
-      key === 'IsCharging' ||
-      key === 'IsFront' ||
-      key === 'IsDead' ||
-      key === 'IsBroken' ||
-      key === 'IsTalisman' ||
-      key === 'IsHitWeak' ||
-      key === 'IsAttackNormal' ||
-      key === 'ConsumeSp' ||
-      key === 'Turn' ||
-      key === 'TargetBreakDownTurn' ||
-      key === 'RemoveDebuffCount'
-    );
-  }
-
-  if (
-    key === 'IsNatureElement' ||
-    key === 'IsCharacter' ||
-    key === 'IsTeam' ||
-    key === 'IsWeakElement' ||
-    key === 'IsZone' ||
-    key === 'IsTerritory' ||
-    key === 'HasSkill'
-  ) {
-    return true;
-  }
-
-  if (key === 'SpecialStatusCountByType') {
-    return true;
-  }
-
-  return false;
-}
-
-function isSupportedEnemyConditionFunctionSyntax(name, argRaw) {
-  const key = String(name ?? '').trim();
-  const arg = String(argRaw ?? '').trim();
-  if (!arg) {
-    return (
-      key === 'IsPlayer' ||
-      key === 'IsDead' ||
-      key === 'IsBroken' ||
-      key === 'BreakDownTurn' ||
-      key === 'DamageRate'
-    );
-  }
-  if (key === 'IsWeakElement') {
-    return true;
-  }
-  if (key === 'SpecialStatusCountByType') {
-    return Boolean(getEnemySpecialStatusNameByType(arg));
-  }
-  return false;
-}
-
-function isSupportedCountBcPlayerClauseSyntax(clause) {
-  const text = String(clause ?? '').trim();
-  const compact = text.replace(CONDITION_WHITESPACE_RE, '');
-  if (!text) {
-    return true;
-  }
-  if (compact === 'IsPlayer()' || compact === 'IsPlayer()==1') {
-    return true;
-  }
-  return isSupportedConditionClauseByRuntimeSupport(text);
-}
-
-function isSupportedCountBcEnemyClauseSyntax(clause) {
-  const text = String(clause ?? '').trim();
-  if (!text) {
-    return true;
-  }
-
-  {
-    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      return isSupportedEnemyConditionFunctionSyntax(m[1], m[2]);
-    }
-  }
-
-  {
-    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      return isSupportedEnemyConditionFunctionSyntax(m[3], m[4]);
-    }
-  }
-
-  {
-    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
-    if (m) {
-      return isSupportedEnemyConditionFunctionSyntax(m[1], m[2]);
-    }
-  }
-
-  return false;
-}
-
-function isSupportedCountBcPredicateByRuntimeSupport(innerExpression) {
-  const inner = String(innerExpression ?? '').trim();
-  if (!inner) {
-    return false;
-  }
-  if (splitTopLevel(inner, '||').length > 1) {
-    return false;
-  }
-
-  const clauses = splitTopLevel(inner, '&&');
-  const compactClauses = clauses.map((clause) => String(clause ?? '').replace(CONDITION_WHITESPACE_RE, ''));
-  if (clauses.length === 0) {
-    return false;
-  }
-
-  if (compactClauses.includes('IsPlayer()==0')) {
-    return clauses.every((clause) => isSupportedCountBcEnemyClauseSyntax(clause));
-  }
-
-  return clauses.every((clause) => isSupportedCountBcPlayerClauseSyntax(clause));
-}
-
-function isSupportedConditionClauseByRuntimeSupport(clause) {
-  const text = String(clause ?? '').trim();
-  if (!text) {
-    return true;
-  }
-
-  if (text.match(PLAYED_SKILL_COUNT_CONDITION_RE)) {
-    return true;
-  }
-
-  if (text.match(SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE)) {
-    return true;
-  }
-
-  {
-    const m = text.match(COUNT_BC_CONDITION_RE);
-    if (m) {
-      return isSupportedCountBcPredicateByRuntimeSupport(m[1]);
-    }
-  }
-
-  {
-    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      return isSupportedPlayerConditionFunctionSyntax(m[1], m[2]);
-    }
-  }
-
-  {
-    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      return isSupportedPlayerConditionFunctionSyntax(m[3], m[4]);
-    }
-  }
-
-  {
-    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
-    if (m) {
-      return isSupportedPlayerConditionFunctionSyntax(m[1], m[2]);
-    }
-  }
-
-  return false;
-}
-
 export function listUnsupportedConditionClausesByRuntimeSupport(expression) {
   const text = String(expression ?? '').trim();
   if (!text) {
     return [];
   }
 
+  const probeMember = { position: 0, isAlive: true, statusEffects: [] };
+  const probeState = {
+    party: [probeMember],
+    turnState: { enemyState: { enemyCount: 1, statuses: [] } },
+  };
   const unsupported = new Set();
   const orClauses = splitTopLevel(text, '||');
   for (const orClause of orClauses) {
@@ -737,7 +533,8 @@ export function listUnsupportedConditionClausesByRuntimeSupport(expression) {
       if (!normalized) {
         continue;
       }
-      if (!isSupportedConditionClauseByRuntimeSupport(normalized)) {
+      const evaluation = evaluateConditionExpressionAdapter(normalized, probeState, probeMember, {});
+      if (evaluation.ok !== true || evaluation.unknownCount > 0) {
         unsupported.add(normalized);
       }
     }
@@ -1871,261 +1668,6 @@ function compareNumbers(left, op, right) {
     default:
       return false;
   }
-}
-
-function resolveZeroArgConditionValue(name, state, member, skill, actionEntry) {
-  const key = String(name ?? '').trim();
-  const markElement = MARK_LEVEL_CONDITION_TO_ELEMENT[key];
-  if (markElement) {
-    return {
-      known: true,
-      value: Number(member?.markStates?.[markElement]?.current ?? 0),
-    };
-  }
-  switch (key) {
-    case 'BreakHitCount':
-      return {
-        known: true,
-        value: Number(actionEntry?.breakHitCount ?? 0),
-      };
-    case 'OverDriveGauge':
-      return {
-        known: true,
-        value: Number(state?.turnState?.odGauge ?? 0),
-      };
-    case 'Sp':
-      return {
-        known: true,
-        value: Number(member?.sp?.current ?? 0),
-      };
-    case 'Ep':
-      return {
-        known: true,
-        value: Number(member?.ep?.current ?? 0),
-      };
-    case 'ConquestBikeLevel':
-      return {
-        known: true,
-        value: 160,
-      };
-    case 'Random': {
-      const tier = String(skill?.tier ?? skill?.ct ?? '').trim().toUpperCase();
-      if (Object.hasOwn(DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER, tier)) {
-        return {
-          known: true,
-          value: DEFAULT_RANDOM_CONDITION_VALUE_BY_TIER[tier],
-        };
-      }
-      return {
-        known: true,
-        value: 1,
-      };
-    }
-    case 'Token':
-      return {
-        known: true,
-        value: Number(member?.tokenState?.current ?? 0),
-      };
-    case 'MoraleLevel':
-      return {
-        known: true,
-        value: Number(member?.moraleState?.current ?? 0),
-      };
-    case 'MotivationLevel':
-      return {
-        known: true,
-        value: Number(member?.motivationState?.current ?? 0),
-      };
-    case 'DpRate':
-      return {
-        known: true,
-        value: getDpRate(member?.dpState),
-      };
-    case 'RemoveDebuffCount':
-      return {
-        known: true,
-        value: Number(actionEntry?.removeDebuffCount ?? 0),
-      };
-    case 'IsOverDrive':
-      return {
-        known: true,
-        value: isOverDriveActive(state?.turnState) ? 1 : 0,
-      };
-    case 'IsReinforcedMode':
-      return {
-        known: true,
-        value: hasReinforcedMode(member) ? 1 : 0,
-      };
-    case 'IsShredding':
-      return {
-        known: true,
-        value: member?.isShredding ? 1 : 0,
-      };
-    case 'IsCharging':
-      return {
-        known: true,
-        value: hasSpecialStatus(member, SPECIAL_STATUS_TYPE_BUFF_CHARGE) ? 1 : 0,
-      };
-    case 'IsFront':
-      return {
-        known: true,
-        value: Number(member?.position ?? 99) <= 2 ? 1 : 0,
-      };
-    case 'IsDead':
-      return {
-        known: true,
-        value: member?.isAlive === false ? 1 : 0,
-      };
-    case 'IsBroken':
-      return {
-        known: true,
-        value: member?.isBreak ? 1 : 0,
-      };
-    case 'IsTalisman':
-      return {
-        known: true,
-        value: getTalismanState(state?.turnState).active ? 1 : 0,
-      };
-    case 'IsHitWeak':
-      return isHitWeakBySkillContext(state, member, skill, actionEntry);
-    case 'IsAttackNormal':
-      return {
-        known: true,
-        value: isNormalAttackSkill(skill) ? 1 : 0,
-      };
-    case 'ConsumeSp':
-      return {
-        known: true,
-        value: Number(skill?.spCost ?? skill?.sp_cost ?? 0),
-      };
-    case 'TargetBreakDownTurn': {
-      const targetIndex = getConditionTargetEnemyIndex(state, skill, actionEntry);
-      if (!Number.isFinite(targetIndex) || targetIndex < 0) {
-        return {
-          known: false,
-          value: true,
-        };
-      }
-      return {
-        known: true,
-        value: isEnemyAlive(state?.turnState, targetIndex)
-          ? getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN)
-          : 0,
-      };
-    }
-    case 'Turn':
-      return {
-        known: true,
-        value: Number(state?.turnState?.turnIndex ?? 1),
-      };
-    default:
-      return {
-        known: false,
-        value: true,
-      };
-  }
-}
-
-function resolveSingleArgConditionValue(name, argRaw, state, member) {
-  const key = String(name ?? '').trim();
-  const arg = String(argRaw ?? '').trim();
-  switch (key) {
-    case 'IsNatureElement':
-      return {
-        known: true,
-        value: Array.isArray(member?.elements) && member.elements.some((element) => String(element) === arg) ? 1 : 0,
-      };
-    case 'IsCharacter':
-      return {
-        known: true,
-        value: String(member?.characterId ?? '') === arg ? 1 : 0,
-      };
-    case 'IsTeam':
-      return {
-        known: true,
-        value: String(member?.team ?? '') === arg ? 1 : 0,
-      };
-    case 'HasSkill':
-      return {
-        known: true,
-        value: typeof member?.hasSkillReference === 'function' && member.hasSkillReference(arg) ? 1 : 0,
-      };
-    case 'IsWeakElement': {
-      const targetIndex = Number(member?.__enemyTargetIndex ?? Number.NaN);
-      if (!Number.isFinite(targetIndex) || targetIndex < 0) {
-        return {
-          known: false,
-          value: true,
-        };
-      }
-      return {
-        known: true,
-        value: isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0,
-      };
-    }
-    case 'IsZone':
-      if (arg === 'None') {
-        return {
-          known: true,
-          value: isFieldStateActive(getZoneState(state?.turnState)) ? 0 : 1,
-        };
-      }
-      return {
-        known: true,
-        value:
-          isFieldStateActive(getZoneState(state?.turnState)) &&
-          String(getZoneState(state?.turnState)?.type ?? '') === arg
-            ? 1
-            : 0,
-      };
-    case 'IsTerritory':
-      if (arg === 'None') {
-        return {
-          known: true,
-          value: isFieldStateActive(getTerritoryState(state?.turnState)) ? 0 : 1,
-        };
-      }
-      return {
-        known: true,
-        value:
-          isFieldStateActive(getTerritoryState(state?.turnState)) &&
-          String(getTerritoryState(state?.turnState)?.type ?? '') === arg
-            ? 1
-            : 0,
-      };
-    case 'SpecialStatusCountByType': {
-      const typeId = Number(arg);
-      if (typeId === 20) {
-        return {
-          known: true,
-          value: member?.isExtraActive ? 1 : 0,
-        };
-      }
-      if (IMPLEMENTED_SPECIAL_STATUS_TYPES.has(typeId)) {
-        return {
-          known: true,
-          value: hasSpecialStatus(member, typeId) ? 1 : 0,
-        };
-      }
-      return {
-        known: false,
-        value: true,
-      };
-    }
-    default:
-      return {
-        known: false,
-        value: true,
-      };
-  }
-}
-
-function resolveConditionFunctionValue(name, argRaw, state, member, skill, actionEntry) {
-  const arg = String(argRaw ?? '').trim();
-  if (!arg) {
-    return resolveZeroArgConditionValue(name, state, member, skill, actionEntry);
-  }
-  return resolveSingleArgConditionValue(name, arg, state, member);
 }
 
 function createConditionSkillContext(skill, part = null) {
@@ -6258,277 +5800,6 @@ function tickEnemyStatuses(turnState) {
   turnState.territoryState = tickFieldState(turnState.territoryState);
 }
 
-function resolveEnemyConditionFunctionValue(name, argRaw, state, targetIndex) {
-  const arg = String(argRaw ?? '').trim();
-  const dead = isEnemyDead(state?.turnState, targetIndex);
-  switch (name) {
-    case 'IsPlayer':
-      return { known: true, value: 0 };
-    case 'IsDead':
-      return {
-        known: true,
-        value: dead ? 1 : 0,
-      };
-    case 'IsBroken':
-      return {
-        known: true,
-        value: dead ? 0 : (hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK) ? 1 : 0),
-      };
-    case 'BreakDownTurn':
-      return {
-        known: true,
-        value: dead ? 0 : getEnemyStatusRemainingTurns(state?.turnState, targetIndex, ENEMY_STATUS_DOWN_TURN),
-      };
-    case 'DamageRate':
-      return {
-        known: true,
-        value: getEnemyDestructionRatePercent(state?.turnState, targetIndex),
-      };
-    case 'IsWeakElement':
-      if (!arg) {
-        return { known: false, value: true };
-      }
-      return {
-        known: true,
-        value: dead ? 0 : (isEnemyWeakToElement(state?.turnState, targetIndex, arg) ? 1 : 0),
-      };
-    case 'SpecialStatusCountByType': {
-      if (!getEnemySpecialStatusNameByType(arg)) {
-        return { known: false, value: true };
-      }
-      return {
-        known: true,
-        value: dead ? 0 : (hasEnemySpecialStatusByType(state?.turnState, targetIndex, arg) ? 1 : 0),
-      };
-    }
-    default:
-      return { known: false, value: true };
-  }
-}
-
-function evaluateEnemyCountBcClause(clause, state, targetIndex) {
-  const text = String(clause ?? '').trim();
-  if (!text) {
-    return { known: true, value: true };
-  }
-
-  {
-    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      const resolved = resolveEnemyConditionFunctionValue(m[1], m[2], state, targetIndex);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return {
-        known: true,
-        value: compareNumbers(Number(resolved.value), m[3], Number(m[4])),
-      };
-    }
-  }
-
-  {
-    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      const resolved = resolveEnemyConditionFunctionValue(m[3], m[4], state, targetIndex);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return {
-        known: true,
-        value: compareNumbers(Number(m[1]), m[2], Number(resolved.value)),
-      };
-    }
-  }
-
-  {
-    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
-    if (m) {
-      const resolved = resolveEnemyConditionFunctionValue(m[1], m[2], state, targetIndex);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return {
-        known: true,
-        value: Boolean(Number(resolved.value)),
-      };
-    }
-  }
-
-  return { known: false, value: true };
-}
-
-function evaluateCountBCPredicate(innerExpression, state, member) {
-  const inner = String(innerExpression ?? '').replace(/\s+/g, '');
-  if (!inner) {
-    return { known: false, value: true };
-  }
-
-  const clauses = inner.split('&&').filter(Boolean);
-
-  if (inner === 'IsPlayer()') {
-    return { known: true, value: state.party.length };
-  }
-
-  if (inner === 'IsFront()==0&&IsPlayer()') {
-    const backlineCount = state.party.filter((item) => item.position >= 3).length;
-    return { known: true, value: backlineCount };
-  }
-
-  if (inner === EXTRA_ACTIVE_COUNT_BC_GT_ZERO) {
-    const count = state.party.filter((item) => item.isExtraActive).length;
-    return { known: true, value: count };
-  }
-
-  if (inner === EXTRA_ACTIVE_COUNT_BC_GE_ONE) {
-    const count = state.party.filter((item) => item.isExtraActive).length;
-    return { known: true, value: count };
-  }
-
-  if (inner === EXTRA_ACTIVE_COUNT_BC_EQ_ZERO) {
-    const count = state.party.filter((item) => item.isExtraActive).length;
-    return { known: true, value: count === 0 ? 1 : 0 };
-  }
-
-  if (inner === 'PlayedSkillCount(FMikotoSkill04)>0') {
-    const lhs = Number(member?.getSkillUseCountByLabel('FMikotoSkill04') ?? 0);
-    return { known: true, value: lhs > 0 ? 1 : 0 };
-  }
-
-  if (inner.includes('IsPlayer()') && !inner.includes('IsPlayer()==0')) {
-    const clauses = inner.split('&&').map((clause) => clause.trim()).filter(Boolean);
-    const playerClauses = clauses.filter((clause) => clause !== 'IsPlayer()' && clause !== 'IsPlayer()==1');
-    let count = 0;
-    for (const candidate of state.party ?? []) {
-      const matched = playerClauses.every((clause) => {
-        const evaluated = evaluateSingleConditionClause(clause, state, candidate, null, null);
-        return evaluated.known && Boolean(evaluated.value);
-      });
-      if (matched) {
-        count += 1;
-      }
-    }
-    return { known: true, value: count };
-  }
-
-  if (!clauses.includes('IsPlayer()==0') && !clauses.includes('IsPlayer()') && !clauses.includes('IsPlayer()==1')) {
-    let count = 0;
-    for (const candidate of state.party ?? []) {
-      const matched = clauses.every((clause) => {
-        const evaluated = evaluateSingleConditionClause(clause, state, candidate, null, null);
-        return evaluated.known && Boolean(evaluated.value);
-      });
-      if (matched) {
-        count += 1;
-      }
-    }
-    return { known: true, value: count };
-  }
-
-  if (clauses.includes('IsPlayer()==0')) {
-    let count = 0;
-    const enemyCount = getEnemyState(state?.turnState).enemyCount;
-    const countsDeadTargets = clauses.some((clause) => /\bIsDead\s*\(/.test(String(clause)));
-    for (let targetIndex = 0; targetIndex < enemyCount; targetIndex += 1) {
-      if (!countsDeadTargets && isEnemyDead(state?.turnState, targetIndex)) {
-        continue;
-      }
-      let matched = true;
-      for (const clause of clauses) {
-        const evaluated = evaluateEnemyCountBcClause(clause, state, targetIndex);
-        if (!evaluated.known) {
-          return { known: false, value: true };
-        }
-        if (!evaluated.value) {
-          matched = false;
-          break;
-        }
-      }
-      if (matched) {
-        count += 1;
-      }
-    }
-    return { known: true, value: count };
-  }
-
-  return { known: false, value: true };
-}
-
-function evaluateSingleConditionClause(clause, state, member, skill, actionEntry) {
-  const text = String(clause ?? '').trim();
-  if (!text) {
-    return { known: true, value: true };
-  }
-
-  const defaultRef = String(skill?.label ?? '');
-  const breakHitCount = Number(actionEntry?.breakHitCount ?? 0);
-
-  {
-    const m = text.match(PLAYED_SKILL_COUNT_CONDITION_RE);
-    if (m) {
-      const refRaw = String(m[1] ?? '').trim();
-      const ref = refRaw || defaultRef;
-      const op = m[2];
-      const rhs = Number(m[3]);
-      const lhs = Number(member?.getSkillUseCountByLabel(ref) ?? 0);
-      return { known: true, value: compareNumbers(lhs, op, rhs) };
-    }
-  }
-
-  {
-    const m = text.match(SPECIAL_STATUS_COUNT_BY_TYPE_CONDITION_RE);
-    if (m) {
-      const active = member?.isExtraActive ? 1 : 0;
-      return { known: true, value: compareNumbers(active, m[1], Number(m[2])) };
-    }
-  }
-
-  {
-    const m = text.match(COUNT_BC_CONDITION_RE);
-    if (m) {
-      const evaluated = evaluateCountBCPredicate(m[1], state, member);
-      if (!evaluated.known) {
-        return { known: false, value: true };
-      }
-      return { known: true, value: compareNumbers(Number(evaluated.value), m[2], Number(m[3])) };
-    }
-  }
-
-  {
-    const m = text.match(FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return { known: true, value: compareNumbers(Number(resolved.value), m[3], Number(m[4])) };
-    }
-  }
-
-  {
-    const m = text.match(REVERSE_FUNCTION_COMPARISON_CONDITION_RE);
-    if (m) {
-      const resolved = resolveConditionFunctionValue(m[3], m[4], state, member, skill, actionEntry);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return { known: true, value: compareNumbers(Number(m[1]), m[2], Number(resolved.value)) };
-    }
-  }
-
-  {
-    const m = text.match(BARE_FUNCTION_CALL_CONDITION_RE);
-    if (m) {
-      const resolved = resolveConditionFunctionValue(m[1], m[2], state, member, skill, actionEntry);
-      if (!resolved.known) {
-        return { known: false, value: true };
-      }
-      return { known: true, value: Boolean(Number(resolved.value)) };
-    }
-  }
-
-  return { known: false, value: true };
-}
-
 export function evaluateConditionExpression(expression, state, member, skill, actionEntry = null) {
   return evaluateConditionExpressionAdapter(expression, state, member, skill, actionEntry);
 }
@@ -6536,19 +5807,6 @@ export function evaluateConditionExpression(expression, state, member, skill, ac
 function evaluateSkillConditionExpression(expression, state, member, skill) {
   const evaluation = evaluateConditionExpression(expression, state, member, skill);
   return evaluation.result;
-}
-
-function evaluateCountBcValue(expression, state, member) {
-  const text = String(expression ?? '').trim();
-  const match = text.match(COUNT_BC_CONDITION_RE);
-  if (!match) {
-    return { known: false, value: 0 };
-  }
-  const evaluated = evaluateCountBCPredicate(match[1], state, member);
-  if (!evaluated.known) {
-    return { known: false, value: 0 };
-  }
-  return { known: true, value: Number(evaluated.value ?? 0) };
 }
 
 function inferPassiveVariantThreshold(variant) {
@@ -9079,37 +8337,6 @@ function applyGuardEffectsFromActions(state, previewRecord) {
     }
   }
   return events;
-}
-
-// T02: SpecialStatusCountByType 状態保持チェックヘルパー
-const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([
-  25,
-  78,
-  79,
-  122,
-  124,
-  125,
-  SPECIAL_STATUS_TYPE_DIVA,
-  146,
-  155,
-  164,
-  SPECIAL_STATUS_TYPE_BABIED,
-  SPECIAL_STATUS_TYPE_CURRY,
-  SPECIAL_STATUS_TYPE_SHCHI,
-  SPECIAL_STATUS_TYPE_MOCKTAIL,
-  SPECIAL_STATUS_TYPE_STEAK,
-  SPECIAL_STATUS_TYPE_GELATO,
-]);
-
-function hasSpecialStatus(member, typeId) {
-  if (!Array.isArray(member?.statusEffects)) return false;
-  const id = Number(typeId);
-  return member.statusEffects.some((e) => {
-    if (Number(e.metadata?.specialStatusTypeId) !== id) return false;
-    // Eternal 状態は remaining=0 でも有効
-    if (String(e.exitCond ?? '') === 'Eternal') return true;
-    return Number(e.remaining ?? 0) > 0;
-  });
 }
 
 function applyShreddingEffectsFromActions(state, previewRecord) {

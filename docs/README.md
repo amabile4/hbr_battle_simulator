@@ -46,7 +46,7 @@ docs/
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|---------|------|----------|
 | [golden/docs/cond_grammar_spec.md](../golden/docs/cond_grammar_spec.md) | 📚 参照 | 条件式文法 BNF（`||` / `&&` / 比較 + `CountBC` ネストのみ）と318 distinct 式の分析。case文・if(true/false)・三項は存在しない | 2026-06-27 |
-| [golden/docs/cond_evaluator_contract.md](../golden/docs/cond_evaluator_contract.md) | 📚 参照 | 評価器の入力（ConditionContext）/ 出力（EvaluationResult）契約。安全側 fallback 挙動、既存 turn-controller との対応表 | 2026-06-27 |
+| [golden/docs/cond_evaluator_contract.md](../golden/docs/cond_evaluator_contract.md) | 📚 参照 | 評価器の入力（ConditionContext）/ 出力（EvaluationResult）契約。安全側 fallback、CountBC生値API、既存 turn-controller との対応表 | 2026-06-28 |
 | [golden/docs/special_status_type_map.md](../golden/docs/special_status_type_map.md) | 📚 参照 | `SpecialStatusCountByType(ID)` の完全対応表（MasterSpecialStatus 正本 + 補助28型）。既存マップの誤り修正（79=Restraint, 146=NegativeMind）と未対応9種の補完 | 2026-06-27 |
 
 ### 検証結果（2026-06-27）
@@ -112,7 +112,7 @@ docs/
 | [active/turn_timing.md](active/turn_timing.md) | 📚 参照 | バトルフロー図と各タイミングの説明（Enemy先制行動〜バトル終了）。バトル勝利時はOD/EX行動文脈をリセットし、ODゲージ値は次バトルへ維持する注記を反映 | 2026-05-09 |
 | [active/ui_parallel_interface_spec.md](active/ui_parallel_interface_spec.md) | 📚 参照 | UI/Adapter層の並列開発インターフェース仕様（top-level `ui/` 削除済みの current state と `src/ui` shared module 境界へ更新） | 2026-03-31 |
 | [active/gui_technology_candidates.md](active/gui_technology_candidates.md) | 📚 参照 | GUI実装技術候補の比較調査 | 2026-03-08 |
-| [active/cond_refactor_wbs.md](active/cond_refactor_wbs.md) | 🟢 進行中 | cond/overwrite_cond AST評価器移植 WBS。Phase 0〜1完了、Phase 2 は Codex 担当の specialStatuses Map変換・ConditionContext構築・boolean評価ラッパーと単体3件を実装済み（engine 58件・既存1296件 PASS）。enemy member生成は継続中。Phase 3〜7の担当・依存関係・受け入れ基準も収録 | 2026-06-27 |
+| [active/cond_refactor_wbs.md](active/cond_refactor_wbs.md) | ✅ 完了 | cond/overwrite_cond評価をAST evaluatorへ全面移行。旧regex evaluator・ホワイトリスト・support classifierを削除し、下僕人数別variantの生CountBC値もAST APIへ統合。unit 1317件・Golden 104件通過。E2E既知失敗4件はenemy preset catalog不整合 | 2026-06-28 |
 | [active/golden_cond_evaluator_migration_assessment.md](active/golden_cond_evaluator_migration_assessment.md) | 📦 スナップショット | `golden/` の cond/overwrite_cond パーサー・評価器（cond-parser.js / cond-evaluator.js）の本体移植可能性と可読性向上効果の評価。移植可能性=高・可読性向上=高・リスク=中。アダプタ関数1つで段階移植が可能。既存の正規表現ハードコード3箇所（parseConditionFlags / hasSpGreaterOrEqualZeroCondition）をAST走査で代替できる | 2026-06-27 |
 | [active/buff_consumption_current_flow.md](active/buff_consumption_current_flow.md) | 📚 参照 | バフ消費ロジック現状分析。Funnel/MindEye/Count型/ターン型に加え、SprightlyのSkillUse選択・消費フローを反映 | 2026-06-27 |
 | [active/buff_consumption_schema.md](active/buff_consumption_schema.md) | 📚 参照 | 統一バフスキーマ設計。StatusEffectメタデータとActionContextにSprightlyのSkillUseトリガーを反映 | 2026-06-27 |

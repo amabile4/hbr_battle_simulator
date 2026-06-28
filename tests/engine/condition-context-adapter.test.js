@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   buildConditionContext,
   buildSpecialStatusesMap,
+  evaluateCountBcValue,
   evaluateConditionExpression,
 } from '../../src/engine/condition-context-adapter.js';
 
@@ -115,4 +116,8 @@ test('evaluateConditionExpression: evaluates CountBC on enemies', () => {
 
   assert.equal(evalResult.result, true);
   assert.equal(evalResult.unknownCount, 0);
+  assert.deepEqual(evaluateCountBcValue('CountBC(IsPlayer()==0 && BreakDownTurn()>0) > 0', state, {}, {}), {
+    known: true,
+    value: 1,
+  });
 });

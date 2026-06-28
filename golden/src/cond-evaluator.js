@@ -197,6 +197,14 @@ function evalOperand(node, context, acc) {
 // ---------------------------------------------------------------------------
 
 function resolveCountBc(node, context, acc) {
+  const count = countCountBcMatches(node, context, acc);
+  const rhsResolved = evalOperand(node.rhs, context, acc);
+  if (!rhsResolved.known) return { known: false, value: 0 };
+  const matched = compareNumbers(count, node.op, Number(rhsResolved.value));
+  return { known: true, value: matched ? 1 : 0 };
+}
+
+function countCountBcMatches(node, context, acc) {
   const players = Array.isArray(context.party) ? context.party : [];
   const enemies = Array.isArray(context.enemies) ? context.enemies : [];
   let count = 0;
@@ -204,10 +212,7 @@ function resolveCountBc(node, context, acc) {
     const subContext = { ...context, member: char };
     if (evalNode(node.inner, subContext, acc)) count += 1;
   }
-  const rhsResolved = evalOperand(node.rhs, context, acc);
-  if (!rhsResolved.known) return { known: false, value: 0 };
-  const matched = compareNumbers(count, node.op, Number(rhsResolved.value));
-  return { known: true, value: matched ? 1 : 0 };
+  return count;
 }
 
 // ---------------------------------------------------------------------------
@@ -408,6 +413,21 @@ export function evaluateCondition(expression, context, collectTrace = false) {
   }
   const evaluation = evaluateAst(ast, context, collectTrace);
   return { ...evaluation, ok: true };
+}
+
+export function evaluateCountBcValue(expression, context) {
+  let ast;
+  try {
+    ast = parseConditionOrThrow(String(expression ?? '').trim());
+  } catch {
+    return { known: false, value: 0 };
+  }
+  if (ast.type !== 'countBc') {
+    return { known: false, value: 0 };
+  }
+  const acc = { knownCount: 0, unknownCount: 0 };
+  const value = countCountBcMatches(ast, context, acc);
+  return { known: acc.unknownCount === 0, value };
 }
 
 /**

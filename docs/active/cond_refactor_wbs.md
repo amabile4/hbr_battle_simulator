@@ -83,7 +83,7 @@ Phase 3 ✅  parseConditionFlags → AST走査置き換え（完了）
 Phase 4 ✅  hasSpGreaterOrEqualZeroCondition 廃止（完了）
 Phase 5 ✅  evaluateCountBCPredicate → golden CountBC 統合（完了）
 Phase 6 ✅  IMPLEMENTED_SPECIAL_STATUS_TYPES 廃止（完了）
-Phase 7     不要コード削除・最終回帰テスト
+Phase 7 ✅  不要コード削除・最終回帰テスト（完了）
 ```
 
 ---
@@ -356,21 +356,25 @@ Map.get(X) でいつでも正確な値が得られる。
 
 ---
 
-## Phase 7: 不要コード削除・最終回帰テスト
+## Phase 7: 不要コード削除・最終回帰テスト（完了）✅
 
 **目標**: 旧正規表現・旧評価関数を完全削除し、技術的負債ゼロを確認。
 
 **担当: Claude Code（確認） + Codex（実行）**
 
-| タスク | 内容 |
-|---|---|
-| P7-1: 旧正規表現定数の削除 | `FUNCTION_COMPARISON_CONDITION_RE` 等6本の正規表現定数を削除 |
-| P7-2: `evaluateSingleConditionClause` 削除 | アダプタ経由で不要になった旧評価関数を削除 |
-| P7-3: `evaluateCountBCPredicate` 削除 | Phase 5 完了後に削除 |
-| P7-4: `EXTRA_ACTIVE_COUNT_BC_*` 定数削除 | ハードコード文字列定数を削除 |
-| P7-5: 最終 `npm test` 全通過確認 | 全テストスイート通過を確認 |
-| P7-6: E2E テスト確認 | `npm run test:e2e` 通過を確認 |
-| P7-7: git push & PR作成 | `feature/cond-refactor-ast` → main へ PR |
+| タスク | 内容 | 状態 |
+|---|---|---|
+| P7-1: 旧正規表現定数の削除 | `FUNCTION_COMPARISON_CONDITION_RE` 等の旧評価専用定数を削除 | ✅ |
+| P7-2: 旧評価関数群の削除 | `evaluateSingleConditionClause`、`evaluateCountBCPredicate`、旧resolver群を削除 | ✅ |
+| P7-3: CountBC数値評価のAST化 | 下僕人数別variant用の生CountBC値をAST evaluator / adapter APIへ移行 | ✅ |
+| P7-4: 旧support classifier削除 | condition report helperをAST evaluatorの解決結果ベースへ変更 | ✅ |
+| P7-5: 最終 `npm test` 全通過確認 | 1317件全通過 | ✅ |
+| P7-6: Goldenテスト確認 | 104件全通過 | ✅ |
+| P7-7: E2E テスト確認 | 92/98通過。再試行で一過性2件は通過。残る4件は既存enemy preset catalog不整合 | ✅ 既知問題あり |
+| P7-8: git push & PR作成 | `feature/cond-refactor-ast` → main | 🔄 本コミット後 |
+
+既知E2E失敗: `tests/e2e/superbreak-hefty-guardian.spec.js` 4件は、enemy preset `13490231` が
+catalogに存在しない既存問題であり、cond evaluator変更とは無関係。
 
 ---
 
@@ -434,7 +438,7 @@ Phase 1 と Phase 3/4 の一部は並列実行可能だが、
 | Phase 4 | GLM | ✅ 完了 | 2026-06-28 (4137114) |
 | Phase 5 | Gemini | ✅ 完了 | 2026-06-27 (17e804e) |
 | Phase 6 | Codex | ✅ 完了 | 2026-06-28 (31857a2) |
-| Phase 7 | Codex + Claude Code | ⬜ 未着手 | - |
+| Phase 7 | Codex + Claude Code | ✅ 完了 | 2026-06-28 |
 
 ---
 
@@ -443,5 +447,5 @@ Phase 1 と Phase 3/4 の一部は並列実行可能だが、
 - [golden_cond_evaluator_migration_assessment.md](golden_cond_evaluator_migration_assessment.md) — 移植可能性評価（スナップショット）
 - [golden/docs/cond_evaluator_contract.md](../../golden/docs/cond_evaluator_contract.md) — 評価器入出力契約
 - [golden/docs/cond_grammar_spec.md](../../golden/docs/cond_grammar_spec.md) — 文法BNF・述語51種
-- `src/turn/turn-controller.js:6357` — 既存 `evaluateCountBCPredicate`
+- `src/engine/condition-context-adapter.js` — runtime `ConditionContext` アダプタ
 - `src/data/hbr-data-store.js:167` — 既存 `parseConditionFlags`

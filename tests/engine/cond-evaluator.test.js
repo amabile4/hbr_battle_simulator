@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   evaluateAst,
   evaluateCondition,
+  evaluateCountBcValue,
   createEmptyContext,
   isFullyResolved,
   resolvePredicate,
@@ -102,6 +103,10 @@ test('evaluateCondition: CountBC は party/enemies 全体を反復して真の�
   });
   assert.equal(evaluateCondition('CountBC(IsPlayer() &&IsTeam(31A)==1)>=2', ctx).result, true);
   assert.equal(evaluateCondition('CountBC(IsPlayer() &&IsTeam(31A)==1)>=3', ctx).result, false);
+  assert.deepEqual(evaluateCountBcValue('CountBC(IsPlayer() &&IsTeam(31A)==1)>=3', ctx), {
+    known: true,
+    value: 2,
+  });
 });
 
 test('evaluateCondition: CountBC 内側式に player/enemy 区別を含む複雑条件', () => {

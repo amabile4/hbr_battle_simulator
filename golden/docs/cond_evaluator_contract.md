@@ -96,6 +96,10 @@ boolean 結果を返す統合エントリポイント。既存 `src/turn/turn-co
 
 `isFullyResolved(evaluation)` で `unknownCount === 0`（全述語解決済み）か判定可能。
 
+CountBCの比較結果ではなく一致件数が必要な場合は、
+`evaluateCountBcValue(expression, context)` を使用する。ルートASTが `countBc` の式を受け取り、
+`{ known: boolean, value: number }` を返す。SkillConditionの人数別variant選択で使用する。
+
 ## 4. 安全側 fallback の挙動
 
 | 状況 | 挙動 |
@@ -118,6 +122,7 @@ boolean 結果を返す統合エントリポイント。既存 `src/turn/turn-co
 | `resolveZeroArgConditionValue(name, ...)` | `resolvePredicate(name, [], ctx)` |
 | `compareNumbers(left, op, right)` | 内部 `compareNumbers`（同等） |
 | `evaluateCountBCPredicate(inner, ...)` | `resolveCountBc(node, ctx)` |
+| `evaluateCountBcValue(expression, ...)` | `evaluateCountBcValue(expression, ctx)` |
 
 本体統合時は `ConditionContext` への変換アダプタを挟むことで移行可能。
 

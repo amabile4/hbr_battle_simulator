@@ -1,4 +1,8 @@
-import { createEmptyContext, evaluateCondition } from './cond-evaluator.js';
+import {
+  createEmptyContext,
+  evaluateCondition,
+  evaluateCountBcValue as evaluateCountBcContextValue,
+} from './cond-evaluator.js';
 import { getDpRate } from '../domain/dp-state.js';
 import { isNormalAttackSkill } from '../domain/skill-classifiers.js';
 import {
@@ -223,5 +227,12 @@ export function evaluateConditionExpression(expression, state, member, skill, ac
     result: evalResult.result,
     knownCount: evalResult.knownCount,
     unknownCount: evalResult.unknownCount,
+    ok: evalResult.ok,
+    parseError: evalResult.parseError,
   };
+}
+
+export function evaluateCountBcValue(expression, state, member, skill = null, actionEntry = null) {
+  const context = buildConditionContext(state, member, skill, actionEntry);
+  return evaluateCountBcContextValue(expression, context);
 }
