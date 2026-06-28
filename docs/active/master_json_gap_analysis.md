@@ -90,10 +90,10 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
 |---|---|---|---|
 | `INTRINSIC_MARK_EFFECTS_BY_ELEMENT`<br>(`src/config/battle-defaults.js:17-58`) | Fire/Ice 等: 0.3/0.1/0.3/0.3/0.3/1 | ✅ **data-driven 配線完了（2026-06-28）**: `buildMarkEffectsFromDefineValues(dv)` 経由で `state.gameConfig.markEffectsConfig` に保持。Light は LIGHT_MARK_* フォールバック対応。コミット `d84ea1f` | ～ |
 | `HIGH_BOOST_ATTACK_BUFF_MULTIPLIER = 1.2`<br>`HIGH_BOOST_DEBUFF_MULTIPLIER = 1.2`<br>`HIGH_BOOST_DP_HEAL_MULTIPLIER = 1.5`<br>`HIGH_BOOST_SP_COST_INCREASE = 2` | 1.2 / 1.2 / 1.5 / 2 | ✅ **data-driven 配線完了（2026-06-28）**: `buildHighBoostDefaultsFromDefineValues(dv)` 経由で `state.gameConfig.highBoostDefaults` に保持。HighBoost 付与時に seeding、fallback チェーン維持。コミット `d84ea1f` | ～ |
-| `TALISMAN_PENALTY_PER_LEVEL = 10`<br>(`src/turn/turn-controller.js:67`) | 10（1レベルあたり%） | `define_values.json` に `TALISMAN_REF_PARAM_DOWN=10` あり（値は一致）。`adapter-core.js` のデフォルト値は未配線 | ★ |
-| `DISASTER_PENALTY_PER_LEVEL = 7`<br>(`src/turn/turn-controller.js:69`) | 7（1レベルあたり%） | `define_values.json` 未収録。`MasterSpecialStatus` 等で根拠確認が必要 | ★ |
-| `OD_GAUGE_PER_HIT_PERCENT = 2.5`<br>(`src/config/battle-defaults.js:63`) | 2.5% | `define_values.json` 未収録。`MasterDefineValue.json` / `ELEMENT_GAUGE_*` 系に該当エントリがあるか要確認 | ★ |
-| `DEFAULT_ZONE_MULTIPLIER = 1.5`<br>(`src/domain/damage-calculator.js:16`) | 1.5 倍 | `define_values.json` 未収録。`MasterDefineValue.json` / ゾーン系エントリの有無を要確認 | ★ |
+| `TALISMAN_PENALTY_PER_LEVEL = 10`<br>(`src/turn/turn-controller.js:67`) | 10（1レベルあたり%） | ✅ **data-driven 配線完了（2026-06-28）**: `adapter-core.js` の `talismanState.penaltyPerLevel` を `dataStore.defineValues.TALISMAN_REF_PARAM_DOWN` から設定（spread + 上書き形式）。コミット `bca4bc9` | ～ |
+| `DISASTER_PENALTY_PER_LEVEL = 7`<br>(`src/turn/turn-controller.js:69`) | 7（1レベルあたり%） | ✅ **根拠確認済み（2026-06-28, Codex調査）**: `MasterDefineValue.json` に `SPECIAL_STATUS_DISASTER_REF_PARAM_DOWN=7`（id 120000267）あり。`SPECIAL_STATUS_DISASTER_MAX_LEVEL=10` も存在。`define_values.json` 未収録 → **hbr_analysis 取り込み候補** | ★ |
+| `OD_GAUGE_PER_HIT_PERCENT = 2.5`<br>(`src/config/battle-defaults.js:63`) | 2.5% | ✅ **ゲーム固定定数として確定（2026-06-28, Codex調査）**: MasterDefineValue 全件・全 master JSON を OD/GAUGE キーで走査したが該当エントリなし。`NORMAL_ATTACK_OVER_DRIVE_GAUGE_MINIMUM_GUARANTEE=3`（最低保証ヒット数）は別物。Section 5 に移動 | ～ |
+| `DEFAULT_ZONE_MULTIPLIER = 1.5`<br>(`src/domain/damage-calculator.js:16`) | 1.5 倍 | ✅ **根拠確認済み（2026-06-28, Codex調査）**: `MasterSkillPart.json` skillType=52（Zone）の power 値が根拠。78件の分布: 1.25×3, 1.35×8, **1.5×33**, 1.65×18, 1.8×16。DefineValue ではなく個別スキルデータの既定 fallback として収録済み。現行値は正確 | ～ |
 
 ### 3-2. MasterPassiveSkill 非カード参照（選別が必要）
 
@@ -139,6 +139,7 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
 | クリティカルダメージ基本倍率 | 1.5 倍 | ゲーム全体仕様として固定 |
 | 破壊率グローバル上限 | 300% | ゲーム全体仕様として固定 |
 | 初期 SP | 3（= 1 + 2） | ゲーム全体仕様として固定 |
+| `OD_GAUGE_PER_HIT_PERCENT = 2.5` | 2.5%/hit | **ゲーム固定定数として確定（2026-06-28, Codex調査）**: MasterDefineValue 全件で対応エントリなし |
 | `INTRINSIC_MARK_EFFECTS_BY_ELEMENT`（印効果値） | 0.3/0.1/0.3/0.3/1 | **data-driven 配線済み（2026-06-28）**: `buildMarkEffectsFromDefineValues` 経由で `state.gameConfig.markEffectsConfig` に保持。Light は FIRE_MARK_* フォールバック |
 | `HIGH_BOOST_*` 倍率 | 1.8 / 1.2 / 1.5 / SP+2 | **data-driven 配線済み（2026-06-28）**: `buildHighBoostDefaultsFromDefineValues` 経由で `state.gameConfig.highBoostDefaults` に保持。skillAtkRate は effect.power 経由 |
 
@@ -159,29 +160,23 @@ PR#2 で `json/` に追加された `sp_cost_by_use_count` / `interval_turn` を
 
 未完了（優先順位順）:
 
-[T-F] 残存ハードコード定数の master_json 根拠確認
-  担当: Codex（調査依頼済み 2026-06-28）
+[T-F] 残存ハードコード定数の master_json 根拠確認 ✅ 担当: Codex（2026-06-28完了）
 
-  F-1. TALISMAN_REF_PARAM_DOWN（=10）の adapter-core.js デフォルト値配線
-       → define_values.json に根拠あり。adapter-core.js line 392 の penaltyPerLevel:10 を
-         dataStore.defineValues?.TALISMAN_REF_PARAM_DOWN に変更（1行）
+  F-1. TALISMAN_REF_PARAM_DOWN adapter-core.js 配線 ✅ コミット bca4bc9
+  F-2. DISASTER_PENALTY_PER_LEVEL=7 根拠確認 ✅ → MasterDefineValue に SPECIAL_STATUS_DISASTER_REF_PARAM_DOWN=7 あり（define_values.json 未収録）
+  F-3. OD_GAUGE_PER_HIT_PERCENT=2.5 根拠確認 ✅ → master 未収録、ゲーム固定定数として確定、Section 5 に移動
+  F-4. DEFAULT_ZONE_MULTIPLIER=1.5 根拠確認 ✅ → MasterSkillPart skillType=52 power 値が根拠（最頻値1.5×33件）
 
-  F-2. DISASTER_PENALTY_PER_LEVEL（=7）の根拠確認
-       → golden/master_json/MasterDefineValue.json / MasterSpecialStatus.json 等で
-         DISASTER_* または disasterPenalty 系のエントリを調査
+[T-G] DISASTER 定数の define_values.json 取り込み（hbr_analysis 対応）
+  → MasterDefineValue に根拠あり（F-2確認済み）
+  → SPECIAL_STATUS_DISASTER_REF_PARAM_DOWN=7、SPECIAL_STATUS_DISASTER_MAX_LEVEL=10 を hbr_analysis で pick-up
+  → 取り込み後: adapter-core.js の disasterState.penaltyPerLevel も TALISMAN 同様に配線（F-1 の実績パターンを踏襲）
+  → 担当: hbr_analysis 側（WindowsPC 上の修正が必要）、配線は Claude or Codex
 
-  F-3. OD_GAUGE_PER_HIT_PERCENT（=2.5）の根拠確認
-       → MasterDefineValue.json の ELEMENT_GAUGE_* 系エントリに該当値があるか調査
-       → なければ「ゲーム全体仕様として固定」として Section 5 に移動
-
-  F-4. DEFAULT_ZONE_MULTIPLIER（=1.5）の根拠確認
-       → golden/master_json/ にゾーン補正関連テーブルがあるか調査
-       → damage-calculator.js:16 の使用文脈を確認
-
-[T-G] 特殊カード 2件欠落（BIYamawaki99 / CSugahara99）★
+[T-H] 特殊カード 2件欠落（BIYamawaki99 / CSugahara99）★
   → 通常編成対象に含める要件がある場合のみ対応。現状は保留
 
-[T-H] MasterPassiveSkill 非カード参照 ★
+[T-I] MasterPassiveSkill 非カード参照 ★
   → カードツリー参照フィルタの設計が先決。1038件中 334 unique label のみ収録
 ```
 
