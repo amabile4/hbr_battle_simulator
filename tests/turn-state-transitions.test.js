@@ -14949,7 +14949,7 @@ test('慧眼の女教皇 アトミックフレアはEシールド属性無視を
   assert.equal(extraCommit.nextState.turnState.turnType, 'normal', '1MOREは追加ターン中に再付与しない');
 });
 
-test('慧眼の女教皇 アトミックフレアはEシールドがない非弱点敵では1MOREを発火しない', () => {
+test('慧眼の女教皇 アトミックフレアはEシールドがない非弱点敵でも貫通クリティカルで1MOREを発火する', () => {
   const store = getStore();
   const fillerStyleIds = getSixUsableStyleIds(store).filter((styleId) => Number(styleId) !== QUEEN_HIGH_PRIESTESS_STYLE_ID);
   const party = store.buildPartyFromStyleIds(
@@ -14975,7 +14975,8 @@ test('慧眼の女教皇 アトミックフレアはEシールドがない非弱
   });
   const { nextState } = commitTurn(state, preview);
 
-  assert.notEqual(nextState.turnState.turnType, 'extra');
+  assert.equal(nextState.turnState.turnType, 'extra');
+  assert.deepEqual(nextState.turnState.extraTurnState?.allowedCharacterIds, [queen.characterId]);
 });
 
 function createTojoYuinaOneMoreTestState() {

@@ -2,7 +2,7 @@
 
 > ステータス: ✅ 完了
 > 作成日: 2026-04-18
-> 最終更新: 2026-05-25
+> 最終更新: 2026-06-28
 > 親タスク: [ui_next_unimplemented_tasklist.md](ui_next_unimplemented_tasklist.md)
 
 ## 概要
@@ -38,6 +38,9 @@ UI Next の committed row 表示では、HP break した当該行は同ターン
 2026-05-25 には、`ActivateMakaiKihei` operation で発動する `魔界騎兵起動` を山脇スタイルの
 Dark 攻撃として Eシールド減算へ接続し、embedded skill の `hit_count: 6` に従って対応属性の
 Eシールドを `6` 減らすように固定した。depleted 時は既存 BREAK / DownTurn 経路へ接続する。
+2026-06-28 には、`PenetrationCriticalAttack` 自体を属性・弱点・Eシールドの有無に関係なく
+弱点命中扱いとする仕様を固定し、Eシールドなしの `アトミックフレア` でも `1MORE` が
+発火する回帰、および LB2/LB3 の `Funnel` が `Only` 競合で `2` / `5` hit になる回帰を追加した。
 
 ## 調査結果
 
@@ -217,6 +220,7 @@ eShieldStateByEnemy[targetEnemyIndex] = {
 - [x] `tests/turn-state-transitions.test.js`: 通常攻撃 + 属性ブレスレットで Eシールドが減ること、非一致属性では減らないことを固定
 - [x] `tests/turn-state-transitions.test.js`: 闇撃のブレス通常攻撃で Dark Eシールドを raw hit 分減らし、Dark 弱点への `AdditionalHitOnWeak + AdditionalTurn` が発火することを固定
 - [x] `tests/turn-state-transitions.test.js`: `慧眼の女教皇` クイーンの `アトミックフレア` が Eシールド属性無視で current を減らし、弱点命中扱いで `1MORE` を発火して追加ターンを付与することを固定
+- [x] `tests/queen-skill-use.test.js`: `PenetrationCriticalAttack` による Eシールドなしの `1MORE`、通常攻撃の非発火、Fire / Ice / Thunder Eシールド属性無視、通常攻撃の属性一致、LB2/LB3 `Funnel` の `Only` 競合を固定
 - [x] `tests/turn-state-transitions.test.js`: HPゲージ破壊時に active/depleted Eシールドが増加なしで max まで復帰することを固定
 - [x] `tests/turn-state-transitions.test.js`: `dimension_battle.json` の `万象を蝕む妖花` / `絶界に屹立せし蝕樹` central 実データを使い、HP 3段・`pattern.hp` 3段・HP break 後の `eg[0].esp` への Eシールド復帰を固定
 - [x] `tests/ui-next-turn-ui.test.js`: committed HP break 行では復帰後 state を先取りせず、次行まで depleted Eシールドを表示することを固定

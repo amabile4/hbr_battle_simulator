@@ -2851,6 +2851,14 @@ function actionHitsEnemyWeakness(state, actor, skill, actionEntry) {
   if (actionTreatsEShieldAsWeakHit(state, actor, effectiveSkill ?? skill, actionEntry, targetEnemyIndexes)) {
     return true;
   }
+  // PenetrationCriticalAttack は属性・Eシールドに関わらず常に弱点扱い
+  const skillForCheck = effectiveSkill ?? skill;
+  const hasPenetrationCritical = (skillForCheck?.parts ?? []).some(
+    (part) => String(part?.skill_type ?? '') === 'PenetrationCriticalAttack'
+  );
+  if (hasPenetrationCritical) {
+    return true;
+  }
 
   const normalAttackElements =
     isNormalAttackSkill(effectiveSkill ?? skill) && Array.isArray(actor?.normalAttackElements)
