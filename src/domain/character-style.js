@@ -474,6 +474,16 @@ export class CharacterStyle {
     this.skillLastUsedTurns = new Map(
       Object.entries(skillLastUsedTurnsInput).map(([k, v]) => [String(k), Number(v)])
     );
+    const skillCooldownRemainingInput =
+      input.skillCooldownRemaining && typeof input.skillCooldownRemaining === 'object'
+        ? input.skillCooldownRemaining
+        : {};
+    this.skillCooldownRemaining = new Map(
+      Object.entries(skillCooldownRemainingInput).map(([k, v]) => [String(k), Number(v)])
+    );
+    // スキル使用ターン自体はCT減算対象外。使用ターンのdecrementをスキップするためのフラグ。
+    // clone/snapshotには含まない（ターン内一時フラグ）。
+    this._skillCooldownJustSet = new Set();
 
     this._revision = 0;
   }
@@ -1450,6 +1460,42 @@ export class CharacterStyle {
     if (Number.isInteger(normalizedTurnIndex) && normalizedTurnIndex >= 0) {
       this.skillLastUsedTurns.set(key, normalizedTurnIndex);
     }
+    const intervalTurn = Math.max(0, Number(skill?.intervalTurn ?? 0));
+    if (intervalTurn > 0) {
+      this.skillCooldownRemaining.set(key, intervalTurn);
+      this._skillCooldownJustSet.add(key);
+    }
+  }
+
+  getSkillCooldownRemainingByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key) return 0;
+    return Number(this.skillCooldownRemaining.get(key) ?? 0);
+  }
+
+  clearSkillCooldownJustSet() {
+    this._skillCooldownJustSet.clear();
+  }
+
+  decrementSkillCooldowns() {
+    let changed = false;
+    for (const [key, remaining] of this.skillCooldownRemaining) {
+      // スキルを使用したターン自体はCTを減算しない（バフ付与ターンと同じ扱い）
+      if (this._skillCooldownJustSet.has(key)) {
+        continue;
+      }
+      const next = remaining - 1;
+      if (next <= 0) {
+        this.skillCooldownRemaining.delete(key);
+      } else {
+        this.skillCooldownRemaining.set(key, next);
+      }
+      changed = true;
+    }
+    this._skillCooldownJustSet.clear();
+    if (changed) {
+      this._revision += 1;
+    }
   }
 
   /**
@@ -1509,6 +1555,8 @@ export class CharacterStyle {
     c.statusEffects = structuredClone(this.statusEffects);
     c.skillUseCounts = new Map(this.skillUseCounts);
     c.skillLastUsedTurns = new Map(this.skillLastUsedTurns);
+    c.skillCooldownRemaining = new Map(this.skillCooldownRemaining);
+    c._skillCooldownJustSet = new Set(this._skillCooldownJustSet);
     return c;
   }
 
@@ -1550,6 +1598,7 @@ export class CharacterStyle {
       statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
       skillLastUsedTurns: Object.fromEntries(this.skillLastUsedTurns.entries()),
+      skillCooldownRemaining: Object.fromEntries(this.skillCooldownRemaining.entries()),
       revision: this._revision,
     };
   }

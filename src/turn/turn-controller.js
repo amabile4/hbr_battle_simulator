@@ -9334,6 +9334,17 @@ function applyTurnBasedStatusExpiry(state, turnState) {
     for (const item of ticked) {
       events.push({ characterId, ...item });
     }
+    // CT（interval_turn）残ターンを同じ対象でデクリメントする。
+    // バフ/デバフと同じく「自身が行動対象のターン」でのみカウントが進む。
+    if (typeof member.decrementSkillCooldowns === 'function') {
+      member.decrementSkillCooldowns();
+    }
+  }
+  // justSetフラグは使用ターン内のみ有効。除外ターンで decrement が呼ばれなかった場合も含めてクリアする。
+  for (const member of state.party ?? []) {
+    if (typeof member.clearSkillCooldownJustSet === 'function') {
+      member.clearSkillCooldownJustSet();
+    }
   }
   return events;
 }
@@ -9581,13 +9592,10 @@ function validateActionDict(state, actions, options = {}) {
     }
 
     const intervalTurn = Math.max(0, Number(skill.intervalTurn ?? 0));
-    const lastUsedTurn = member.getSkillLastUsedTurnByLabel?.(skill.label) ?? null;
-    const currentTurn = Number(state.turnState?.turnIndex ?? 0);
     if (
       intervalTurn > 0 &&
-      lastUsedTurn !== null &&
-      Number.isFinite(Number(lastUsedTurn)) &&
-      currentTurn - Number(lastUsedTurn) < intervalTurn
+      typeof member.getSkillCooldownRemainingByLabel === 'function' &&
+      member.getSkillCooldownRemainingByLabel(skill.label) > 0
     ) {
       throw new Error(
         `Skill ${skill.skillId} cannot be used before interval_turn ${intervalTurn} elapses.`
