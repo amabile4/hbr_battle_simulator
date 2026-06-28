@@ -2714,14 +2714,35 @@ function getEnemyResistanceRatePercent(turnState, targetIndex, element) {
     return 0;
   }
   const rates = enemyState.damageRatesByEnemy?.[enemyKey];
-  if (!rates || typeof rates !== 'object') {
-    return DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+  let baseRate = DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+  if (rates && typeof rates === 'object') {
+    const matchedEntry = Object.entries(rates).find(
+      ([key]) => String(key ?? '').trim().toLowerCase() === normalizedElement
+    );
+    const value = Number(matchedEntry?.[1]);
+    if (Number.isFinite(value)) {
+      baseRate = value;
+    }
   }
-  const matchedEntry = Object.entries(rates).find(
-    ([key]) => String(key ?? '').trim().toLowerCase() === normalizedElement
-  );
-  const value = Number(matchedEntry?.[1]);
-  return Number.isFinite(value) ? value : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+  // Apply active ResistDown statuses (from skills like 国士無双)
+  if (!normalizedElement || !Array.isArray(enemyState.statuses) || enemyState.statuses.length === 0) {
+    return baseRate;
+  }
+  const enemyIndexNum = Number(targetIndex);
+  const matchesTarget = (s) =>
+    s.targetIndex === enemyIndexNum &&
+    (s.elements ?? []).some((el) => String(el ?? '').trim().toLowerCase() === normalizedElement);
+  // ResistDownOverwrite: reset base to neutral before applying new ResistDown stacks
+  if (enemyState.statuses.some((s) => s.statusType === 'ResistDownOverwrite' && matchesTarget(s))) {
+    baseRate = DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+  }
+  let totalResistDownPower = 0;
+  for (const s of enemyState.statuses) {
+    if (s.statusType === 'ResistDown' && matchesTarget(s)) {
+      totalResistDownPower += Number(s.power ?? 0);
+    }
+  }
+  return totalResistDownPower === 0 ? baseRate : baseRate * (1 + totalResistDownPower);
 }
 
 export function isEnemyWeakToElement(turnState, targetIndex, element) {
