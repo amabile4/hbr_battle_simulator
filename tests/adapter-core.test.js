@@ -155,6 +155,7 @@ test('createInitializedBattleSnapshot applies statusEffectsByPartyIndex before i
 
 test('createInitializedBattleSnapshot keeps support setup in turnPlanBaseSetup', () => {
   const fakeStore = {
+    defineValues: { TALISMAN_REF_PARAM_DOWN: 12 },
     buildPartyFromStyleIds(styleIds) {
       return new Party(
         styleIds.map((styleId, idx) =>
@@ -195,6 +196,7 @@ test('createInitializedBattleSnapshot keeps support setup in turnPlanBaseSetup',
   assert.deepEqual(snapshot.turnPlanBaseSetup.supportStyleIdsByPartyIndex, { 0: 1001408 });
   assert.deepEqual(snapshot.turnPlanBaseSetup.supportLimitBreakLevelsByPartyIndex, { 0: 3 });
   assert.deepEqual(snapshot.state.turnState.enemyState.paramBorderByEnemy, { 0: 812 });
+  assert.equal(snapshot.state.turnState.enemyState.talismanState.penaltyPerLevel, 12);
   assert.deepEqual(snapshot.turnPlanBaseSetup.paramBorderByEnemy, { 0: 812 });
 });
 
