@@ -210,6 +210,9 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     return {
       id: enemy.id,
       name: resolveDisplayEnemyName(enemy),
+      base_param: enemy?.base_param && typeof enemy.base_param === 'object'
+        ? { ...enemy.base_param }
+        : {},
       dimension,
       categoryKey,
       categoryLabel,

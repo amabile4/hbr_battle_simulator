@@ -151,7 +151,72 @@ function dumpPassiveConditions(store, stateBefore) {
   return results;
 }
 
-function dumpAction(action) {
+const ATTACK_PART_TYPE_SET = new Set([
+  'AttackNormal', 'AttackSkill', 'DamageRateChangeAttackSkill',
+  'PenetrationCriticalAttack', 'PenetrationNormalAttack', 'PenetrationSkill',
+  'TokenAttack', 'AttackBySp', 'AttackByOwnDpRate', 'FixedHpDamageRateAttack',
+]);
+
+function findAttackPowerInParts(parts) {
+  for (const part of (Array.isArray(parts) ? parts : [])) {
+    if (ATTACK_PART_TYPE_SET.has(String(part?.skill_type ?? '').trim()) && part.power != null) {
+      return part.power;
+    }
+    if (Array.isArray(part?.strval)) {
+      const nested = findAttackPowerInParts(part.strval.filter((v) => v && typeof v === 'object'));
+      if (nested != null) return nested;
+    }
+  }
+  return null;
+}
+
+function getSkillAttackPower(store, skillId) {
+  const skill = store.getSkillById(Number(skillId));
+  if (!skill) return null;
+  return findAttackPowerInParts(skill.parts ?? []);
+}
+
+function dumpDamageInfo(action, store) {
+  const skillBasePower = getSkillAttackPower(store, action?.skillId);
+
+  const pm = action?.specialPassiveModifiers;
+  const passiveModifiers = pm ? {
+    attackUpRate: Number(pm.attackUpRate ?? 0),
+    defenseUpRate: Number(pm.defenseUpRate ?? 0),
+    criticalRateUpRate: Number(pm.criticalRateUpRate ?? 0),
+    criticalDamageUpRate: Number(pm.criticalDamageUpRate ?? 0),
+    ...(Number(pm.markAttackUpRate ?? 0) !== 0 ? { markAttackUpRate: Number(pm.markAttackUpRate) } : {}),
+    ...(Number(pm.markCriticalRateUp ?? 0) !== 0 ? { markCriticalRateUp: Number(pm.markCriticalRateUp) } : {}),
+    ...(Number(pm.markCriticalDamageUp ?? 0) !== 0 ? { markCriticalDamageUp: Number(pm.markCriticalDamageUp) } : {}),
+    ...(Number(pm.zonePowerRate ?? 0) !== 0 ? { zonePowerRate: Number(pm.zonePowerRate) } : {}),
+    ...(Number(pm.tokenAttackContext?.totalRate ?? action?.tokenAttackContext?.totalRate ?? 0) !== 0
+      ? { tokenAttackTotalRate: Number(action?.tokenAttackContext?.totalRate ?? 0) } : {}),
+  } : null;
+
+  const dc = action?.damageContext;
+  let damageByEnemy = null;
+  if (dc) {
+    const targetBreakdowns = dc?.damageBreakdown?.targetBreakdowns ?? [];
+    if (targetBreakdowns.length > 0) {
+      damageByEnemy = targetBreakdowns.map((tb) => ({
+        enemyIndex: Number(tb.targetEnemyIndex ?? 0),
+        finalMultiplier: Number(tb.finalMultiplier ?? 0),
+        increasePercent: Number(tb.increasePercent ?? 0),
+        ...(dc.effectiveDamageRatesByEnemy?.[String(tb.targetEnemyIndex)] != null
+          ? { effectiveDamageRate: Number(dc.effectiveDamageRatesByEnemy[String(tb.targetEnemyIndex)]) }
+          : {}),
+      }));
+    }
+  }
+
+  return {
+    ...(skillBasePower != null ? { skillBasePower } : {}),
+    ...(passiveModifiers != null ? { passiveModifiers } : {}),
+    ...(damageByEnemy != null ? { damageByEnemy } : {}),
+  };
+}
+
+function dumpAction(action, store) {
   const followUps = Array.isArray(action?.followUps) && action.followUps.length > 0
     ? action.followUps.map((fu) => ({
         characterId: String(fu?.characterId ?? ''),
@@ -170,6 +235,9 @@ function dumpAction(action) {
     skillName: String(action?.skillName ?? ''),
     spCost: Number(action?.spCost ?? 0),
     odGaugeGain: Number(action?.odGaugeGain ?? 0),
+    skillHitCount: Number(action?.skillHitCount ?? 0),
+    skillBaseHitCount: Number(action?.skillBaseHitCount ?? 0),
+    ...dumpDamageInfo(action, store),
     ...(action?.dpDamageByEnemy != null ? { dpDamageByEnemy: action.dpDamageByEnemy } : {}),
     ...(followUps ? { followUps } : {}),
   };
@@ -215,7 +283,7 @@ function main() {
     const partyBefore = dumpPartyBefore(stateBefore);
     const enemiesBefore = dumpEnemiesBefore(stateBefore);
     const passiveConditions = dumpPassiveConditions(store, stateBefore);
-    const actions = (record?.actions ?? []).map(dumpAction);
+    const actions = (record?.actions ?? []).map((a) => dumpAction(a, store));
 
     const turnDump = {
       turnIndex: i,

@@ -2013,6 +2013,9 @@ export function getEnemyState(turnState) {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
       damageRatesByEnemy: {},
+      enemyIdsByEnemy: {},
+      gaugeStateByEnemy: {},
+      damageTakenByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
       absorbElementsByEnemy: {},
@@ -2035,6 +2038,12 @@ export function getEnemyState(turnState) {
       : [],
     damageRatesByEnemy:
       state.damageRatesByEnemy && typeof state.damageRatesByEnemy === 'object' ? state.damageRatesByEnemy : {},
+    enemyIdsByEnemy:
+      state.enemyIdsByEnemy && typeof state.enemyIdsByEnemy === 'object' ? state.enemyIdsByEnemy : {},
+    gaugeStateByEnemy:
+      state.gaugeStateByEnemy && typeof state.gaugeStateByEnemy === 'object' ? state.gaugeStateByEnemy : {},
+    damageTakenByEnemy:
+      state.damageTakenByEnemy && typeof state.damageTakenByEnemy === 'object' ? state.damageTakenByEnemy : {},
     destructionRateByEnemy:
       state.destructionRateByEnemy && typeof state.destructionRateByEnemy === 'object'
         ? state.destructionRateByEnemy
@@ -5796,6 +5805,9 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     enemyCount: enemyState.enemyCount,
     statuses: nextStatuses,
     damageRatesByEnemy: enemyState.damageRatesByEnemy,
+    enemyIdsByEnemy: enemyState.enemyIdsByEnemy,
+    gaugeStateByEnemy: enemyState.gaugeStateByEnemy,
+    damageTakenByEnemy: enemyState.damageTakenByEnemy,
     destructionRateByEnemy: enemyState.destructionRateByEnemy,
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,

@@ -228,6 +228,10 @@ function buildLegacyEnemySlot(enemySetup = {}) {
   return {
     selectedEnemyId: enemySetup?.selectedEnemyId ?? null,
     selectedEnemyName: enemySetup?.selectedEnemyName ?? DEFAULT_ENEMY_NAME,
+    maxDp: enemySetup?.maxDp,
+    currentDp: enemySetup?.currentDp,
+    maxHp: enemySetup?.maxHp,
+    currentHp: enemySetup?.currentHp,
     param_border: enemySetup?.param_border,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
@@ -271,7 +275,14 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
     return {
+      enemyId: slot?.selectedEnemyId ?? null,
       enemyName,
+      gaugeState: {
+        maxDp: Math.max(0, Number(slot?.maxDp ?? 0)),
+        currentDp: Math.max(0, Number(slot?.currentDp ?? slot?.maxDp ?? 0)),
+        maxHp: Math.max(0, Number(slot?.maxHp ?? 0)),
+        currentHp: Math.max(0, Number(slot?.currentHp ?? slot?.maxHp ?? 0)),
+      },
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
         ? Number(slot.param_border)
         : DEFAULT_ENEMY_PARAM_BORDER,
@@ -286,6 +297,12 @@ function buildEnemyStateOverrides(enemySetup = {}) {
 
   return {
     enemyCount: normalizeEnemyCount(enemyCount),
+    enemyIdsByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.enemyId])
+    ),
+    gaugeStateByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), { ...slotState.gaugeState }])
+    ),
     enemyNamesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.enemyName])
     ),
@@ -458,6 +475,8 @@ export class BattleStateManager {
       statusEffectsByPartyIndex: stageStatusEffectsByPartyIndex,
       initialOdGauge: Number(stageSetup.initialOdGauge ?? 0),
       enemyCount: enemyStateOverrides.enemyCount,
+      enemyIdsByEnemy: enemyStateOverrides.enemyIdsByEnemy,
+      enemyGaugeStateByEnemy: enemyStateOverrides.gaugeStateByEnemy,
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,

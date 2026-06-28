@@ -169,6 +169,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 0,
         selectedEnemyId: 7001,
         selectedEnemyName: '魔王ヤマワキ',
+        maxDp: 120000,
+        currentDp: 120000,
+        maxHp: 450000,
+        currentHp: 450000,
         param_border: 812,
         od_rate: 8500,
         max_d_rate: 650,
@@ -198,6 +202,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 1,
         selectedEnemyId: 7002,
         selectedEnemyName: '使い魔ブンゴ',
+        maxDp: 80000,
+        currentDp: 70000,
+        maxHp: 300000,
+        currentHp: 290000,
         param_border: 923,
         od_rate: 0,
         max_d_rate: 999,
@@ -224,6 +232,14 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   });
 
   assert.equal(state.turnState.enemyState.enemyCount, 2);
+  assert.equal(state.turnState.enemyState.enemyIdsByEnemy['0'], 7001);
+  assert.deepEqual(state.turnState.enemyState.gaugeStateByEnemy['0'], {
+    maxDp: 120000,
+    currentDp: 120000,
+    maxHp: 450000,
+    currentHp: 450000,
+  });
+  assert.equal(state.turnState.enemyState.gaugeStateByEnemy['1'].currentDp, 70000);
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '魔王ヤマワキ');
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 812);

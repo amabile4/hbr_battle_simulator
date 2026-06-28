@@ -57,14 +57,23 @@ function createMakaiKiheiPassive() {
             overwrite_cond: '',
             effect: '',
             cond: '',
-            parts: [{ skill_type: 'PenetrationCriticalAttack', target_type: 'All', type: 'Slash' }],
+            parts: [{
+              skill_type: 'PenetrationCriticalAttack',
+              target_type: 'All',
+              type: 'Slash',
+              power: [20625, 41250],
+              value: [3, 0],
+              diff_for_max: 195,
+              parameters: { str: 1, dex: 1 },
+              multipliers: { dp: 1, hp: 1, dr: 6 },
+            }],
             hits: [
-              { id: 1, type: 'Main', power_ratio: 1 / 6 },
-              { id: 2, type: 'Main', power_ratio: 1 / 6 },
-              { id: 3, type: 'Main', power_ratio: 1 / 6 },
-              { id: 4, type: 'Main', power_ratio: 1 / 6 },
-              { id: 5, type: 'Main', power_ratio: 1 / 6 },
-              { id: 6, type: 'Main', power_ratio: 1 / 6 },
+              { id: 1, type: 'Main', power_ratio: 0.1 },
+              { id: 2, type: 'Main', power_ratio: 0.1 },
+              { id: 3, type: 'Main', power_ratio: 0.1 },
+              { id: 4, type: 'Main', power_ratio: 0.1 },
+              { id: 5, type: 'Main', power_ratio: 0.1 },
+              { id: 6, type: 'Main', power_ratio: 0.5 },
             ],
           },
           -1,
@@ -87,6 +96,7 @@ function createMember({
   roleAbility = null,
   skills = [],
   passives = [],
+  stats = null,
 }) {
   return new CharacterStyle({
     characterId,
@@ -101,6 +111,7 @@ function createMember({
     roleAbility,
     skills,
     passives,
+    stats,
   });
 }
 
@@ -130,9 +141,35 @@ function createBaselineParty(overrides = {}) {
             }),
           ],
         passives: override.passives ?? [],
+        stats: override.stats ?? null,
       });
     })
   );
+}
+
+function createAllOutAttackSkill() {
+  return {
+    id: 46041001,
+    label: 'EmaASkill51',
+    name: '総攻撃',
+    hit_count: 7,
+    parts: [{
+      skill_type: 'PenetrationCriticalAttack',
+      target_type: 'All',
+      type: 'Slash',
+      power: [21997.5, 43995],
+      value: [3, 0],
+      diff_for_max: 198,
+      parameters: { str: 1, dex: 1 },
+      multipliers: { dp: 1, hp: 1, dr: 0 },
+    }],
+    hits: [
+      { id: 1, power_ratio: 0.05 }, { id: 2, power_ratio: 0.05 },
+      { id: 3, power_ratio: 0.05 }, { id: 4, power_ratio: 0.05 },
+      { id: 5, power_ratio: 0.05 }, { id: 6, power_ratio: 0.05 },
+      { id: 7, power_ratio: 0.7 },
+    ],
+  };
 }
 
 function createState(overrides = {}, { odGauge = 0, enemyCount = 1 } = {}) {
@@ -230,9 +267,49 @@ test('applyBeforeCommitOperations uses the supplied enemyCount for Makai Kihei O
   assert.equal(nextState.turnState.odGauge, 30);
 });
 
+test('魔界騎兵 uses party-average STR/DEX and applies damage and destruction to each enemy', () => {
+  const state = createState({
+    0: {
+      characterId: 'BIYamawaki',
+      styleId: MAKAI_KIHEI_STYLE_ID,
+      passives: [createMakaiKiheiPassive()],
+      stats: { str: 900, dex: 900, wis: 600, spr: 600, luk: 600, con: 600 },
+    },
+    1: { stats: { str: 600, dex: 600, wis: 600, spr: 600, luk: 600, con: 600 } },
+    2: { stats: { str: 600, dex: 600, wis: 600, spr: 600, luk: 600, con: 600 } },
+    3: { stats: { str: 600, dex: 600, wis: 600, spr: 600, luk: 600, con: 600 } },
+    4: { stats: { str: 600, dex: 600, wis: 600, spr: 600, luk: 600, con: 600 } },
+    5: { stats: { str: 600, dex: 600, wis: 600, spr: 600, luk: 600, con: 600 } },
+  }, { enemyCount: 1 });
+  state.turnState.enemyState.paramBorderByEnemy = { 0: 700 };
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 50 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 120 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 400 };
+  state.turnState.enemyState.gaugeStateByEnemy = {
+    0: { maxDp: 0, currentDp: 0, maxHp: 999999, currentHp: 999999 },
+  };
+  state.turnState.enemyState.statuses = [
+    { statusType: 'DownTurn', targetIndex: 0, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
+  ];
+
+  const nextState = applyBeforeCommitOperations(
+    state,
+    [{ type: REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI }]
+  );
+  const event = nextState.turnState.specialOperationDamageEvents[0];
+
+  assert.equal(event.referenceStat, 650);
+  assert.equal(event.affinityMultiplier, 3);
+  assert.ok(event.damage > 0);
+  assert.equal(event.appliedHpDamage, event.damage);
+  assert.equal(nextState.turnState.enemyState.damageTakenByEnemy['0'], event.damage);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
+  assert.equal(nextState.turnState.odGauge, 15);
+});
+
 test('総攻撃 operation adds fixed destruction rate and OD without advancing turn resources', () => {
   const state = createState({
-    0: { roleAbility: { name: '総攻撃' } },
+    0: { roleAbility: { name: '総攻撃', specialSkill: createAllOutAttackSkill() } },
   }, { odGauge: 280, enemyCount: 2 });
   state.turnState.holdUpActive = true;
   state.turnState.turnIndex = 4;
@@ -242,6 +319,10 @@ test('総攻撃 operation adds fixed destruction rate and OD without advancing t
     { statusType: 'DownTurn', targetIndex: 1, remainingTurns: 1, exitCond: 'PlayerTurnEnd' },
   ];
   state.turnState.enemyState.destructionRateByEnemy = { 0: 150, 1: 210 };
+  state.turnState.enemyState.gaugeStateByEnemy = {
+    0: { maxDp: 0, currentDp: 0, maxHp: 999999, currentHp: 999999 },
+    1: { maxDp: 0, currentDp: 0, maxHp: 999999, currentHp: 999999 },
+  };
   const spBefore = state.party.map((member) => member.sp.current);
 
   assert.deepEqual(resolveAllOutAttackAvailability(state), {
@@ -261,6 +342,8 @@ test('総攻撃 operation adds fixed destruction rate and OD without advancing t
   assert.equal(nextState.turnState.odGauge, 300);
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 250);
   assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['1'], 310);
+  assert.equal(nextState.turnState.specialOperationDamageEvents.length, 2);
+  assert.ok(nextState.turnState.enemyState.damageTakenByEnemy['0'] > 0);
   assert.equal(nextState.turnState.turnIndex, 4);
   assert.equal(nextState.turnState.sequenceId, 9);
   assert.deepEqual(nextState.party.map((member) => member.sp.current), spBefore);

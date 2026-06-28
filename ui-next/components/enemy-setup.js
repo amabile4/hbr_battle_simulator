@@ -632,6 +632,10 @@ export class EnemySetupController {
         slotIndex,
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
+        maxDp: Number(selectedEnemy?.base_param?.dp ?? 0),
+        currentDp: Number(selectedEnemy?.base_param?.dp ?? 0),
+        maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
+        currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         param_border:
           Number.isFinite(Number(selectedEnemy?.base_param?.param_border))
           && Number(selectedEnemy.base_param.param_border) > 0

@@ -299,6 +299,8 @@ export function createInitializedBattleSnapshot({
   statsByPartyIndex = {},
   initialOdGauge,
   enemyCount,
+  enemyIdsByEnemy = {},
+  enemyGaugeStateByEnemy = {},
   enemyNamesByEnemy = {},
   paramBorderByEnemy = {},
   damageRatesByEnemy = {},
@@ -349,6 +351,9 @@ export function createInitializedBattleSnapshot({
     odGauge: Number(initialOdGauge),
     enemyState: {
       enemyCount: Number(enemyCount),
+      enemyIdsByEnemy: structuredClone(enemyIdsByEnemy),
+      gaugeStateByEnemy: structuredClone(enemyGaugeStateByEnemy),
+      damageTakenByEnemy: {},
       statuses: Array.isArray(enemyStatuses)
         ? enemyStatuses
             .map((status) => normalizeEnemyStatusForSnapshot(status, enemyCount))
@@ -440,6 +445,8 @@ export function createInitializedBattleSnapshot({
       statusEffectsByPartyIndex: structuredClone(normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex)),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
+      enemyIdsByEnemy: structuredClone(enemyIdsByEnemy),
+      enemyGaugeStateByEnemy: structuredClone(enemyGaugeStateByEnemy),
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:

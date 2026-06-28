@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
 import { resolveShortCharacterName } from '../domain/character-name.js';
 import { buildStyleFormChange } from '../domain/form-change.js';
+import { ALL_OUT_ATTACK_SKILL_ID } from '../domain/special-operation-damage.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
@@ -1607,7 +1608,14 @@ export class HbrDataStore {
       styleName: String(style.name),
       team: String(style.team ?? ''),
       role: String(style.role ?? ''),
-      roleAbility: style.roleabi && typeof style.roleabi === 'object' ? structuredClone(style.roleabi) : null,
+      roleAbility: style.roleabi && typeof style.roleabi === 'object'
+        ? {
+            ...structuredClone(style.roleabi),
+            ...(String(style.roleabi.name ?? '').trim() === '総攻撃'
+              ? { specialSkill: structuredClone(this.getSkillById(ALL_OUT_ATTACK_SKILL_ID)) }
+              : {}),
+          }
+        : null,
       elements: Array.isArray(style.elements) ? [...style.elements] : [],
       weaponType: String(style.type ?? ''),
       transcendenceRule: this.getTranscendenceRuleByStyleId(style.id),

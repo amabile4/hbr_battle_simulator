@@ -160,7 +160,10 @@ export function createInitialTurnState() {
     enemyState: {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
+      enemyIdsByEnemy: {},
       damageRatesByEnemy: {},
+      damageTakenByEnemy: {},
+      gaugeStateByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
       absorbElementsByEnemy: {},
@@ -179,6 +182,7 @@ export function createInitialTurnState() {
     transcendence: null,
     extraTurnState: null,
     passiveEventsLastApplied: [],
+    specialOperationDamageEvents: [],
     passiveUsageCounts: {},
     passiveTurnFiredKeys: [],
   });
@@ -205,6 +209,9 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          enemyIdsByEnemy: structuredClone(turnState.enemyState.enemyIdsByEnemy ?? {}),
+          gaugeStateByEnemy: structuredClone(turnState.enemyState.gaugeStateByEnemy ?? {}),
+          damageTakenByEnemy: structuredClone(turnState.enemyState.damageTakenByEnemy ?? {}),
           destructionRateByEnemy:
             turnState.enemyState.destructionRateByEnemy &&
             typeof turnState.enemyState.destructionRateByEnemy === 'object'
@@ -422,6 +429,7 @@ export function cloneTurnState(turnState) {
     passiveEventsLastApplied: Array.isArray(turnState?.passiveEventsLastApplied)
       ? turnState.passiveEventsLastApplied.map((event) => ({ ...event }))
       : [],
+    specialOperationDamageEvents: structuredClone(turnState?.specialOperationDamageEvents ?? []),
     passiveUsageCounts:
       turnState?.passiveUsageCounts && typeof turnState.passiveUsageCounts === 'object'
         ? Object.fromEntries(

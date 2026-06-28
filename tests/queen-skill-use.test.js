@@ -17,6 +17,7 @@ const QUEEN_STYLE_ID = 1021203;
 const QUEEN_NORMAL_ATTACK_SKILL_ID = 46041201;
 const QUEEN_ATOMIC_FLARE_SKILL_ID = 46041206;
 const QUEEN_INITIAL_SP = 16;
+const ALL_OUT_ATTACK_SKILL_ID = 46041001;
 const E_SHIELD_INITIAL_VALUE = 10;
 const ATOMIC_FLARE_HIT_COUNT = 5;
 const QUEEN_NORMAL_ATTACK_HIT_COUNT = 4;
@@ -88,6 +89,14 @@ function previewQueenSkill(state, queen, skillId) {
     },
   });
 }
+
+test('総攻撃 role ability carries the JSON skill definition into battle state', () => {
+  const { queen } = createQueenState(1);
+
+  assert.equal(queen.roleAbility?.name, '総攻撃');
+  assert.equal(queen.roleAbility?.specialSkill?.id, ALL_OUT_ATTACK_SKILL_ID);
+  assert.equal(queen.roleAbility?.specialSkill?.parts?.[0]?.skill_type, 'PenetrationCriticalAttack');
+});
 
 test('1MORE: アトミックフレアは弱点・Eシールドなしでも追加ターンを発生させる', () => {
   const { queen, state } = createQueenState(1);
