@@ -5,6 +5,7 @@ import {
   CHARACTER_STAT_KEYS,
   getTemplateStyleLimitBreakMax,
   resolveCharacterBaseStats,
+  resolveCharacterStyleStats,
   UNOWNED_STYLE_LIMIT_BREAK,
 } from '../src/domain/character-stats.js';
 
@@ -58,6 +59,112 @@ test('実機fixtureの所持条件が全360スタイルを網羅する', () => {
       );
     }
   }
+});
+
+test('実機fixture条件で全360スタイルの装備・サポートなし能力が有限整数になる', () => {
+  const charactersByLabel = new Map(characters.map((character) => [character.label, character]));
+  const fixtureByCharacterLabel = new Map(
+    fixture.characters.map((entry) => [entry.characterLabel, entry])
+  );
+  const limitBreakLevelsByStyleId = createFixtureLimitBreakMap();
+  const missingCharacterLabels = new Set();
+  let resolvedStyleCount = 0;
+
+  for (const style of styles) {
+    const entry = fixtureByCharacterLabel.get(style.chara_label);
+    if (!entry) {
+      missingCharacterLabels.add(style.chara_label);
+      continue;
+    }
+    const explicitLimitBreak = limitBreakLevelsByStyleId.get(Number(style.id));
+    const limitBreakLevel = explicitLimitBreak === UNOWNED_STYLE_LIMIT_BREAK
+      ? 0
+      : explicitLimitBreak ?? getTemplateStyleLimitBreakMax(style);
+    const stats = resolveCharacterStyleStats({
+      character: charactersByLabel.get(style.chara_label),
+      style,
+      styles,
+      level: entry.level,
+      reincarnationCount: entry.reincarnationCount,
+      titleRank: entry.titleRank,
+      titleBadgeRanks,
+      limitBreakLevel,
+      limitBreakLevelsByStyleId,
+    });
+
+    assert.ok(stats, `${style.id} ${style.name}`);
+    assert.ok(
+      CHARACTER_STAT_KEYS.every((key) => Number.isInteger(stats[key])),
+      `${style.id} ${style.name}: ${JSON.stringify(stats)}`
+    );
+    resolvedStyleCount += 1;
+  }
+
+  assert.equal(resolvedStyleCount, 358);
+  assert.deepEqual([...missingCharacterLabels].sort(), ['BiancaA', 'CathyA']);
+});
+
+test('スタイル能力はキャラクター部分、選択スタイル補正、他スタイル共有LBを合成する', () => {
+  const character = {
+    label: 'TestCharacter',
+    base_param: {
+      level: [1, 200],
+      str: [100, 200], dex: [100, 200], wis: [100, 200],
+      spr: [100, 200], luk: [100, 200], con: [100, 200],
+    },
+  };
+  const ability = (type, valueType, value, isExclusive = false) => ({
+    category: 'Ability', type, value_type: valueType, value: [value, 0], is_exclusive: isExclusive,
+  });
+  const selectedStyle = {
+    id: 1,
+    chara_label: character.label,
+    tier: 'SS',
+    base_param: { str: 20, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
+    ability_tree: [{ ability_list: [
+      ability('ParamAll', 'RealNumber', 3),
+      ability('Power', 'Addition', 4, true),
+      ability('Dexterity', 'Ratio', 10, true),
+    ] }],
+    limit_break: { stat_up_per_level: 5, bonus_per_level: [] },
+  };
+  const otherStyle = {
+    id: 2,
+    chara_label: character.label,
+    tier: 'SS',
+    base_param: {},
+    ability_tree: [{ ability_list: [ability('ParamAll', 'RealNumber', 2)] }],
+    limit_break: { stat_up_per_level: 0, bonus_per_level: [{
+      step: 4,
+      bonus: [
+        ability('ParamAll', 'RealNumber', 1),
+        ability('ParamAllOtherCard', 'Ratio', 10),
+      ],
+    }] },
+  };
+  const titleRanks = { items: [
+    { rank: 1, abilityEffectLabel: null },
+    { rank: 2, abilityEffectLabel: ['ParamAll_RealNumber_1'] },
+  ] };
+
+  assert.deepEqual(resolveCharacterStyleStats({
+    character,
+    style: selectedStyle,
+    styles: [selectedStyle, otherStyle],
+    level: 100,
+    reincarnationCount: 2,
+    titleRank: 2,
+    titleBadgeRanks: titleRanks,
+    limitBreakLevel: 2,
+    limitBreakLevelsByStyleId: { 2: 4 },
+  }), {
+    str: 227,
+    dex: 207,
+    wis: 191,
+    spr: 191,
+    luk: 191,
+    con: 191,
+  });
 });
 
 test('キャラクター部分はLv補間、転生、累積称号、共有ボード、共有LBを個別加算する', () => {

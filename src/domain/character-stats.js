@@ -189,13 +189,16 @@ export function resolveCharacterBaseStats({
 }
 
 /**
- * テンプレート①（Lv200・転生5回・能力ボード最大・装備なし）の6能力を算出する。
- * 明示されていない同キャラのスタイルは完凸として共有能力を反映する。
+ * 装備・サポートを除く、選択スタイル適用後の6能力を算出する。
  */
-export function resolveTemplateCharacterStats({
+export function resolveCharacterStyleStats({
   character,
   style,
   styles = [],
+  level = TEMPLATE_CHARACTER_LEVEL,
+  reincarnationCount = 0,
+  titleRank = 0,
+  titleBadgeRanks = [],
   limitBreakLevel = 0,
   limitBreakLevelsByStyleId = {},
 } = {}) {
@@ -222,8 +225,10 @@ export function resolveTemplateCharacterStats({
   const characterBaseStats = resolveCharacterBaseStats({
     character,
     styles: characterStyles,
-    level: TEMPLATE_CHARACTER_LEVEL,
-    reincarnationCount: TEMPLATE_REINCARNATION_COUNT,
+    level,
+    reincarnationCount,
+    titleRank,
+    titleBadgeRanks,
     limitBreakLevelsByStyleId: effectiveLimitBreakLevels,
   });
   if (!characterBaseStats) {
@@ -278,6 +283,20 @@ export function resolveTemplateCharacterStats({
   );
 
   return CHARACTER_STAT_KEYS.every((key) => Number.isFinite(resolved[key])) ? resolved : null;
+}
+
+/**
+ * テンプレート①（Lv200・転生5回・能力ボード最大・装備なし）の6能力を算出する。
+ * 明示されていない同キャラのスタイルは完凸として共有能力を反映する。
+ */
+export function resolveTemplateCharacterStats(options = {}) {
+  return resolveCharacterStyleStats({
+    ...options,
+    level: TEMPLATE_CHARACTER_LEVEL,
+    reincarnationCount: TEMPLATE_REINCARNATION_COUNT,
+    titleRank: 0,
+    titleBadgeRanks: [],
+  });
 }
 
 export function normalizeCharacterStats(source = null) {
