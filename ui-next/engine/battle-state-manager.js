@@ -495,6 +495,7 @@ export class BattleStateManager {
 
     this.#party = result.party;
     this.#state = result.state;
+    this.#state.turnPlanBaseSetup = structuredClone(result.turnPlanBaseSetup);
     this.#isDirty = false;
 
     // Stage Setup 毎ターン SP ギミック情報を state に保存

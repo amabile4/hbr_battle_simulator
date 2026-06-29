@@ -8,6 +8,7 @@ import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from
 import { createInitialTurnState } from '../contracts/interfaces.js';
 import { DEFAULT_MARK_LEVEL_MAX, MARK_STATE_ELEMENTS } from '../config/battle-defaults.js';
 import { normalizeStatusEffect, SPECIAL_STATUS_TYPE_NAMES } from '../domain/character-style.js';
+import { normalizeCharacterStats } from '../domain/character-stats.js';
 
 const DEFAULT_STATE_MIN = 0;
 const DEFAULT_TOKEN_STATE_MAX = 10;
@@ -32,6 +33,21 @@ function getPartyMembers(party) {
     return party;
   }
   return Array.isArray(party?.members) ? party.members : [];
+}
+
+function resolveStatsByPartyIndexFromParty(party, fallback = {}) {
+  const resolved = fallback && typeof fallback === 'object' ? structuredClone(fallback) : {};
+  for (const member of getPartyMembers(party)) {
+    const stats = normalizeCharacterStats(member?.stats);
+    const supportStats = normalizeCharacterStats(member?.supportStats);
+    if (stats || supportStats) {
+      resolved[String(member.partyIndex)] = {
+        ...(stats ? { stats } : {}),
+        ...(supportStats ? { supportStats } : {}),
+      };
+    }
+  }
+  return resolved;
 }
 
 function normalizeBoundedState(rawState, fallbackState, fallbackMax) {
@@ -338,6 +354,7 @@ export function createInitializedBattleSnapshot({
     supportLimitBreakLevelsByPartyIndex,
     statsByPartyIndex,
   });
+  const resolvedStatsByPartyIndex = resolveStatsByPartyIndexFromParty(party, statsByPartyIndex);
   applyInitialPartyStateOverrides(party, {
     tokenStateByPartyIndex,
     moraleStateByPartyIndex,
@@ -429,7 +446,7 @@ export function createInitializedBattleSnapshot({
       styleIds: [...styleIds].map((id) => Number(id)),
       supportStyleIdsByPartyIndex: structuredClone(supportStyleIdsByPartyIndex),
       supportLimitBreakLevelsByPartyIndex: structuredClone(supportLimitBreakLevelsByPartyIndex),
-      statsByPartyIndex: structuredClone(statsByPartyIndex),
+      statsByPartyIndex: resolvedStatsByPartyIndex,
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),

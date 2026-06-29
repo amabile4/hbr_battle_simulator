@@ -6,6 +6,11 @@ import { buildStyleFormChange } from '../domain/form-change.js';
 import { ALL_OUT_ATTACK_SKILL_ID } from '../domain/special-operation-damage.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 import {
+  normalizeCharacterStats,
+  resolveStatsWithSupport,
+  resolveTemplateCharacterStats,
+} from '../domain/character-stats.js';
+import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
   isNormalAttackSkill as isNormalAttackSkillClassifier,
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
@@ -1537,6 +1542,7 @@ export class HbrDataStore {
     supportStyleLimitBreakLevel = 0,
     stats = null,
     supportStats = null,
+    templateLimitBreakLevelsByStyleId = null,
   }) {
     const style = this.getStyleById(styleId);
     if (!style) {
@@ -1580,10 +1586,41 @@ export class HbrDataStore {
     const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
       : maxLimitBreak;
+    const supportStyle = supportStyleId != null ? this.getStyleById(Number(supportStyleId)) : null;
+    const supportMaxLimitBreak = supportStyle ? this.getStyleLimitBreakMax(supportStyle) : 0;
+    const normalizedSupportLimitBreak = Number.isFinite(Number(supportStyleLimitBreakLevel))
+      ? Math.max(0, Math.min(supportMaxLimitBreak, Number(supportStyleLimitBreakLevel)))
+      : 0;
+    const effectiveLimitBreakLevelsByStyleId = {
+      ...(templateLimitBreakLevelsByStyleId && typeof templateLimitBreakLevelsByStyleId === 'object'
+        ? templateLimitBreakLevelsByStyleId
+        : {}),
+      [Number(style.id)]: normalizedLimitBreak,
+      ...(supportStyle ? { [Number(supportStyle.id)]: normalizedSupportLimitBreak } : {}),
+    };
+    const resolvedSupportStats = supportStyle
+      ? normalizeCharacterStats(supportStats) ?? resolveTemplateCharacterStats({
+          character: this.charactersByLabel.get(String(supportStyle.chara_label ?? '')) ?? null,
+          style: supportStyle,
+          styles: this.styles,
+          limitBreakLevel: normalizedSupportLimitBreak,
+          limitBreakLevelsByStyleId: effectiveLimitBreakLevelsByStyleId,
+        })
+      : null;
+    const resolvedStats = normalizeCharacterStats(stats) ?? resolveStatsWithSupport(
+      resolveTemplateCharacterStats({
+        character,
+        style,
+        styles: this.styles,
+        limitBreakLevel: normalizedLimitBreak,
+        limitBreakLevelsByStyleId: effectiveLimitBreakLevelsByStyleId,
+      }),
+      resolvedSupportStats
+    );
     const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
     const supportPassive =
       supportStyleId != null && String(style.tier ?? '').toUpperCase() === 'SSR'
-        ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
+        ? this.resolveSupportSkillPassive(Number(supportStyleId), normalizedSupportLimitBreak)
         : null;
     const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;
     const epRule = this.getEpRuleForStyle(style, character);
@@ -1639,9 +1676,9 @@ export class HbrDataStore {
       epRule,
       limitBreakLevel: normalizedLimitBreak,
       supportStyleId: supportStyleId != null ? Number(supportStyleId) : null,
-      supportStyleLimitBreakLevel: Number(supportStyleLimitBreakLevel ?? 0),
-      stats,
-      supportStats: supportStyleId != null ? supportStats : null,
+      supportStyleLimitBreakLevel: normalizedSupportLimitBreak,
+      stats: resolvedStats,
+      supportStats: resolvedSupportStats,
       formChange: buildStyleFormChange(style),
       skills: styleSkills,
       triggeredSkills,
@@ -1667,6 +1704,20 @@ export class HbrDataStore {
     const supportStyleIdsByPartyIndex = options.supportStyleIdsByPartyIndex ?? {};
     const supportLimitBreakLevelsByPartyIndex = options.supportLimitBreakLevelsByPartyIndex ?? {};
     const statsByPartyIndex = options.statsByPartyIndex ?? {};
+    const templateLimitBreakLevelsByStyleId = {};
+
+    for (const [index, styleId] of styleIds.entries()) {
+      const style = this.getStyleById(styleId);
+      const rawLimitBreak = limitBreakLevelsByPartyIndex[index];
+      templateLimitBreakLevelsByStyleId[Number(styleId)] = Number.isFinite(Number(rawLimitBreak))
+        ? Number(rawLimitBreak)
+        : this.getStyleLimitBreakMax(style);
+      const supportStyleId = supportStyleIdsByPartyIndex[index];
+      if (supportStyleId != null) {
+        const rawSupportLimitBreak = supportLimitBreakLevelsByPartyIndex[index] ?? 0;
+        templateLimitBreakLevelsByStyleId[Number(supportStyleId)] = Number(rawSupportLimitBreak);
+      }
+    }
 
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
@@ -1692,6 +1743,7 @@ export class HbrDataStore {
         supportStyleLimitBreakLevel: Number(supportLimitBreakLevelsByPartyIndex[index] ?? 0),
         stats: statsByPartyIndex[index]?.stats ?? null,
         supportStats: statsByPartyIndex[index]?.supportStats ?? null,
+        templateLimitBreakLevelsByStyleId,
       })
     );
 

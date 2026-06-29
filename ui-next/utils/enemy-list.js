@@ -108,8 +108,23 @@ function normalizeEnemyEShieldOverrideMap(overrides = []) {
   return map;
 }
 
+function normalizeForceVisibleEnemyIds(value) {
+  if (!Array.isArray(value)) {
+    return new Set();
+  }
+  return new Set(
+    value
+      .map((id) => Number(id))
+      .filter((id) => Number.isInteger(id))
+  );
+}
+
 export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
   const eShieldOverrideByEnemyId = normalizeEnemyEShieldOverrideMap(options?.enemyEShieldOverrides);
+  const forceVisibleEnemyIdSet = normalizeForceVisibleEnemyIds(options?.forceVisibleEnemyIds);
+  // テスト用途: 直近3ヶ月フィルタを完全に無効化し、全てのボスを選択可能にする。
+  // 本番では未設定のため実挙動は変わらない。
+  const disableRecentMonthsFilter = Boolean(options?.disableRecentMonthsFilter);
   const normalizeEnemyResistanceRatePercent = (value) => {
     const numeric = Number(value);
     return Number.isFinite(numeric)
@@ -255,13 +270,18 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     );
   }
 
+  const isRecentBossOrForceVisible = (enemy) => {
+    if (!enemy.flags || enemy.flags.is_boss !== true) {
+      return false;
+    }
+    if (disableRecentMonthsFilter) {
+      return true;
+    }
+    return forceVisibleEnemyIdSet.has(enemy.id) || isWithinRecentThreeMonths(enemy);
+  };
   const recentBosses = dedupeEnemiesByNameKeepingHighestId(
     rawEnemies.filter(
-      (enemy) =>
-        !consumedEnemyIds.has(enemy.id) &&
-        enemy.flags &&
-        enemy.flags.is_boss === true &&
-        isWithinRecentThreeMonths(enemy)
+      (enemy) => !consumedEnemyIds.has(enemy.id) && isRecentBossOrForceVisible(enemy)
     )
   ).sort(compareByMonthThenName);
   const recentList = recentBosses.map((enemy) => {

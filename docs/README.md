@@ -70,7 +70,7 @@ docs/
 |-------------|-----------|------|----------|
 | [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A の一般スキルDPダメージMVPとして、member role/凸由来read-only stats、Charge倍率往復等価、DP固定表示、resolved skill invariant、選択敵ごとの実 `param_border` 配線、unit / Playwright 回帰まで反映。AttackBySp・HP破壊率・stat delta実値は後続 | 2026-06-04 |
 | [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）の単独タスク検討＆WBS。`calculateDestruction` の初期実装として 1.0 ベース、`spMapping` loader、`destructionMultiplier`、手動 `isBreakHit` / 任意 `autoBreak`、Enemy Setup 初期現在破壊率表示を追加。turnState 接続、威力詳細/HP表示、ブラスタースロープ等の実値検証は継続 | 2026-06-06 |
-| [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集機能。スロット単位の `statsByPartyIndex`、メイン/サポート別パネル、自由入力、CharacterStyle・session・lightweight replay 永続化、威力詳細への実stats供給を実装。メイン手入力を最終値として優先し、未入力時のrole標準プリフィル／計算fallbackにのみサポート各ステータス10%を加算。unit / Playwright 回帰まで固定済み | 2026-06-04 |
+| [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集とテンプレート①自動算出。Lv200・転生5回・能力ボード最大・同キャラ未選択スタイル完凸・装備なしを実データから解決し、選択メイン/サポートLB、サポート10%切り上げ、手入力優先、null自動追従、replay解決値固定まで実装 | 2026-06-29 |
 
 ---
 

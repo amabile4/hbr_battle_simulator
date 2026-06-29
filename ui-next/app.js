@@ -537,6 +537,10 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
     throw new Error('前衛3スロットを設定してください。');
   }
   const replaySetup = buildReplaySetupFromPartySnapshot(snapshot.party);
+  const resolvedStatsByPartyIndex = turnEngineManager.initialState?.turnPlanBaseSetup?.statsByPartyIndex;
+  if (resolvedStatsByPartyIndex && typeof resolvedStatsByPartyIndex === 'object') {
+    replaySetup.statsByPartyIndex = structuredClone(resolvedStatsByPartyIndex);
+  }
   const replayScript = turnEngineManager.replayScript
     ? createLightweightReplayScriptFromBaseSetup(replaySetup, turnEngineManager.replayScript)
     : createEmptyLightweightReplayScript(replaySetup);
@@ -976,8 +980,13 @@ async function main() {
     scheduleDeferredTask(async () => {
       try {
         const rawEnemies = await fetchJsonOrFallback('../json/enemies.json', []);
+        // E2E テスト用の注入経路。テスト実行時に時期によって選択可能な敵が変動しないよう、
+        // 直近3ヶ月フィルタを完全に無効化して全ボスを選択可能にする。
+        // 本番利用時は未設定のため実挙動は変わらない。
+        const disableRecentMonthsFilter = Boolean(window.__HBR_TEST_DISABLE_RECENT_MONTHS_FILTER__);
         const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
           enemyEShieldOverrides: store.enemyEShieldOverrides,
+          disableRecentMonthsFilter,
         });
         initialSetup.setEnemies(enemyPresets);
         turnArea.setEnemyPresets(enemyPresets);

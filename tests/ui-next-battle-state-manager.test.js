@@ -130,7 +130,9 @@ test('BattleStateManager forwards compacted main and support stats into party me
 
   assert.equal(state.party[0].stats.str, 650);
   assert.equal(state.party[0].supportStats.str, 50);
-  assert.equal(state.party[1].stats, null);
+  assert.ok(Object.values(state.party[1].stats).every(Number.isInteger));
+  assert.equal(state.party[1].supportStats, null);
+  assert.deepEqual(state.turnPlanBaseSetup.statsByPartyIndex['1'].stats, state.party[1].stats);
 });
 
 test('BattleStateManager ignores support stats without a support style', () => {

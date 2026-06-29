@@ -4,6 +4,7 @@ import {
   applyParty,
   commitLatestInputRow,
   fillPartySetupSlots,
+  fillPartySetupSlotsWithStyleIds,
   gotoUiNext,
   openEnemyPopupActionForRow,
 } from './ui-next-helpers.js';
@@ -33,6 +34,45 @@ async function ensureSetupVisible(page) {
 }
 
 test.describe('Session JSON save', () => {
+  test('automatic template stats follow LB, preserve manual input, and freeze resolved replay values', async ({ page }) => {
+    await gotoUiNext(page);
+    await fillPartySetupSlotsWithStyleIds(page, [1001104, 1002103, 1003103]);
+
+    const openMainStats = async () => {
+      await page.locator('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]').click();
+      const panel = page.locator('#stats-settings-panel');
+      await expect(panel).toBeVisible();
+      return panel;
+    };
+    let panel = await openMainStats();
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('439');
+    await panel.locator('[data-action="close-stats"]').click();
+
+    const limitBreakSelect = page.locator('select[data-field="lb"][data-slot-index="0"]');
+    await limitBreakSelect.selectOption('4');
+    panel = await openMainStats();
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('533');
+    await panel.locator('[data-stat="str"]').fill('700');
+    await panel.locator('[data-action="apply-stats"]').click();
+
+    await limitBreakSelect.selectOption('0');
+    panel = await openMainStats();
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('700');
+    await panel.locator('[data-action="reset-stats"]').click();
+    panel = await openMainStats();
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('439');
+    await panel.locator('[data-action="close-stats"]').click();
+
+    await limitBreakSelect.selectOption('4');
+    await applyParty(page);
+    const downloadPromise = page.waitForEvent('download');
+    await page.locator('#session-save-btn').click();
+    const savedJson = await readDownloadedJson(await downloadPromise);
+
+    expect(savedJson.setup.statsByPartyIndex['0']).toBeUndefined();
+    expect(savedJson.replayScript.setup.statsByPartyIndex['0'].stats.str).toBe(533);
+  });
+
   test('Party stats edit drives damage calculator and survives session save/load', async ({ page }) => {
     await gotoUiNext(page);
     await fillPartySetupSlots(page, [0, 1, 2]);
