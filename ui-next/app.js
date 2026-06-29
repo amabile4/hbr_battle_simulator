@@ -877,6 +877,9 @@ async function main() {
       transcendenceRuleOverrides,
       enemyEShieldOverrides,
       supportSkills,
+      boosters,
+      chips,
+      titleBadgeRanks,
     ] = await Promise.all([
       fetchJson('../json/characters.json'),
       fetchJson('../json/styles.json'),
@@ -888,6 +891,9 @@ async function main() {
       fetchJson('../json/transcendence_rule_overrides.json'),
       fetchJsonOrFallback('../json/enemy_eshield_overrides.json', []),
       fetchJsonOrFallback('../json/support_skills.json', []),
+      fetchJson('../json/boosters.json'),
+      fetchJson('../json/chips.json'),
+      fetchJsonOrFallback('../golden/master_json/MasterTitleBadgeRank.json', { items: [] }),
     ]);
     const payload = {
       characters,
@@ -895,6 +901,9 @@ async function main() {
       skills,
       passives,
       accessories,
+      boosters,
+      chips,
+      titleBadgeRanks,
       skillRuleOverrides,
       epRuleOverrides,
       transcendenceRuleOverrides,

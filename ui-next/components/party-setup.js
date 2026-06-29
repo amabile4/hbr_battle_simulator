@@ -8,8 +8,11 @@ import {
 import {
   normalizeCharacterStats,
   resolveStatsWithSupport,
-  resolveTemplateCharacterStats,
+  resolveCharacterStyleStats,
+  TEMPLATE_REINCARNATION_COUNT,
 } from '../../src/domain/character-stats.js';
+import { resolveEquipmentStatBonus, EQUIPMENT_STAT_KEYS } from '../../src/domain/equipment-stats.js';
+import { EQUIPMENT_BUILD_TEMPLATES } from '../../src/domain/equipment-template-configs.js';
 import { StatsSettingsPanel } from './stats-settings-panel.js';
 
 // tier ごとの LB 上限（hbr-data-store.js の LIMIT_BREAK_MAX_BY_TIER と同値）
@@ -56,6 +59,7 @@ function createEmptySlotState() {
     supportStats: null,
     lb: 0,
     supportLb: 0,
+    characterLevel: 200,
     drivePierce: 0,
     spEquipId: DEFAULT_SP_EQUIP_ID,
     belt: '',
@@ -210,13 +214,21 @@ export class PartySetupController {
     this.#statsSettingsPanel = new StatsSettingsPanel({
       resolveSlot: (slotIndex) => this.#slots[slotIndex] ?? null,
       resolveDefaultStats: (slotIndex, mode) => this.#resolveAutomaticStats(slotIndex, mode),
-      onChange: (slotIndex, mode, stats) => {
+      buildTemplates: EQUIPMENT_BUILD_TEMPLATES.map((t) => ({ value: t.id, label: t.label })),
+      resolveBuildStats: (buildId, slotIndex, mode, characterLevel) => {
+        if (mode === 'support') return null;
+        const template = EQUIPMENT_BUILD_TEMPLATES.find((t) => t.id === buildId);
+        const equipConfig = template?.config ?? null;
+        return this.#resolveAutomaticStats(slotIndex, mode, equipConfig, characterLevel);
+      },
+      onChange: (slotIndex, mode, stats, characterLevel) => {
         const slot = this.#slots[slotIndex];
         if (!slot) return;
         if (mode === 'support') {
           slot.supportStats = stats;
         } else {
           slot.stats = stats;
+          if (characterLevel !== undefined) slot.characterLevel = characterLevel;
         }
         this.#render();
         this.#notifyChange();
@@ -319,6 +331,9 @@ export class PartySetupController {
       supportLimitBreakLevelsByPartyIndex: Object.fromEntries(
         this.#slots.map((s, i) => [i, s.supportLb ?? 0])
       ),
+      characterLevelsByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.characterLevel ?? 200])
+      ),
       statsByPartyIndex: Object.fromEntries(
         this.#slots
           .map((slot, index) => {
@@ -360,7 +375,7 @@ export class PartySetupController {
     };
   }
 
-  #resolveAutomaticStats(slotIndex, mode = 'main') {
+  #resolveAutomaticStats(slotIndex, mode = 'main', equipConfig = undefined, characterLevel = null) {
     const slot = this.#slots[slotIndex];
     const isSupport = mode === 'support';
     const style = isSupport ? slot?.supportStyle : slot?.style;
@@ -382,22 +397,37 @@ export class PartySetupController {
         limitBreakLevelsByStyleId[Number(currentSlot.supportStyleId)] = Number(currentSlot.supportLb ?? 0);
       }
     }
-    const automaticStats = resolveTemplateCharacterStats({
+    const effectiveLevel = characterLevel ?? slot?.characterLevel ?? 200;
+    const characterStats = resolveCharacterStyleStats({
       character,
       style,
       styles: this.#store.styles,
+      level: effectiveLevel,
+      reincarnationCount: TEMPLATE_REINCARNATION_COUNT,
+      titleRank: 12,
+      titleBadgeRanks: this.#store.titleBadgeRanks,
       limitBreakLevel,
       limitBreakLevelsByStyleId,
     });
-    if (!automaticStats) {
+    if (!characterStats) {
       return null;
     }
+    let baseStats = characterStats;
+    if (!isSupport && equipConfig != null) {
+      const masterData = {
+        accessories: this.#store.accessories,
+        boosters: this.#store.boosters,
+        chips: this.#store.chips,
+      };
+      const bonus = resolveEquipmentStatBonus(equipConfig, masterData);
+      baseStats = Object.fromEntries(EQUIPMENT_STAT_KEYS.map((k) => [k, characterStats[k] + bonus[k]]));
+    }
     if (isSupport) {
-      return automaticStats;
+      return baseStats;
     }
     const supportStats = normalizeCharacterStats(slot.supportStats) ??
       (slot.supportStyle ? this.#resolveAutomaticStats(slotIndex, 'support') : null);
-    return resolveStatsWithSupport(automaticStats, supportStats);
+    return resolveStatsWithSupport(baseStats, supportStats);
   }
 
   disbandParty() {
@@ -435,6 +465,7 @@ export class PartySetupController {
             : null,
         lb: Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0),
         supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
+        characterLevel: Number(snapshot?.characterLevelsByPartyIndex?.[index] ?? 200),
         drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
         spEquipId: resolveSnapshotSpEquipId(snapshot, index),
         belt: resolveSnapshotBeltValue(snapshot, index),

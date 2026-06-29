@@ -413,6 +413,9 @@ export class HbrDataStore {
     });
     this.passives = payload.passives;
     this.accessories = payload.accessories ?? [];
+    this.boosters = payload.boosters ?? [];
+    this.chips = payload.chips ?? [];
+    this.titleBadgeRanks = payload.titleBadgeRanks ?? { items: [] };
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
     this.transcendenceRuleOverrides = payload.transcendenceRuleOverrides ?? [];
@@ -524,6 +527,8 @@ export class HbrDataStore {
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
       accessories: readJson(resolve(dir, 'accessories.json')),
+      boosters: readJson(resolve(dir, 'boosters.json')),
+      chips: readJson(resolve(dir, 'chips.json')),
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
@@ -544,6 +549,9 @@ export class HbrDataStore {
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
       accessories: payload.accessories ?? [],
+      boosters: payload.boosters ?? [],
+      chips: payload.chips ?? [],
+      titleBadgeRanks: payload.titleBadgeRanks ?? { items: [] },
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],
       transcendenceRuleOverrides: payload.transcendenceRuleOverrides ?? [],

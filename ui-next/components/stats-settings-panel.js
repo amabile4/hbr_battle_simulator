@@ -1,30 +1,42 @@
 import {
-  CHARACTER_STAT_KEYS,
   normalizeCharacterStats,
 } from '../../src/domain/character-stats.js';
 
 const STAT_LABELS = Object.freeze({
-  str: 'STR',
-  dex: 'DEX',
-  wis: 'WIS',
-  spr: 'SPR',
-  luk: 'LUK',
-  con: 'CON',
+  str: '力',
+  dex: '器用さ',
+  con: '体力',
+  spr: '精神',
+  wis: '知性',
+  luk: '運',
 });
+
+const STAT_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 
 export class StatsSettingsPanel {
   #panelEl = null;
   #currentSlotIndex = null;
   #currentMode = 'main';
   #currentAnchorEl = null;
+  #currentCharacterLevel = 200;
   #outsideClickHandler = null;
   #resolveSlot = null;
   #resolveDefaults = null;
+  #resolveBuildStats = null;
+  #buildTemplates = [];
   #onChange = null;
 
-  constructor({ resolveSlot = null, resolveDefaultStats: resolveDefaults = null, onChange = null } = {}) {
+  constructor({
+    resolveSlot = null,
+    resolveDefaultStats: resolveDefaults = null,
+    resolveBuildStats = null,
+    buildTemplates = [],
+    onChange = null,
+  } = {}) {
     this.#resolveSlot = resolveSlot;
     this.#resolveDefaults = resolveDefaults;
+    this.#resolveBuildStats = resolveBuildStats;
+    this.#buildTemplates = buildTemplates;
     this.#onChange = onChange;
   }
 
@@ -43,6 +55,8 @@ export class StatsSettingsPanel {
     this.#currentSlotIndex = Number(slotIndex);
     this.#currentMode = mode === 'support' ? 'support' : 'main';
     this.#currentAnchorEl = anchorEl;
+    const slot = this.#resolveSlot?.(this.#currentSlotIndex);
+    this.#currentCharacterLevel = slot?.characterLevel ?? 200;
     this.#render();
     panel.style.display = 'block';
     this.#positionPanel();
@@ -76,6 +90,15 @@ export class StatsSettingsPanel {
     return normalizeCharacterStats(value) ?? this.#resolveDefaultStats();
   }
 
+  #fillInputsFromStats(stats) {
+    const panel = this.#panelEl;
+    if (!panel || !stats) return;
+    for (const key of STAT_DISPLAY_ORDER) {
+      const input = panel.querySelector(`[data-stat="${key}"]`);
+      if (input) input.value = stats[key];
+    }
+  }
+
   #render() {
     const panel = this.#panelEl;
     const slot = this.#getCurrentSlot();
@@ -89,16 +112,39 @@ export class StatsSettingsPanel {
       this.close();
       return;
     }
+    const isMain = this.#currentMode !== 'support';
+    const charLevel = this.#currentCharacterLevel;
+    const buildOptions = isMain
+      ? this.#buildTemplates
+          .map((t) => `<option value="${t.value}">${t.label}</option>`)
+          .join('')
+      : '';
+
     panel.innerHTML = `
       <div class="party-stats-panel__header">
         <div>
-          <strong>${this.#currentMode === 'support' ? 'サポート' : 'メイン'}ステータス</strong>
+          <strong>${isMain ? 'メイン' : 'サポート'}ステータス</strong>
           <span>${String(style.name ?? '')}</span>
         </div>
+        <span class="party-stats-panel__assumptions">転生5・称号12</span>
+        <button type="button" class="party-stats-panel__info-btn"
+          title="転生5回・称号ランク12として計算しています（装備なし時がデフォルト値）">?</button>
         <button type="button" data-action="close-stats" title="閉じる">×</button>
       </div>
+      ${isMain ? `
+      <div class="party-stats-panel__build-row">
+        <label>キャラLv
+          <input type="number" min="1" max="200" data-field="character-level" value="${charLevel}">
+        </label>
+        <label class="party-stats-panel__build-label">テンプレート
+          <select data-action="build-template">
+            <option value="">-- 選択 --</option>
+            ${buildOptions}
+          </select>
+        </label>
+      </div>` : ''}
       <div class="party-stats-panel__grid">
-        ${CHARACTER_STAT_KEYS.map((key) => `
+        ${STAT_DISPLAY_ORDER.map((key) => `
           <label>
             <span>${STAT_LABELS[key]}</span>
             <input type="number" step="1" data-stat="${key}" value="${stats[key]}">
@@ -110,20 +156,46 @@ export class StatsSettingsPanel {
         <button type="button" data-action="apply-stats">適用</button>
       </div>
     `;
+
     panel.querySelector('[data-action="close-stats"]')?.addEventListener('click', () => this.close());
+
     panel.querySelector('[data-action="reset-stats"]')?.addEventListener('click', () => {
       this.#onChange?.(this.#currentSlotIndex, this.#currentMode, null);
       this.close();
     });
+
     panel.querySelector('[data-action="apply-stats"]')?.addEventListener('click', () => {
       const value = Object.fromEntries(
         [...panel.querySelectorAll('[data-stat]')].map((input) => [input.dataset.stat, Number(input.value)])
       );
       const normalized = normalizeCharacterStats(value);
       if (!normalized) return;
-      this.#onChange?.(this.#currentSlotIndex, this.#currentMode, normalized);
+      this.#onChange?.(this.#currentSlotIndex, this.#currentMode, normalized, this.#currentCharacterLevel);
       this.close();
     });
+
+    if (isMain) {
+      const levelInput = panel.querySelector('[data-field="character-level"]');
+      const buildSelect = panel.querySelector('[data-action="build-template"]');
+
+      const triggerBuildRecalc = (buildId) => {
+        const newStats = this.#resolveBuildStats?.(buildId, this.#currentSlotIndex, this.#currentMode, this.#currentCharacterLevel);
+        if (newStats) this.#fillInputsFromStats(newStats);
+      };
+
+      levelInput?.addEventListener('change', (e) => {
+        const v = Math.max(1, Math.min(200, Number(e.target.value) || 200));
+        this.#currentCharacterLevel = v;
+        e.target.value = v;
+        if (buildSelect?.value) triggerBuildRecalc(buildSelect.value);
+      });
+
+      buildSelect?.addEventListener('change', (e) => {
+        const buildId = e.target.value;
+        if (!buildId) return;
+        triggerBuildRecalc(buildId);
+      });
+    }
   }
 
   #positionPanel() {
@@ -131,10 +203,10 @@ export class StatsSettingsPanel {
     const anchor = this.#currentAnchorEl;
     if (!panel || !anchor) return;
     const rect = anchor.getBoundingClientRect();
-    const width = panel.offsetWidth || 320;
+    const width = panel.offsetWidth || 360;
     const left = Math.min(Math.max(8, rect.left), Math.max(8, window.innerWidth - width - 8));
     panel.style.left = `${left}px`;
-    const top = Math.min(rect.bottom + 6, window.innerHeight - (panel.offsetHeight || 280) - 8);
+    const top = Math.min(rect.bottom + 6, window.innerHeight - (panel.offsetHeight || 320) - 8);
     panel.style.top = `${Math.max(8, top)}px`;
   }
 

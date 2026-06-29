@@ -146,6 +146,7 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
       snapshot?.supportLimitBreakLevelsByPartyIndex,
       0
     ),
+    characterLevelsByPartyIndex: normalizeIndexedObject(snapshot?.characterLevelsByPartyIndex, 200),
     statsByPartyIndex: normalizeStatsByPartyIndex(snapshot?.statsByPartyIndex),
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),

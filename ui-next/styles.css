@@ -541,7 +541,7 @@
 .party-stats-panel {
   position: fixed;
   z-index: 70;
-  width: min(320px, calc(100vw - 16px));
+  width: min(360px, calc(100vw - 16px));
   padding: 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -579,7 +579,7 @@
 
 .party-stats-panel__grid label {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
   color: #475569;
@@ -607,6 +607,60 @@
   border-color: #2563eb;
   background: #2563eb;
   color: #fff;
+}
+
+.party-stats-panel__build-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.party-stats-panel__build-row label,
+.party-stats-panel__build-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #475569;
+}
+
+.party-stats-panel__build-label {
+  flex: 1;
+}
+
+.party-stats-panel__build-row input[type="number"] {
+  width: 52px;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.party-stats-panel__build-row select {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.party-stats-panel__assumptions {
+  font-size: 10px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.party-stats-panel__info-btn {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 50%;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 10px;
+  cursor: default;
+  flex-shrink: 0;
 }
 
 @keyframes setupHeaderFadeIn {
