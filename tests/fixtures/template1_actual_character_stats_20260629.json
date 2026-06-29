@@ -1,0 +1,1851 @@
+{
+  "source": "template1_actual_comparison_20260629.xlsx",
+  "capturedAt": "2026-06-29",
+  "assumptions": {
+    "support": false,
+    "equipment": false,
+    "aAndSStylesDefaultToMaxLimitBreak": true,
+    "specialLimitBreakOverrides": {
+      "1002507": 6
+    },
+    "unownedStyleValue": "unowned"
+  },
+  "styleLimitBreaks": [
+    {
+      "styleId": 1001103,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001104,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001105,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001107,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001108,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001109,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001110,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001111,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001112,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001203,
+      "limitBreakLevel": 0
+    },
+    {
+      "styleId": 1001204,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001205,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001207,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1001208,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001209,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001303,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1001305,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001306,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001307,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001308,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001309,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1001403,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1001404,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001405,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001406,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001408,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001409,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1001503,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001504,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001505,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001507,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001508,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001509,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001703,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001705,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001706,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1001707,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1001708,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1001710,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002103,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002104,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002105,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002107,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002108,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1002109,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002203,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002204,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1002205,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002207,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1002303,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002304,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1002306,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002307,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002403,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1002404,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002406,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002407,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002503,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002504,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002505,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002506,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002603,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1002604,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1002606,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1003103,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1003104,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003106,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003107,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003108,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003109,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003203,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003204,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003206,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003207,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003303,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003304,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003305,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003306,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003403,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003404,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1003405,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1003406,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003503,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003504,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003505,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003506,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003507,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003603,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003604,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003605,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1003606,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1003607,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004103,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004104,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004106,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004107,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004108,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004110,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1004203,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004204,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004205,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004303,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004304,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004305,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004307,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004403,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004404,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004406,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004407,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1004503,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1004504,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1004505,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004507,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004509,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1004603,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1004605,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1004606,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005103,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005104,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1005106,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1005107,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005203,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1005205,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005206,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005303,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1005304,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005403,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005405,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005407,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005503,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1005504,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1005505,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005506,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1005603,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005605,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1005606,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1005607,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1006103,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006104,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006106,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006203,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006205,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006206,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006303,
+      "limitBreakLevel": 0
+    },
+    {
+      "styleId": 1006304,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006306,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006403,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1006404,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006405,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006503,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1006504,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1006505,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006506,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006603,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1006605,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1006606,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1007103,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007104,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007106,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007203,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007205,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007207,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007303,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007304,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1007403,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007404,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007405,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1007503,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007504,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1007505,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1007506,
+      "limitBreakLevel": "unowned"
+    },
+    {
+      "styleId": 1007603,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007604,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1007606,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1008103,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008105,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008106,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008107,
+      "limitBreakLevel": "unowned"
+    },
+    {
+      "styleId": 1008203,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008204,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008205,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008207,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1008208,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008303,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1008304,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008305,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008307,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008403,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008405,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008406,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1008503,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008504,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1008505,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008507,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1008603,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008604,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1008605,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1008607,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1008608,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1010103,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1010203,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1010204,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1020103,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1020104,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1020203,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1020204,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1020303,
+      "limitBreakLevel": 2
+    },
+    {
+      "styleId": 1020603,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1020703,
+      "limitBreakLevel": 1
+    },
+    {
+      "styleId": 1021102,
+      "limitBreakLevel": 4
+    },
+    {
+      "styleId": 1021203,
+      "limitBreakLevel": 3
+    },
+    {
+      "styleId": 1021303,
+      "limitBreakLevel": 2
+    }
+  ],
+  "characters": [
+    {
+      "characterLabel": "RKayamori",
+      "characterName": "茅森 月歌",
+      "level": 180,
+      "reincarnationCount": 20,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 237,
+        "dex": 222,
+        "wis": 225,
+        "spr": 227,
+        "luk": 219,
+        "con": 231
+      }
+    },
+    {
+      "characterLabel": "YIzumi",
+      "characterName": "和泉 ユキ",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 200,
+        "dex": 220,
+        "wis": 203,
+        "spr": 203,
+        "luk": 207,
+        "con": 198
+      }
+    },
+    {
+      "characterLabel": "MAikawa",
+      "characterName": "逢川 めぐみ",
+      "level": 180,
+      "reincarnationCount": 20,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 221,
+        "dex": 226,
+        "wis": 228,
+        "spr": 225,
+        "luk": 227,
+        "con": 216
+      }
+    },
+    {
+      "characterLabel": "TTojo",
+      "characterName": "東城 つかさ",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 204,
+        "dex": 207,
+        "wis": 224,
+        "spr": 214,
+        "luk": 206,
+        "con": 202
+      }
+    },
+    {
+      "characterLabel": "KAsakura",
+      "characterName": "朝倉 可憐",
+      "level": 180,
+      "reincarnationCount": 20,
+      "titleRank": 13,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 239,
+        "dex": 225,
+        "wis": 221,
+        "spr": 218,
+        "luk": 225,
+        "con": 226
+      }
+    },
+    {
+      "characterLabel": "TKunimi",
+      "characterName": "國見 タマ",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 207,
+        "dex": 204,
+        "wis": 225,
+        "spr": 218,
+        "luk": 204,
+        "con": 204
+      }
+    },
+    {
+      "characterLabel": "EAoi",
+      "characterName": "蒼井 えりか",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 207,
+        "dex": 203,
+        "wis": 219,
+        "spr": 216,
+        "luk": 200,
+        "con": 211
+      }
+    },
+    {
+      "characterLabel": "IMinase",
+      "characterName": "水瀬 いちご",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 199,
+        "dex": 192,
+        "wis": 191,
+        "spr": 191,
+        "luk": 191,
+        "con": 194
+      }
+    },
+    {
+      "characterLabel": "SMinase",
+      "characterName": "水瀬 すもも",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 213,
+        "dex": 212,
+        "wis": 204,
+        "spr": 205,
+        "luk": 207,
+        "con": 207
+      }
+    },
+    {
+      "characterLabel": "SHiguchi",
+      "characterName": "樋口 聖華",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 200,
+        "dex": 203,
+        "wis": 212,
+        "spr": 207,
+        "luk": 202,
+        "con": 198
+      }
+    },
+    {
+      "characterLabel": "KHiiragi",
+      "characterName": "柊木 梢",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 207,
+        "dex": 208,
+        "wis": 210,
+        "spr": 210,
+        "luk": 208,
+        "con": 201
+      }
+    },
+    {
+      "characterLabel": "Byakko",
+      "characterName": "ビャッコ",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 214,
+        "dex": 203,
+        "wis": 201,
+        "spr": 204,
+        "luk": 208,
+        "con": 210
+      }
+    },
+    {
+      "characterLabel": "BIYamawaki",
+      "characterName": "山脇・ボン・イヴァール",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 13,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 219,
+        "dex": 207,
+        "wis": 205,
+        "spr": 207,
+        "luk": 209,
+        "con": 215
+      }
+    },
+    {
+      "characterLabel": "SSakuraba",
+      "characterName": "桜庭 星羅",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 203,
+        "dex": 201,
+        "wis": 209,
+        "spr": 204,
+        "luk": 202,
+        "con": 204
+      }
+    },
+    {
+      "characterLabel": "MTenne",
+      "characterName": "天音 巫呼",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 204,
+        "dex": 208,
+        "wis": 216,
+        "spr": 209,
+        "luk": 206,
+        "con": 203
+      }
+    },
+    {
+      "characterLabel": "YBungo",
+      "characterName": "豊後 弥生",
+      "level": 180,
+      "reincarnationCount": 20,
+      "titleRank": 13,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 220,
+        "dex": 234,
+        "wis": 217,
+        "spr": 222,
+        "luk": 229,
+        "con": 220
+      }
+    },
+    {
+      "characterLabel": "AKanzaki",
+      "characterName": "神崎 アーデルハイド",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 13,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 217,
+        "dex": 206,
+        "wis": 207,
+        "spr": 207,
+        "luk": 204,
+        "con": 213
+      }
+    },
+    {
+      "characterLabel": "MSatsuki",
+      "characterName": "佐月 マリ",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 208,
+        "dex": 201,
+        "wis": 213,
+        "spr": 206,
+        "luk": 199,
+        "con": 200
+      }
+    },
+    {
+      "characterLabel": "YShirakawa",
+      "characterName": "白河 ユイナ",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 222,
+        "dex": 201,
+        "wis": 212,
+        "spr": 207,
+        "luk": 205,
+        "con": 216
+      }
+    },
+    {
+      "characterLabel": "MTsukishiro",
+      "characterName": "月城 最中",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 11,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 211,
+        "dex": 197,
+        "wis": 201,
+        "spr": 202,
+        "luk": 198,
+        "con": 206
+      }
+    },
+    {
+      "characterLabel": "MKiryu",
+      "characterName": "桐生 美也",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 209,
+        "dex": 211,
+        "wis": 209,
+        "spr": 207,
+        "luk": 208,
+        "con": 203
+      }
+    },
+    {
+      "characterLabel": "CSugahara",
+      "characterName": "菅原 千恵",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 208,
+        "dex": 202,
+        "wis": 203,
+        "spr": 206,
+        "luk": 199,
+        "con": 205
+      }
+    },
+    {
+      "characterLabel": "HOgasawara",
+      "characterName": "小笠原 緋雨",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 204,
+        "dex": 214,
+        "wis": 211,
+        "spr": 212,
+        "luk": 210,
+        "con": 204
+      }
+    },
+    {
+      "characterLabel": "SKura",
+      "characterName": "蔵 里見",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 209,
+        "dex": 201,
+        "wis": 203,
+        "spr": 204,
+        "luk": 198,
+        "con": 206
+      }
+    },
+    {
+      "characterLabel": "MNikaido",
+      "characterName": "二階堂 三郷",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 213,
+        "dex": 203,
+        "wis": 212,
+        "spr": 208,
+        "luk": 201,
+        "con": 210
+      }
+    },
+    {
+      "characterLabel": "IIshii",
+      "characterName": "石井 色葉",
+      "level": 170,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 193,
+        "dex": 196,
+        "wis": 205,
+        "spr": 199,
+        "luk": 196,
+        "con": 193
+      }
+    },
+    {
+      "characterLabel": "FMikoto",
+      "characterName": "命 吹雪",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 208,
+        "dex": 205,
+        "wis": 205,
+        "spr": 202,
+        "luk": 206,
+        "con": 207
+      }
+    },
+    {
+      "characterLabel": "RMurohushi",
+      "characterName": "室伏 理沙",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 194,
+        "dex": 191,
+        "wis": 201,
+        "spr": 195,
+        "luk": 188,
+        "con": 192
+      }
+    },
+    {
+      "characterLabel": "ADate",
+      "characterName": "伊達 朱里",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 201,
+        "dex": 206,
+        "wis": 205,
+        "spr": 198,
+        "luk": 206,
+        "con": 201
+      }
+    },
+    {
+      "characterLabel": "AMizuhara",
+      "characterName": "瑞原 あいな",
+      "level": 180,
+      "reincarnationCount": 10,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 210,
+        "dex": 212,
+        "wis": 222,
+        "spr": 217,
+        "luk": 208,
+        "con": 207
+      }
+    },
+    {
+      "characterLabel": "IcOhshima",
+      "characterName": "大島 一千子",
+      "level": 170,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 198,
+        "dex": 194,
+        "wis": 200,
+        "spr": 200,
+        "luk": 191,
+        "con": 197
+      }
+    },
+    {
+      "characterLabel": "NiOhshima",
+      "characterName": "大島 二以奈",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 198,
+        "dex": 191,
+        "wis": 190,
+        "spr": 191,
+        "luk": 190,
+        "con": 196
+      }
+    },
+    {
+      "characterLabel": "MiOhshima",
+      "characterName": "大島 三野里",
+      "level": 170,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 198,
+        "dex": 200,
+        "wis": 196,
+        "spr": 195,
+        "luk": 197,
+        "con": 196
+      }
+    },
+    {
+      "characterLabel": "YoOhshima",
+      "characterName": "大島 四ツ葉",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 198,
+        "dex": 201,
+        "wis": 210,
+        "spr": 205,
+        "luk": 202,
+        "con": 200
+      }
+    },
+    {
+      "characterLabel": "IrOhshima",
+      "characterName": "大島 五十鈴",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 202,
+        "dex": 200,
+        "wis": 212,
+        "spr": 207,
+        "luk": 202,
+        "con": 196
+      }
+    },
+    {
+      "characterLabel": "MuOhshima",
+      "characterName": "大島 六宇亜",
+      "level": 170,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 194,
+        "dex": 196,
+        "wis": 203,
+        "spr": 198,
+        "luk": 193,
+        "con": 197
+      }
+    },
+    {
+      "characterLabel": "MYanagi",
+      "characterName": "柳 美音",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 206,
+        "dex": 206,
+        "wis": 214,
+        "spr": 209,
+        "luk": 202,
+        "con": 205
+      }
+    },
+    {
+      "characterLabel": "KMaruyama",
+      "characterName": "丸山 奏多",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 206,
+        "dex": 211,
+        "wis": 208,
+        "spr": 207,
+        "luk": 208,
+        "con": 207
+      }
+    },
+    {
+      "characterLabel": "SHanamura",
+      "characterName": "華村 詩紀",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 191,
+        "dex": 190,
+        "wis": 199,
+        "spr": 193,
+        "luk": 190,
+        "con": 189
+      }
+    },
+    {
+      "characterLabel": "CMatsuoka",
+      "characterName": "松岡 チロル",
+      "level": 160,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1819,
+      "actualHp": 1529,
+      "expectedStats": {
+        "str": 187,
+        "dex": 178,
+        "wis": 177,
+        "spr": 182,
+        "luk": 178,
+        "con": 189
+      }
+    },
+    {
+      "characterLabel": "INatsume",
+      "characterName": "夏目 祈",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 208,
+        "dex": 202,
+        "wis": 201,
+        "spr": 199,
+        "luk": 201,
+        "con": 205
+      }
+    },
+    {
+      "characterLabel": "MKurosawa",
+      "characterName": "黒沢 真希",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 203,
+        "dex": 203,
+        "wis": 200,
+        "spr": 204,
+        "luk": 204,
+        "con": 202
+      }
+    },
+    {
+      "characterLabel": "CReaper",
+      "characterName": "キャロル・リーパー",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 206,
+        "dex": 204,
+        "wis": 202,
+        "spr": 201,
+        "luk": 199,
+        "con": 205
+      }
+    },
+    {
+      "characterLabel": "LShanhua",
+      "characterName": "李 映夏",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 205,
+        "dex": 200,
+        "wis": 225,
+        "spr": 216,
+        "luk": 201,
+        "con": 204
+      }
+    },
+    {
+      "characterLabel": "IRedmayne",
+      "characterName": "アイリーン・レドメイン",
+      "level": 180,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 204,
+        "dex": 215,
+        "wis": 211,
+        "spr": 204,
+        "luk": 206,
+        "con": 206
+      }
+    },
+    {
+      "characterLabel": "VBalakrishnan",
+      "characterName": "ヴリティカ・バラクリシュナン",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 11,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 197,
+        "dex": 196,
+        "wis": 212,
+        "spr": 208,
+        "luk": 197,
+        "con": 203
+      }
+    },
+    {
+      "characterLabel": "MdAngelis",
+      "characterName": "マリア・デ・アンジェリス",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 11,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 205,
+        "dex": 195,
+        "wis": 212,
+        "spr": 207,
+        "luk": 198,
+        "con": 198
+      }
+    },
+    {
+      "characterLabel": "CSkopovskaya",
+      "characterName": "シャルロッタ・スコポフスカヤ",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 202,
+        "dex": 208,
+        "wis": 210,
+        "spr": 202,
+        "luk": 207,
+        "con": 200
+      }
+    },
+    {
+      "characterLabel": "STezuka",
+      "characterName": "手塚 咲",
+      "level": 170,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 196,
+        "dex": 193,
+        "wis": 193,
+        "spr": 193,
+        "luk": 193,
+        "con": 195
+      }
+    },
+    {
+      "characterLabel": "NNanase",
+      "characterName": "七瀬 七海",
+      "level": 160,
+      "reincarnationCount": 5,
+      "titleRank": 12,
+      "actualDp": 1819,
+      "actualHp": 1529,
+      "expectedStats": {
+        "str": 185,
+        "dex": 182,
+        "wis": 185,
+        "spr": 184,
+        "luk": 182,
+        "con": 184
+      }
+    },
+    {
+      "characterLabel": "AliceA",
+      "characterName": "立華 かなで",
+      "level": 160,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1819,
+      "actualHp": 1529,
+      "expectedStats": {
+        "str": 188,
+        "dex": 176,
+        "wis": 178,
+        "spr": 180,
+        "luk": 177,
+        "con": 182
+      }
+    },
+    {
+      "characterLabel": "AliceB",
+      "characterName": "仲村 ゆり",
+      "level": 150,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1748,
+      "actualHp": 1461,
+      "expectedStats": {
+        "str": 173,
+        "dex": 172,
+        "wis": 167,
+        "spr": 168,
+        "luk": 168,
+        "con": 172
+      }
+    },
+    {
+      "characterLabel": "AliceC",
+      "characterName": "入江 みゆき",
+      "level": 160,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1819,
+      "actualHp": 1529,
+      "expectedStats": {
+        "str": 178,
+        "dex": 176,
+        "wis": 186,
+        "spr": 184,
+        "luk": 175,
+        "con": 180
+      }
+    },
+    {
+      "characterLabel": "CathyB",
+      "characterName": "芳岡 ユイ",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 190,
+        "dex": 190,
+        "wis": 190,
+        "spr": 192,
+        "luk": 187,
+        "con": 187
+      }
+    },
+    {
+      "characterLabel": "CathyC",
+      "characterName": "岩沢 雅美",
+      "level": 150,
+      "reincarnationCount": 0,
+      "titleRank": 12,
+      "actualDp": 1748,
+      "actualHp": 1461,
+      "expectedStats": {
+        "str": 172,
+        "dex": 169,
+        "wis": 166,
+        "spr": 166,
+        "luk": 167,
+        "con": 169
+      }
+    },
+    {
+      "characterLabel": "EmaB",
+      "characterName": "モナ",
+      "level": 180,
+      "reincarnationCount": 1,
+      "titleRank": 10,
+      "actualDp": 1959,
+      "actualHp": 1664,
+      "expectedStats": {
+        "str": 197,
+        "dex": 197,
+        "wis": 203,
+        "spr": 197,
+        "luk": 197,
+        "con": 195
+      }
+    },
+    {
+      "characterLabel": "EmaC",
+      "characterName": "クイーン",
+      "level": 170,
+      "reincarnationCount": 1,
+      "titleRank": 12,
+      "actualDp": 1889,
+      "actualHp": 1596,
+      "expectedStats": {
+        "str": 185,
+        "dex": 195,
+        "wis": 190,
+        "spr": 189,
+        "luk": 189,
+        "con": 189
+      }
+    },
+    {
+      "characterLabel": "EmaD",
+      "characterName": "ヴァイオレット",
+      "level": 160,
+      "reincarnationCount": 0,
+      "titleRank": 6,
+      "actualDp": 1769,
+      "actualHp": 1529,
+      "expectedStats": {
+        "str": 180,
+        "dex": 170,
+        "wis": 175,
+        "spr": 173,
+        "luk": 172,
+        "con": 175
+      }
+    }
+  ]
+}

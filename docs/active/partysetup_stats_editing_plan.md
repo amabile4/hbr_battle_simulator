@@ -1,6 +1,6 @@
 # PartySetup ステータス編集機能 — 検討 & WBS
 
-> **ステータス**: ✅ 完了（P-0〜P-8） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-29
+> **ステータス**: ✅ 完了（P-0〜P-9） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-29
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の後続。攻撃者ステータスの正本を PartySetup に持たせ、計算機へ供給する。
 
@@ -64,10 +64,13 @@
 | P-6 | Test | unit（snapshot round-trip・fallback・slot move/clear・サポート10%）／ E2E（stats 入力→計算反映→保存復元・計算機表示）／ lint | P-2〜P-5 | ✅ 完了 |
 | P-7 | Fix | **サポート 10% を「手入力に負ける」挙動へ修正**（claude レビュー指摘・ユーザー確定 2026-06-04）。計算機は 手入力 stats をそのまま使用（10% 上乗せ無し）、無い時のみ role 標準 + 10%。パネル main プリフィルも default+10% に揃える。テスト/doc 更新 | P-4 | ✅ 完了 |
 | P-8 | Follow-up | **テンプレート①の実データ自動算出**。role固定値を廃止し、Lv200・転生5回・全能力ボード最大・未選択同キャラスタイル完凸・装備なしで算出。選択中メイン/サポートのLBを共有計算にも反映し、10%加算は能力ごとに切り上げる。未入力はnull維持、戦闘開始時に具体化、replayへ解決値を保存 | P-7 | ✅ 完了 |
+| P-9 | Validation | **実機キャラクター部分の全件検算**。2026-06-29実機入力58キャラとSS/SSR所持LB、A/S完凸（`こじらじNOW ON AIR！`のみLB6）をfixture化。Lv補間（四捨五入）・転生・称号累積・所持スタイル共有能力で6能力348値が全件一致。スタイル固有補正は次工程 | P-8 | ✅ 完了 |
 
 ## 6. 完了時検証
 
-- unit: PartySetup / session / BattleStateManager / replay / CharacterStyle clone / stats helper / damage calculator input を含む `npm test` 1352件通過
+- unit: PartySetup / session / BattleStateManager / replay / CharacterStyle clone / stats helper / damage calculator input を含む `npm test` 1358件通過
+- 実機fixture: `tests/fixtures/template1_actual_character_stats_20260629.json` の58キャラ×6能力が全件一致。全360スタイルについてSS/SSR入力値とA/S既定値の適用範囲も検証
+- 実機入力のLvはDP/HPと称号DP累積から一意に確定し、Lv180=40人、Lv170=11人、Lv160=5人、Lv150=2人。テンプレート①のLv200固定とは別の実機取得条件としてfixtureに保持
 - E2E: テンプレート①のLB追従、手入力保持、reset、戦闘開始後replay保存を確認。全体は95件通過、既知の時刻依存 `superbreak-hefty-guardian.spec.js` 4件のみ敵プリセット `13490231` 未検出で失敗
 - lint / `git diff --check`: 通過
 

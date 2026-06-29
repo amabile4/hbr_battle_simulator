@@ -3,6 +3,7 @@ export const SUPPORT_STAT_CONTRIBUTION_RATE = 0.1;
 
 export const TEMPLATE_CHARACTER_LEVEL = 200;
 export const TEMPLATE_REINCARNATION_COUNT = 5;
+export const UNOWNED_STYLE_LIMIT_BREAK = 'unowned';
 
 const SUPPORT_STAT_CONTRIBUTION_DIVISOR = 10;
 const PERCENT_DIVISOR = 100;
@@ -62,6 +63,10 @@ function resolveExplicitLimitBreak(limitBreakLevelsByStyleId, styleId) {
     : null;
 }
 
+function isUnownedStyleLimitBreak(value) {
+  return value === UNOWNED_STYLE_LIMIT_BREAK;
+}
+
 export function getTemplateStyleLimitBreakMax(style) {
   return TEMPLATE_LIMIT_BREAK_MAX_BY_TIER[String(style?.tier ?? '').toUpperCase()] ?? 0;
 }
@@ -79,6 +84,110 @@ function listReachedLimitBreakAbilities(style, limitBreakLevel) {
     .filter((bonus) => bonus?.category === 'Ability');
 }
 
+function interpolateCharacterParameter(character, key, level) {
+  const levels = Array.isArray(character?.base_param?.level)
+    ? character.base_param.level.map(Number)
+    : [];
+  const values = Array.isArray(character?.base_param?.[key])
+    ? character.base_param[key].map(Number)
+    : [];
+  if (
+    levels.length === 0 ||
+    levels.length !== values.length ||
+    !Number.isFinite(level) ||
+    levels.some((value) => !Number.isFinite(value)) ||
+    values.some((value) => !Number.isFinite(value))
+  ) {
+    return Number.NaN;
+  }
+
+  const exactIndex = levels.indexOf(level);
+  if (exactIndex >= 0) {
+    return values[exactIndex];
+  }
+  const upperIndex = levels.findIndex((candidate) => candidate > level);
+  if (upperIndex <= 0) {
+    return Number.NaN;
+  }
+  const lowerIndex = upperIndex - 1;
+  const levelRatio = (level - levels[lowerIndex]) / (levels[upperIndex] - levels[lowerIndex]);
+  return Math.round(values[lowerIndex] + (values[upperIndex] - values[lowerIndex]) * levelRatio);
+}
+
+function resolveTitleBadgeParamAllBonus(titleBadgeRanks, titleRank) {
+  const ranks = Array.isArray(titleBadgeRanks)
+    ? titleBadgeRanks
+    : Array.isArray(titleBadgeRanks?.items)
+      ? titleBadgeRanks.items
+      : [];
+  const normalizedRank = Number(titleRank);
+  if (!Number.isFinite(normalizedRank)) {
+    return 0;
+  }
+  return ranks
+    .filter((entry) => Number(entry?.rank) <= normalizedRank)
+    .flatMap((entry) => entry?.abilityEffectLabel ?? [])
+    .reduce((total, label) => {
+      const match = /^ParamAll_RealNumber_(-?\d+(?:\.\d+)?)$/.exec(String(label));
+      return total + (match ? Number(match[1]) : 0);
+    }, 0);
+}
+
+/**
+ * 装備・サポート・選択スタイル固有補正を除く、共有キャラクター能力を算出する。
+ */
+export function resolveCharacterBaseStats({
+  character,
+  styles = [],
+  level = TEMPLATE_CHARACTER_LEVEL,
+  reincarnationCount = 0,
+  titleRank = 0,
+  titleBadgeRanks = [],
+  limitBreakLevelsByStyleId = {},
+} = {}) {
+  if (!character) {
+    return null;
+  }
+  const normalizedLevel = Number(level);
+  const reincarnationBonus = Number(reincarnationCount);
+  if (!Number.isFinite(reincarnationBonus)) {
+    return null;
+  }
+
+  const sharedFixed = createZeroStats();
+  for (const candidate of styles.filter(
+    (style) => String(style?.chara_label ?? '') === String(character?.label ?? '')
+  )) {
+    const explicitLimitBreak = resolveExplicitLimitBreak(limitBreakLevelsByStyleId, candidate?.id);
+    if (isUnownedStyleLimitBreak(explicitLimitBreak)) {
+      continue;
+    }
+    for (const ability of listStyleAbilities(candidate)) {
+      if (ability?.is_exclusive !== true && ability?.value_type === 'RealNumber') {
+        addAbilityValue(sharedFixed, ability.type, getAbilityValue(ability));
+      }
+    }
+    const effectiveLimitBreak = normalizeStyleLimitBreak(candidate, explicitLimitBreak);
+    for (const ability of listReachedLimitBreakAbilities(candidate, effectiveLimitBreak)) {
+      if (ability?.value_type === 'RealNumber') {
+        addAbilityValue(sharedFixed, ability.type, getAbilityValue(ability));
+      }
+    }
+  }
+
+  const titleBonus = resolveTitleBadgeParamAllBonus(titleBadgeRanks, titleRank);
+  const resolved = Object.fromEntries(
+    CHARACTER_STAT_KEYS.map((key) => [
+      key,
+      interpolateCharacterParameter(character, key, normalizedLevel) +
+        reincarnationBonus +
+        titleBonus +
+        sharedFixed[key],
+    ])
+  );
+  return CHARACTER_STAT_KEYS.every((key) => Number.isFinite(resolved[key])) ? resolved : null;
+}
+
 /**
  * テンプレート①（Lv200・転生5回・能力ボード最大・装備なし）の6能力を算出する。
  * 明示されていない同キャラのスタイルは完凸として共有能力を反映する。
@@ -93,14 +202,6 @@ export function resolveTemplateCharacterStats({
   if (!character || !style) {
     return null;
   }
-  const levelValues = Array.isArray(character?.base_param?.level)
-    ? character.base_param.level
-    : [];
-  const levelIndex = levelValues.findIndex((value) => Number(value) === TEMPLATE_CHARACTER_LEVEL);
-  if (levelIndex < 0) {
-    return null;
-  }
-
   const characterStyles = styles.filter(
     (candidate) => String(candidate?.chara_label ?? '') === String(style.chara_label ?? '')
   );
@@ -109,25 +210,36 @@ export function resolveTemplateCharacterStats({
   }
 
   const selectedLimitBreak = normalizeStyleLimitBreak(style, limitBreakLevel, 0);
-  const sharedFixed = createZeroStats();
   const percentBonus = createZeroStats();
   const selectedFixed = createZeroStats();
 
-  for (const candidate of characterStyles) {
-    for (const ability of listStyleAbilities(candidate)) {
-      if (ability?.is_exclusive !== true && ability?.value_type === 'RealNumber') {
-        addAbilityValue(sharedFixed, ability.type, getAbilityValue(ability));
-      }
-    }
+  const effectiveLimitBreakLevels = new Map(
+    limitBreakLevelsByStyleId instanceof Map
+      ? limitBreakLevelsByStyleId
+      : Object.entries(limitBreakLevelsByStyleId ?? {}).map(([styleId, value]) => [Number(styleId), value])
+  );
+  effectiveLimitBreakLevels.set(Number(style.id), selectedLimitBreak);
+  const characterBaseStats = resolveCharacterBaseStats({
+    character,
+    styles: characterStyles,
+    level: TEMPLATE_CHARACTER_LEVEL,
+    reincarnationCount: TEMPLATE_REINCARNATION_COUNT,
+    limitBreakLevelsByStyleId: effectiveLimitBreakLevels,
+  });
+  if (!characterBaseStats) {
+    return null;
+  }
 
+  for (const candidate of characterStyles) {
     const explicitLimitBreak = Number(candidate?.id) === Number(style.id)
       ? selectedLimitBreak
       : resolveExplicitLimitBreak(limitBreakLevelsByStyleId, candidate?.id);
+    if (isUnownedStyleLimitBreak(explicitLimitBreak)) {
+      continue;
+    }
     const effectiveLimitBreak = normalizeStyleLimitBreak(candidate, explicitLimitBreak);
     for (const ability of listReachedLimitBreakAbilities(candidate, effectiveLimitBreak)) {
-      if (ability?.value_type === 'RealNumber') {
-        addAbilityValue(sharedFixed, ability.type, getAbilityValue(ability));
-      } else if (
+      if (
         Number(candidate?.id) !== Number(style.id) &&
         ability?.type === PARAM_ALL_OTHER_CARD_ABILITY_TYPE &&
         ability?.value_type === 'Ratio'
@@ -153,13 +265,11 @@ export function resolveTemplateCharacterStats({
 
   const resolved = Object.fromEntries(
     CHARACTER_STAT_KEYS.map((key) => {
-      const baseValue = Number(character?.base_param?.[key]?.[levelIndex]);
       const stylePercent = Number(style?.base_param?.[key] ?? 0);
       const totalPercent = stylePercent + percentBonus[key] + limitBreakStatPercent;
       const value = Math.ceil(
         (
-          (baseValue + TEMPLATE_REINCARNATION_COUNT + sharedFixed[key]) *
-            (PERCENT_DIVISOR + totalPercent) +
+          characterBaseStats[key] * (PERCENT_DIVISOR + totalPercent) +
           selectedFixed[key] * PERCENT_DIVISOR
         ) / PERCENT_DIVISOR
       );
