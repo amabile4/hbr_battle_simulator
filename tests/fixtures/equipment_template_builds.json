@@ -1,0 +1,1478 @@
+{
+  "generatedAt": "2026-06-30",
+  "sourceRef": "/Users/ram4/Downloads/equipment_extraction_results.md",
+  "note": "ブースター値はjson/boosters.jsonを権威とする。build資料の「全能力+21」は誤りで実際は種類別の値。",
+  "builds": [
+    {
+      "name": "force_max",
+      "description": "力最優先（ボルトリング+6力メイン/マエストロ/攻撃チップⅤ×4）",
+      "config": {
+        "soul": {
+          "id": 5010112,
+          "enhanceLevel": 5,
+          "slotEffects": [
+            {
+              "stat": "str",
+              "value": 3
+            },
+            {
+              "stat": "str",
+              "value": 3
+            },
+            {
+              "stat": "str",
+              "value": 3
+            }
+          ]
+        },
+        "booster": {
+          "id": 86000601
+        },
+        "chips": [
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          }
+        ],
+        "accessories": [
+          {
+            "id": 5000307,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5021002,
+            "enhanceTier": 2,
+            "slotEffects": [
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5022828,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5025003,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              },
+              {
+                "stat": "str",
+                "value": 3
+              }
+            ]
+          }
+        ],
+        "charms": [
+          {
+            "id": 5024001,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024002,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024003,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024004,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024005,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024006,
+            "enhanceTier": 4
+          }
+        ]
+      },
+      "expectedBonus": {
+        "str": 211,
+        "dex": 142,
+        "wis": 128,
+        "spr": 125,
+        "luk": 80,
+        "con": 135
+      },
+      "breakdown": [
+        {
+          "str": 25,
+          "dex": 25,
+          "wis": 25,
+          "spr": 25,
+          "luk": 25,
+          "con": 25,
+          "source": "エモーショナル・ソウル+5 (全能力+25)"
+        },
+        {
+          "str": 9,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "エモーショナル・ソウル スロット"
+        },
+        {
+          "str": 51,
+          "dex": 40,
+          "wis": 40,
+          "spr": 40,
+          "luk": 40,
+          "con": 40,
+          "source": "マエストロ"
+        },
+        {
+          "str": 20,
+          "dex": 20,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "攻撃チップⅤ ×4"
+        },
+        {
+          "str": 55,
+          "dex": 42,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 10,
+          "source": "ボルトリング (基礎)"
+        },
+        {
+          "str": 9,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ボルトリング スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 48,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "アタックピアス (基礎)"
+        },
+        {
+          "str": 9,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "アタックピアス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 45,
+          "luk": 0,
+          "con": 45,
+          "source": "闇撃のブレス (基礎)"
+        },
+        {
+          "str": 9,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "闇撃のブレス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "火耀のエンシェントチェーン (能力ボーナスなし)"
+        },
+        {
+          "str": 9,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "火耀のエンシェントチェーン スロット"
+        },
+        {
+          "str": 15,
+          "dex": 15,
+          "wis": 15,
+          "spr": 15,
+          "luk": 15,
+          "con": 15,
+          "source": "チャーム計 (enchanceTier=4)"
+        },
+        {
+          "source": "合計",
+          "str": 211,
+          "dex": 142,
+          "wis": 128,
+          "spr": 125,
+          "luk": 80,
+          "con": 135
+        }
+      ]
+    },
+    {
+      "name": "dexterity_max",
+      "description": "器用さ最優先（ボルトリング+6器用さメイン/インスペクター/攻撃チップⅤ×4）",
+      "config": {
+        "soul": {
+          "id": 5010112,
+          "enhanceLevel": 5,
+          "slotEffects": [
+            {
+              "stat": "dex",
+              "value": 3
+            },
+            {
+              "stat": "dex",
+              "value": 3
+            },
+            {
+              "stat": "dex",
+              "value": 3
+            }
+          ]
+        },
+        "booster": {
+          "id": 86000602
+        },
+        "chips": [
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          },
+          {
+            "id": 87005001
+          }
+        ],
+        "accessories": [
+          {
+            "id": 5000309,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5021001,
+            "enhanceTier": 2,
+            "slotEffects": [
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5022928,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5025007,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              },
+              {
+                "stat": "dex",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5004004,
+            "enhanceTier": 0,
+            "slotEffects": []
+          }
+        ],
+        "charms": [
+          {
+            "id": 5024001,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024002,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024003,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024004,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024005,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024006,
+            "enhanceTier": 4
+          }
+        ]
+      },
+      "expectedBonus": {
+        "str": 142,
+        "dex": 211,
+        "wis": 128,
+        "spr": 125,
+        "luk": 80,
+        "con": 135
+      },
+      "breakdown": [
+        {
+          "str": 25,
+          "dex": 25,
+          "wis": 25,
+          "spr": 25,
+          "luk": 25,
+          "con": 25,
+          "source": "エモーショナル・ソウル+5 (全能力+25)"
+        },
+        {
+          "str": 0,
+          "dex": 9,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "エモーショナル・ソウル スロット"
+        },
+        {
+          "str": 40,
+          "dex": 51,
+          "wis": 40,
+          "spr": 40,
+          "luk": 40,
+          "con": 40,
+          "source": "インスペクター"
+        },
+        {
+          "str": 20,
+          "dex": 20,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "攻撃チップⅤ ×4"
+        },
+        {
+          "str": 42,
+          "dex": 55,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 10,
+          "source": "ボルトリング (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 9,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ボルトリング スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 48,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ブレイクピアス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 9,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ブレイクピアス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 45,
+          "luk": 0,
+          "con": 45,
+          "source": "氷撃のブレス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 9,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "氷撃のブレス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "光輝のエンシェントチェーン (能力ボーナスなし)"
+        },
+        {
+          "str": 0,
+          "dex": 9,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "光輝のエンシェントチェーン スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "防護のオーブ (能力ボーナスなし)"
+        },
+        {
+          "str": 15,
+          "dex": 15,
+          "wis": 15,
+          "spr": 15,
+          "luk": 15,
+          "con": 15,
+          "source": "チャーム計 (enchanceTier=4)"
+        },
+        {
+          "source": "合計",
+          "str": 142,
+          "dex": 211,
+          "wis": 128,
+          "spr": 125,
+          "luk": 80,
+          "con": 135
+        }
+      ]
+    },
+    {
+      "name": "wisdom_max",
+      "description": "知性優先（ボルトリング+6知性補正/コンダクター/ヒールチップⅤ×4）",
+      "config": {
+        "soul": {
+          "id": 5010112,
+          "enhanceLevel": 5,
+          "slotEffects": [
+            {
+              "stat": "wis",
+              "value": 3
+            },
+            {
+              "stat": "wis",
+              "value": 3
+            },
+            {
+              "stat": "wis",
+              "value": 3
+            }
+          ]
+        },
+        "booster": {
+          "id": 86000603
+        },
+        "chips": [
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          }
+        ],
+        "accessories": [
+          {
+            "id": 5000317,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5021003,
+            "enhanceTier": 2,
+            "slotEffects": [
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5022804,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5023006,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              },
+              {
+                "stat": "wis",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5004018,
+            "enhanceTier": 0,
+            "slotEffects": []
+          }
+        ],
+        "charms": [
+          {
+            "id": 5024001,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024002,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024003,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024004,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024005,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024006,
+            "enhanceTier": 4
+          }
+        ]
+      },
+      "expectedBonus": {
+        "str": 134,
+        "dex": 121,
+        "wis": 224,
+        "spr": 124,
+        "luk": 127,
+        "con": 124
+      },
+      "breakdown": [
+        {
+          "str": 25,
+          "dex": 25,
+          "wis": 25,
+          "spr": 25,
+          "luk": 25,
+          "con": 25,
+          "source": "エモーショナル・ソウル+5 (全能力+25)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 9,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "エモーショナル・ソウル スロット"
+        },
+        {
+          "str": 39,
+          "dex": 39,
+          "wis": 53,
+          "spr": 39,
+          "luk": 39,
+          "con": 39,
+          "source": "コンダクター"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 28,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ヒールチップⅤ ×4"
+        },
+        {
+          "str": 55,
+          "dex": 42,
+          "wis": 10,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ボルトリング (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 9,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ボルトリング スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 48,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ドライブピアス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 9,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ドライブピアス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 45,
+          "luk": 0,
+          "con": 45,
+          "source": "光撃のブレス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 9,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "光撃のブレス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 48,
+          "con": 0,
+          "source": "ユーフォリアチェーン (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 9,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ユーフォリアチェーン スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "高揚のオーブ (能力ボーナスなし)"
+        },
+        {
+          "str": 15,
+          "dex": 15,
+          "wis": 15,
+          "spr": 15,
+          "luk": 15,
+          "con": 15,
+          "source": "チャーム計 (enchanceTier=4)"
+        },
+        {
+          "source": "合計",
+          "str": 134,
+          "dex": 121,
+          "wis": 224,
+          "spr": 124,
+          "luk": 127,
+          "con": 124
+        }
+      ]
+    },
+    {
+      "name": "luck_max",
+      "description": "運優先・知性寄り（ボルトリング+6運補正/コンダクター/ヒールチップⅤ×4）",
+      "config": {
+        "soul": {
+          "id": 5010112,
+          "enhanceLevel": 5,
+          "slotEffects": [
+            {
+              "stat": "luk",
+              "value": 3
+            },
+            {
+              "stat": "luk",
+              "value": 3
+            },
+            {
+              "stat": "luk",
+              "value": 3
+            }
+          ]
+        },
+        "booster": {
+          "id": 86000603
+        },
+        "chips": [
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          },
+          {
+            "id": 87005003
+          }
+        ],
+        "accessories": [
+          {
+            "id": 5000322,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5021003,
+            "enhanceTier": 2,
+            "slotEffects": [
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5022928,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5023006,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              },
+              {
+                "stat": "luk",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5004018,
+            "enhanceTier": 0,
+            "slotEffects": []
+          }
+        ],
+        "charms": [
+          {
+            "id": 5024001,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024002,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024003,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024004,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024005,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024006,
+            "enhanceTier": 4
+          }
+        ]
+      },
+      "expectedBonus": {
+        "str": 134,
+        "dex": 121,
+        "wis": 169,
+        "spr": 124,
+        "luk": 182,
+        "con": 124
+      },
+      "breakdown": [
+        {
+          "str": 25,
+          "dex": 25,
+          "wis": 25,
+          "spr": 25,
+          "luk": 25,
+          "con": 25,
+          "source": "エモーショナル・ソウル+5 (全能力+25)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 9,
+          "con": 0,
+          "source": "エモーショナル・ソウル スロット"
+        },
+        {
+          "str": 39,
+          "dex": 39,
+          "wis": 53,
+          "spr": 39,
+          "luk": 39,
+          "con": 39,
+          "source": "コンダクター"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 28,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ヒールチップⅤ ×4"
+        },
+        {
+          "str": 55,
+          "dex": 42,
+          "wis": 0,
+          "spr": 0,
+          "luk": 10,
+          "con": 0,
+          "source": "ボルトリング (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 9,
+          "con": 0,
+          "source": "ボルトリング スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 48,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "ドライブピアス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 9,
+          "con": 0,
+          "source": "ドライブピアス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 45,
+          "luk": 0,
+          "con": 45,
+          "source": "氷撃のブレス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 9,
+          "con": 0,
+          "source": "氷撃のブレス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 48,
+          "con": 0,
+          "source": "ユーフォリアチェーン (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 9,
+          "con": 0,
+          "source": "ユーフォリアチェーン スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "高揚のオーブ (能力ボーナスなし)"
+        },
+        {
+          "str": 15,
+          "dex": 15,
+          "wis": 15,
+          "spr": 15,
+          "luk": 15,
+          "con": 15,
+          "source": "チャーム計 (enchanceTier=4)"
+        },
+        {
+          "source": "合計",
+          "str": 134,
+          "dex": 121,
+          "wis": 169,
+          "spr": 124,
+          "luk": 182,
+          "con": 124
+        }
+      ]
+    },
+    {
+      "name": "defense_balance",
+      "description": "精神・体力バランス（フルガード/耐久チップⅤ×4/精神8枠+体力7枠）",
+      "config": {
+        "soul": {
+          "id": 5010112,
+          "enhanceLevel": 5,
+          "slotEffects": [
+            {
+              "stat": "con",
+              "value": 3
+            },
+            {
+              "stat": "con",
+              "value": 3
+            },
+            {
+              "stat": "spr",
+              "value": 3
+            }
+          ]
+        },
+        "booster": {
+          "id": 86000701
+        },
+        "chips": [
+          {
+            "id": 87005002
+          },
+          {
+            "id": 87005002
+          },
+          {
+            "id": 87005002
+          },
+          {
+            "id": 87005002
+          }
+        ],
+        "accessories": [
+          {
+            "id": 5000312,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "con",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5021002,
+            "enhanceTier": 2,
+            "slotEffects": [
+              {
+                "stat": "con",
+                "value": 3
+              },
+              {
+                "stat": "con",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5022928,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "con",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5025002,
+            "enhanceTier": 0,
+            "slotEffects": [
+              {
+                "stat": "con",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              },
+              {
+                "stat": "spr",
+                "value": 3
+              }
+            ]
+          },
+          {
+            "id": 5004016,
+            "enhanceTier": 0,
+            "slotEffects": []
+          }
+        ],
+        "charms": [
+          {
+            "id": 5024001,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024002,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024003,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024004,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024005,
+            "enhanceTier": 4
+          },
+          {
+            "id": 5024006,
+            "enhanceTier": 4
+          }
+        ]
+      },
+      "expectedBonus": {
+        "str": 135,
+        "dex": 122,
+        "wis": 128,
+        "spr": 185,
+        "luk": 80,
+        "con": 172
+      },
+      "breakdown": [
+        {
+          "str": 25,
+          "dex": 25,
+          "wis": 25,
+          "spr": 25,
+          "luk": 25,
+          "con": 25,
+          "source": "エモーショナル・ソウル+5 (全能力+25)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 3,
+          "luk": 0,
+          "con": 6,
+          "source": "エモーショナル・ソウル スロット"
+        },
+        {
+          "str": 40,
+          "dex": 40,
+          "wis": 40,
+          "spr": 46,
+          "luk": 40,
+          "con": 46,
+          "source": "フルガード"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 20,
+          "luk": 0,
+          "con": 20,
+          "source": "耐久チップⅤ ×4"
+        },
+        {
+          "str": 55,
+          "dex": 42,
+          "wis": 0,
+          "spr": 10,
+          "luk": 0,
+          "con": 0,
+          "source": "ボルトリング (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 6,
+          "luk": 0,
+          "con": 3,
+          "source": "ボルトリング スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 48,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "アタックピアス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 3,
+          "luk": 0,
+          "con": 6,
+          "source": "アタックピアス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 45,
+          "luk": 0,
+          "con": 45,
+          "source": "氷撃のブレス (基礎)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 6,
+          "luk": 0,
+          "con": 3,
+          "source": "氷撃のブレス スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "氷套のエンシェントチェーン (能力ボーナスなし)"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 6,
+          "luk": 0,
+          "con": 3,
+          "source": "氷套のエンシェントチェーン スロット"
+        },
+        {
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0,
+          "source": "硬身のオーブ (能力ボーナスなし)"
+        },
+        {
+          "str": 15,
+          "dex": 15,
+          "wis": 15,
+          "spr": 15,
+          "luk": 15,
+          "con": 15,
+          "source": "チャーム計 (enchanceTier=4)"
+        },
+        {
+          "source": "合計",
+          "str": 135,
+          "dex": 122,
+          "wis": 128,
+          "spr": 185,
+          "luk": 80,
+          "con": 172
+        }
+      ]
+    },
+    {
+      "name": "no_equipment",
+      "description": "装備なし（minビルド）",
+      "config": {
+        "soul": null,
+        "booster": null,
+        "chips": [],
+        "accessories": [],
+        "charms": []
+      },
+      "expectedBonus": {
+        "str": 0,
+        "dex": 0,
+        "wis": 0,
+        "spr": 0,
+        "luk": 0,
+        "con": 0
+      },
+      "breakdown": [
+        {
+          "source": "合計",
+          "str": 0,
+          "dex": 0,
+          "wis": 0,
+          "spr": 0,
+          "luk": 0,
+          "con": 0
+        }
+      ]
+    }
+  ]
+}
