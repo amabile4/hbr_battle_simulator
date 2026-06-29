@@ -59,7 +59,8 @@ function createEmptySlotState() {
     supportStats: null,
     lb: 0,
     supportLb: 0,
-    characterLevel: 200,
+    characterLevel: 180,
+    styleLevel: 20,
     drivePierce: 0,
     spEquipId: DEFAULT_SP_EQUIP_ID,
     belt: '',
@@ -215,13 +216,13 @@ export class PartySetupController {
       resolveSlot: (slotIndex) => this.#slots[slotIndex] ?? null,
       resolveDefaultStats: (slotIndex, mode) => this.#resolveAutomaticStats(slotIndex, mode),
       buildTemplates: EQUIPMENT_BUILD_TEMPLATES.map((t) => ({ value: t.id, label: t.label })),
-      resolveBuildStats: (buildId, slotIndex, mode, characterLevel) => {
+      resolveBuildStats: (buildId, slotIndex, mode, characterLevel, styleLevel) => {
         if (mode === 'support') return null;
         const template = EQUIPMENT_BUILD_TEMPLATES.find((t) => t.id === buildId);
         const equipConfig = template?.config ?? null;
-        return this.#resolveAutomaticStats(slotIndex, mode, equipConfig, characterLevel);
+        return this.#resolveAutomaticStats(slotIndex, mode, equipConfig, characterLevel, styleLevel);
       },
-      onChange: (slotIndex, mode, stats, characterLevel) => {
+      onChange: (slotIndex, mode, stats, characterLevel, styleLevel) => {
         const slot = this.#slots[slotIndex];
         if (!slot) return;
         if (mode === 'support') {
@@ -229,6 +230,7 @@ export class PartySetupController {
         } else {
           slot.stats = stats;
           if (characterLevel !== undefined) slot.characterLevel = characterLevel;
+          if (styleLevel !== undefined) slot.styleLevel = styleLevel;
         }
         this.#render();
         this.#notifyChange();
@@ -332,7 +334,10 @@ export class PartySetupController {
         this.#slots.map((s, i) => [i, s.supportLb ?? 0])
       ),
       characterLevelsByPartyIndex: Object.fromEntries(
-        this.#slots.map((s, i) => [i, s.characterLevel ?? 200])
+        this.#slots.map((s, i) => [i, s.characterLevel ?? 180])
+      ),
+      styleLevelsByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.styleLevel ?? 20])
       ),
       statsByPartyIndex: Object.fromEntries(
         this.#slots
@@ -375,7 +380,7 @@ export class PartySetupController {
     };
   }
 
-  #resolveAutomaticStats(slotIndex, mode = 'main', equipConfig = undefined, characterLevel = null) {
+  #resolveAutomaticStats(slotIndex, mode = 'main', equipConfig = undefined, characterLevel = null, styleLevel = null) {
     const slot = this.#slots[slotIndex];
     const isSupport = mode === 'support';
     const style = isSupport ? slot?.supportStyle : slot?.style;
@@ -397,7 +402,9 @@ export class PartySetupController {
         limitBreakLevelsByStyleId[Number(currentSlot.supportStyleId)] = Number(currentSlot.supportLb ?? 0);
       }
     }
-    const effectiveLevel = characterLevel ?? slot?.characterLevel ?? 200;
+    const effectiveClv = characterLevel ?? slot?.characterLevel ?? 180;
+    const effectiveSlv = styleLevel ?? slot?.styleLevel ?? 20;
+    const effectiveLevel = effectiveClv + effectiveSlv;
     const characterStats = resolveCharacterStyleStats({
       character,
       style,
@@ -465,7 +472,8 @@ export class PartySetupController {
             : null,
         lb: Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0),
         supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
-        characterLevel: Number(snapshot?.characterLevelsByPartyIndex?.[index] ?? 200),
+        characterLevel: Number(snapshot?.characterLevelsByPartyIndex?.[index] ?? 180),
+        styleLevel: Number(snapshot?.styleLevelsByPartyIndex?.[index] ?? 20),
         drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
         spEquipId: resolveSnapshotSpEquipId(snapshot, index),
         belt: resolveSnapshotBeltValue(snapshot, index),

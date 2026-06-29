@@ -18,7 +18,8 @@ export class StatsSettingsPanel {
   #currentSlotIndex = null;
   #currentMode = 'main';
   #currentAnchorEl = null;
-  #currentCharacterLevel = 200;
+  #currentCharacterLevel = 180;
+  #currentStyleLevel = 20;
   #outsideClickHandler = null;
   #resolveSlot = null;
   #resolveDefaults = null;
@@ -56,7 +57,8 @@ export class StatsSettingsPanel {
     this.#currentMode = mode === 'support' ? 'support' : 'main';
     this.#currentAnchorEl = anchorEl;
     const slot = this.#resolveSlot?.(this.#currentSlotIndex);
-    this.#currentCharacterLevel = slot?.characterLevel ?? 200;
+    this.#currentCharacterLevel = slot?.characterLevel ?? 180;
+    this.#currentStyleLevel = slot?.styleLevel ?? 20;
     this.#render();
     panel.style.display = 'block';
     this.#positionPanel();
@@ -114,6 +116,7 @@ export class StatsSettingsPanel {
     }
     const isMain = this.#currentMode !== 'support';
     const charLevel = this.#currentCharacterLevel;
+    const styleLevel = this.#currentStyleLevel;
     const buildOptions = isMain
       ? this.#buildTemplates
           .map((t) => `<option value="${t.value}">${t.label}</option>`)
@@ -134,7 +137,10 @@ export class StatsSettingsPanel {
       ${isMain ? `
       <div class="party-stats-panel__build-row">
         <label>キャラLv
-          <input type="number" min="1" max="200" data-field="character-level" value="${charLevel}">
+          <input type="number" min="1" max="180" data-field="character-level" value="${charLevel}">
+        </label>
+        <label>スタイルLv
+          <input type="number" min="0" max="20" data-field="style-level" value="${styleLevel}">
         </label>
         <label class="party-stats-panel__build-label">テンプレート
           <select data-action="build-template">
@@ -170,7 +176,7 @@ export class StatsSettingsPanel {
       );
       const normalized = normalizeCharacterStats(value);
       if (!normalized) return;
-      this.#onChange?.(this.#currentSlotIndex, this.#currentMode, normalized, this.#currentCharacterLevel);
+      this.#onChange?.(this.#currentSlotIndex, this.#currentMode, normalized, this.#currentCharacterLevel, this.#currentStyleLevel);
       this.close();
     });
 
@@ -178,14 +184,23 @@ export class StatsSettingsPanel {
       const levelInput = panel.querySelector('[data-field="character-level"]');
       const buildSelect = panel.querySelector('[data-action="build-template"]');
 
+      const styleLevelInput = panel.querySelector('[data-field="style-level"]');
+
       const triggerBuildRecalc = (buildId) => {
-        const newStats = this.#resolveBuildStats?.(buildId, this.#currentSlotIndex, this.#currentMode, this.#currentCharacterLevel);
+        const newStats = this.#resolveBuildStats?.(buildId, this.#currentSlotIndex, this.#currentMode, this.#currentCharacterLevel, this.#currentStyleLevel);
         if (newStats) this.#fillInputsFromStats(newStats);
       };
 
       levelInput?.addEventListener('change', (e) => {
-        const v = Math.max(1, Math.min(200, Number(e.target.value) || 200));
+        const v = Math.max(1, Math.min(180, Number(e.target.value) || 180));
         this.#currentCharacterLevel = v;
+        e.target.value = v;
+        if (buildSelect?.value) triggerBuildRecalc(buildSelect.value);
+      });
+
+      styleLevelInput?.addEventListener('change', (e) => {
+        const v = Math.max(0, Math.min(20, Number(e.target.value) || 0));
+        this.#currentStyleLevel = v;
         e.target.value = v;
         if (buildSelect?.value) triggerBuildRecalc(buildSelect.value);
       });
