@@ -7,7 +7,14 @@ import {
   TARGET_SELECTION_MODES,
 } from '../utils/simulator-settings.js';
 import { readStyleOwnership, writeStyleOwnership } from '../utils/style-ownership-store.js';
-import { readCharacterSettings, writeCharacterSettings } from '../utils/character-settings-store.js';
+import {
+  DEFAULT_REINCARNATION,
+  DEFAULT_TITLE_RANK,
+  MAX_REINCARNATION,
+  MAX_TITLE_RANK,
+  readCharacterSettings,
+  writeCharacterSettings,
+} from '../utils/character-settings-store.js';
 import {
   exportStyleOwnershipCsv,
   importStyleOwnershipCsv,
@@ -201,7 +208,7 @@ export class InitialSetupController {
             <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">転生・称号レベル</h3>
             <div class="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3">
               <div class="mt-1 text-xs leading-5 text-gray-500 mb-2">
-                キャラクターごとの転生回数（0〜5）と称号レベル（0〜12）を設定します。未設定の場合、転生 5・称号レベル 12 として計算されます。
+                キャラクターごとの転生回数（0〜${MAX_REINCARNATION}）と称号レベル（0〜${MAX_TITLE_RANK}）を設定します。未設定の場合、転生 ${DEFAULT_REINCARNATION}・称号レベル ${DEFAULT_TITLE_RANK} として計算されます。
               </div>
               <div class="global-csv-btns">
                 <button data-role="open-character-settings"

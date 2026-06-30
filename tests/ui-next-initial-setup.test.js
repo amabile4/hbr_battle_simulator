@@ -164,6 +164,8 @@ test('InitialSetupController mounts Simulator Settings tab separately from Enemy
     simulatorTab.dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     const simulatorContent = root.querySelector('[data-tab-content="simulator"]');
     assert.equal(simulatorContent.hidden, false);
+    assert.match(simulatorContent.textContent, /転生回数（0〜20）/);
+    assert.match(simulatorContent.textContent, /称号レベル（0〜15）/);
     assert.equal(root.querySelector('[data-role="enemy-target-simplify-toggle"]').checked, true);
     assert.equal(root.querySelector('[data-role="ally-target-simplify-toggle"]').checked, false);
 

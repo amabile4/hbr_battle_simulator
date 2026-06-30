@@ -162,8 +162,8 @@ export class StyleOwnershipPanel {
         <div class="sop-team-section">
           <div class="sop-team-header">
             ${charaImgHtml}
-            <span>${charaName}</span>
-            <span style="color:#94a3b8;font-weight:400">${team}</span>
+            <span>${team}</span>
+            <span style="color:#94a3b8;font-weight:400">${charaName}</span>
           </div>
           <div class="sop-cards-row">${cards}</div>
         </div>

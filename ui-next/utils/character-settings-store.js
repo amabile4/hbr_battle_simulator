@@ -2,8 +2,8 @@ const STORAGE_KEY = 'hbr.ui_next.character_settings.v1';
 
 export const DEFAULT_TITLE_RANK = 12;
 export const DEFAULT_REINCARNATION = 5;
-export const MAX_TITLE_RANK = 12;
-export const MAX_REINCARNATION = 5;
+export const MAX_TITLE_RANK = 15;
+export const MAX_REINCARNATION = 20;
 
 /**
  * localStorage からキャラクター設定を読む。
