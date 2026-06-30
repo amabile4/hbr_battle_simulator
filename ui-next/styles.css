@@ -3405,3 +3405,18 @@
   color: #94a3b8;
   font-weight: 400;
 }
+
+/* ---- Global Setting CSV ボタン群 ---- */
+.global-csv-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.global-csv-status {
+  min-height: 14px;
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.4;
+}

@@ -6,6 +6,15 @@ import {
   normalizeSimulatorSettings,
   TARGET_SELECTION_MODES,
 } from '../utils/simulator-settings.js';
+import { readStyleOwnership, writeStyleOwnership } from '../utils/style-ownership-store.js';
+import { readCharacterSettings, writeCharacterSettings } from '../utils/character-settings-store.js';
+import {
+  exportStyleOwnershipCsv,
+  importStyleOwnershipCsv,
+  exportCharacterSettingsCsv,
+  importCharacterSettingsCsv,
+  downloadCSV,
+} from '../utils/csv-import-export.js';
 
 const TABS = [
   { id: 'party', label: 'Party' },
@@ -171,10 +180,22 @@ export class InitialSetupController {
               <div class="mt-1 text-xs leading-5 text-gray-500 mb-2">
                 スタイルの所持・限界突破状況を設定します。未設定の場合、A/S は限界突破最大、SS/SSR は限界突破 0 としてステータスが計算されます。
               </div>
-              <button data-role="open-style-ownership"
-                      class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
-                スタイル所持状況を設定
-              </button>
+              <div class="global-csv-btns">
+                <button data-role="open-style-ownership"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
+                  所持状況を設定
+                </button>
+                <button data-role="export-style-ownership"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+                  CSVエクスポート
+                </button>
+                <button data-role="import-style-ownership"
+                        class="text-xs px-3 py-1.5 rounded border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 transition-colors">
+                  CSVインポート
+                </button>
+                <input type="file" data-role="import-style-ownership-file" accept=".csv,.CSV" hidden>
+              </div>
+              <div data-role="status-style-ownership" class="global-csv-status"></div>
             </div>
             <!-- 転生・称号設定 -->
             <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">転生・称号レベル</h3>
@@ -182,10 +203,22 @@ export class InitialSetupController {
               <div class="mt-1 text-xs leading-5 text-gray-500 mb-2">
                 キャラクターごとの転生回数（0〜5）と称号レベル（0〜12）を設定します。未設定の場合、転生 5・称号レベル 12 として計算されます。
               </div>
-              <button data-role="open-character-settings"
-                      class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
-                転生・称号レベルを設定
-              </button>
+              <div class="global-csv-btns">
+                <button data-role="open-character-settings"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
+                  転生・称号を設定
+                </button>
+                <button data-role="export-character-settings"
+                        class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 transition-colors">
+                  CSVエクスポート
+                </button>
+                <button data-role="import-character-settings"
+                        class="text-xs px-3 py-1.5 rounded border border-amber-300 bg-white text-amber-700 hover:bg-amber-50 transition-colors">
+                  CSVインポート
+                </button>
+                <input type="file" data-role="import-character-settings-file" accept=".csv,.CSV" hidden>
+              </div>
+              <div data-role="status-character-settings" class="global-csv-status"></div>
             </div>
           </div>
         </div>
@@ -286,6 +319,73 @@ export class InitialSetupController {
     // 転生・称号設定ボタン
     this.#root.querySelector('[data-role="open-character-settings"]')
       ?.addEventListener('click', () => this.#onOpenCharacterSettings?.());
+
+    // CSV ステータス表示ユーティリティ
+    const showCsvStatus = (roleEl, message, ok) => {
+      if (!roleEl) return;
+      roleEl.textContent = message;
+      roleEl.style.color = ok ? '#059669' : '#dc2626';
+      clearTimeout(roleEl._csvTimer);
+      roleEl._csvTimer = setTimeout(() => { roleEl.textContent = ''; }, 5000);
+    };
+
+    // 所持スタイル CSV エクスポート
+    this.#root.querySelector('[data-role="export-style-ownership"]')
+      ?.addEventListener('click', () => {
+        const entries = readStyleOwnership();
+        const csv = exportStyleOwnershipCsv(this.#store, entries);
+        downloadCSV('style_ownership.csv', csv);
+      });
+
+    // 所持スタイル CSV インポート
+    const sof = this.#root.querySelector('[data-role="import-style-ownership-file"]');
+    const sosStatus = this.#root.querySelector('[data-role="status-style-ownership"]');
+    this.#root.querySelector('[data-role="import-style-ownership"]')
+      ?.addEventListener('click', () => sof?.click());
+    sof?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = importStyleOwnershipCsv(ev.target.result, this.#store);
+        if (result.ok) {
+          const merged = { ...readStyleOwnership(), ...result.entries };
+          writeStyleOwnership(merged);
+        }
+        showCsvStatus(sosStatus, result.message, result.ok);
+      };
+      reader.readAsText(file, 'utf-8');
+    });
+
+    // キャラクター設定 CSV エクスポート
+    this.#root.querySelector('[data-role="export-character-settings"]')
+      ?.addEventListener('click', () => {
+        const settings = readCharacterSettings();
+        const csv = exportCharacterSettingsCsv(this.#store, settings);
+        downloadCSV('character_settings.csv', csv);
+      });
+
+    // キャラクター設定 CSV インポート
+    const csf = this.#root.querySelector('[data-role="import-character-settings-file"]');
+    const cssStatus = this.#root.querySelector('[data-role="status-character-settings"]');
+    this.#root.querySelector('[data-role="import-character-settings"]')
+      ?.addEventListener('click', () => csf?.click());
+    csf?.addEventListener('change', (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      e.target.value = '';
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const result = importCharacterSettingsCsv(ev.target.result, this.#store);
+        if (result.ok) {
+          const merged = { ...readCharacterSettings(), ...result.settings };
+          writeCharacterSettings(merged);
+        }
+        showCsvStatus(cssStatus, result.message, result.ok);
+      };
+      reader.readAsText(file, 'utf-8');
+    });
 
   }
 
