@@ -38,6 +38,9 @@ const E_SHIELD_ELEMENT_VALUE_SET = new Set(
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_D_RATE_RAW = 5;
+// 実在するd_rate値の全一覧（0=破壊不可、50=外れ値1体）
+const D_RATE_OPTIONS = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 50];
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 const DESTRUCTION_RATE_PERCENT_SCALE = 100;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
@@ -72,6 +75,31 @@ function normalizeElementRatePercent(value) {
 function normalizeDestructionRate(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
+}
+
+function normalizeDestructionMultiplierRaw(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
+}
+
+function resolveEnemyParamBorder(enemy = null) {
+  const direct = Number(enemy?.param_border);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+  const baseParam = Number(enemy?.base_param?.param_border);
+  return Number.isFinite(baseParam) && baseParam > 0
+    ? baseParam
+    : DEFAULT_ENEMY_PARAM_BORDER;
+}
+
+function resolveEnemyDp(enemy = null) {
+  const direct = Number(enemy?.dp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const baseParam = Number(enemy?.base_param?.dp);
+  return Number.isFinite(baseParam) && baseParam >= 0 ? baseParam : 0;
 }
 
 function formatDestructionRatePercent(value) {
@@ -230,6 +258,7 @@ function cloneManual(manual = {}) {
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
+    d_rate: normalizeDestructionMultiplierRaw(manual.d_rate),
     destructionRate: normalizeDestructionRate(manual.destructionRate),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
@@ -248,6 +277,7 @@ function defaultManual() {
   return {
     od_rate: DEFAULT_OD_RATE,
     max_d_rate: DEFAULT_MAX_D_RATE,
+    d_rate: DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: defaultElement(),
     absorbElementList: [],
@@ -259,8 +289,9 @@ function enemyToManual(enemy) {
   const eShield = cloneEnemyEShield(enemy.e_shield);
   const extraHpGauge = cloneEnemyExtraHpGauge(enemy.extra_hp_gauge);
   return cloneManual({
-    od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
-    max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? enemy.base_param?.od_rate ?? DEFAULT_OD_RATE),
+    max_d_rate: enemy.max_d_rate ?? enemy.base_param?.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    d_rate: enemy.d_rate ?? enemy.base_param?.d_rate ?? DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [
@@ -289,6 +320,7 @@ function snapshotToManual(snapshot = {}) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
+    d_rate: snapshot.d_rate,
     destructionRate: snapshot.destructionRate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
@@ -307,6 +339,21 @@ function createDefaultSelectedCategoryKeys() {
 
 function createDefaultManualBySlot() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => defaultManual());
+}
+
+function createDefaultGaugeOverrides() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
+}
+
+// snapshot 直書きの dp/hp を取り込む（手動敵・フィクスチャ用）。どちらも無ければ null
+function gaugeOverrideFromSnapshot(source = {}) {
+  const dp = Number(source?.dp);
+  const hp = Number(source?.hp);
+  const override = {
+    ...(Number.isFinite(dp) && dp >= 0 ? { dp } : {}),
+    ...(Number.isFinite(hp) && hp >= 0 ? { hp } : {}),
+  };
+  return Object.keys(override).length > 0 ? override : null;
 }
 
 function createDefaultManualFlags() {
@@ -367,6 +414,9 @@ export class EnemySetupController {
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
     isManualBySlot: createDefaultManualFlags(),
     manualBySlot: createDefaultManualBySlot(),
+    // snapshot 直書きの dp/hp（手動敵・フィクスチャ用）。敵を選び直すとクリアされ、
+    // 選択敵からの再導出に戻る。保存JSONの dp/hp 往復維持に必要
+    gaugeOverridesBySlot: createDefaultGaugeOverrides(),
   };
 
   constructor({ root, enemies = [], onChange = null }) {
@@ -398,6 +448,7 @@ export class EnemySetupController {
         this.#state.selectedEnemyIds[slotIndex] = null;
         this.#state.isManualBySlot[slotIndex] = false;
         this.#state.manualBySlot[slotIndex] = defaultManual();
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         if (this.#state.activeSlotIndex === slotIndex) {
           this.#state.activeSlotIndex = REQUIRED_SLOT_INDEX;
         }
@@ -452,6 +503,7 @@ export class EnemySetupController {
           this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex, nextCategoryKey);
         }
         this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         this.#ensureRequiredSlotSelected();
         this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
@@ -472,6 +524,7 @@ export class EnemySetupController {
           this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
         }
         this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         this.#ensureRequiredSlotSelected();
         this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
@@ -628,23 +681,24 @@ export class EnemySetupController {
       const effectiveExtraHpGauge = cloneEnemyExtraHpGauge(
         selectedEnemy?.extra_hp_gauge ?? effective.extra_hp_gauge
       );
+      const gaugeOverride = this.#state.gaugeOverridesBySlot[slotIndex];
       return {
         slotIndex,
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
+        param_border: resolveEnemyParamBorder(selectedEnemy),
+        // snapshot 直書きの dp/hp（手動敵）を優先し、なければ選択敵から導出
+        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy),
+        ...(gaugeOverride?.hp != null ? { hp: gaugeOverride.hp } : {}),
         maxDp: Number(selectedEnemy?.base_param?.dp ?? 0),
         currentDp: Number(selectedEnemy?.base_param?.dp ?? 0),
         maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
-        param_border:
-          Number.isFinite(Number(selectedEnemy?.base_param?.param_border))
-          && Number(selectedEnemy.base_param.param_border) > 0
-            ? Number(selectedEnemy.base_param.param_border)
-            : DEFAULT_ENEMY_PARAM_BORDER,
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,
         max_d_rate: effective.max_d_rate,
+        d_rate: effective.d_rate,
         destructionRate: normalizeDestructionRate(effective.destructionRate),
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
@@ -664,10 +718,13 @@ export class EnemySetupController {
       selectedEnemyId: slot0.selectedEnemyId,
       selectedEnemyName: slot0.selectedEnemyName,
       enemyCount: selectedCount > 0 ? selectedCount : 1,
+      dp: slot0.dp,
+      ...(slot0.hp != null ? { hp: slot0.hp } : {}),
       isManual: slot0.isManual,
       manual: cloneManual(slot0.manual),
       od_rate: slot0.od_rate,
       max_d_rate: slot0.max_d_rate,
+      d_rate: slot0.d_rate,
       destructionRate: slot0.destructionRate,
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
@@ -681,6 +738,7 @@ export class EnemySetupController {
     const nextSelectedCategoryKeys = createDefaultSelectedCategoryKeys();
     const nextIsManualBySlot = createDefaultManualFlags();
     const nextManualBySlot = createDefaultManualBySlot();
+    const nextGaugeOverridesBySlot = createDefaultGaugeOverrides();
 
     if (Array.isArray(snapshot.enemySlots)) {
       for (const slot of snapshot.enemySlots) {
@@ -689,10 +747,12 @@ export class EnemySetupController {
           continue;
         }
         nextSelectedEnemyIds[slotIndex] = normalizeSelectedEnemyId(slot?.selectedEnemyId);
+        nextGaugeOverridesBySlot[slotIndex] = gaugeOverrideFromSnapshot(slot);
         const hasManualState =
           (slot?.manual && typeof slot.manual === 'object') ||
           slot?.od_rate != null ||
           slot?.max_d_rate != null ||
+          slot?.d_rate != null ||
           (slot?.resistances && typeof slot.resistances === 'object') ||
           Array.isArray(slot?.absorbElementList) ||
           (slot?.e_shield && typeof slot.e_shield === 'object') ||
@@ -721,6 +781,7 @@ export class EnemySetupController {
       (snapshot.manual && typeof snapshot.manual === 'object') ||
       snapshot.od_rate != null ||
       snapshot.max_d_rate != null ||
+      snapshot.d_rate != null ||
       (snapshot.resistances && typeof snapshot.resistances === 'object') ||
       Array.isArray(snapshot.absorbElementList) ||
       (snapshot?.e_shield && typeof snapshot.e_shield === 'object')
@@ -730,12 +791,16 @@ export class EnemySetupController {
       if (snapshot.isManual != null) {
         nextIsManualBySlot[REQUIRED_SLOT_INDEX] = Boolean(snapshot.isManual);
       }
+      if (!nextGaugeOverridesBySlot[REQUIRED_SLOT_INDEX]) {
+        nextGaugeOverridesBySlot[REQUIRED_SLOT_INDEX] = gaugeOverrideFromSnapshot(snapshot);
+      }
     }
 
     this.#state.selectedEnemyIds = nextSelectedEnemyIds;
     this.#state.selectedCategoryKeys = nextSelectedCategoryKeys;
     this.#state.isManualBySlot = nextIsManualBySlot;
     this.#state.manualBySlot = nextManualBySlot;
+    this.#state.gaugeOverridesBySlot = nextGaugeOverridesBySlot;
 
     if (snapshot.preemptiveField != null) {
       this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
@@ -763,6 +828,7 @@ export class EnemySetupController {
       preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
       isManualBySlot: createDefaultManualFlags(),
       manualBySlot: createDefaultManualBySlot(),
+      gaugeOverridesBySlot: createDefaultGaugeOverrides(),
     };
     this.#ensureRequiredSlotSelected();
     this.#syncSelectedCategories();
@@ -988,10 +1054,12 @@ export class EnemySetupController {
           </div>
 
           <div class="p-2 space-y-2 ${hasSelectedEnemy ? '' : 'pointer-events-none'}">
-            <!-- オーバードライブ上昇量 / 現在破壊率 / 最大破壊率 -->
-            <div class="grid grid-cols-3 gap-1.5">
+            <!-- オーバードライブ上昇量 / 破壊率上昇率 / 現在破壊率 / 最大破壊率 -->
+            <div class="grid grid-cols-2 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
                 (v) => formatEnemyOdRatePercent(v))}
+              ${this.#selectFieldHtml('d_rate', '破壊率上昇率', vals.d_rate, isManual,
+                D_RATE_OPTIONS, (v) => v === 0 ? '0%（破壊不可）' : `${v * 20}%`)}
               ${this.#readOnlyFieldHtml('現在破壊率', formatDestructionRatePercent(currentDestructionRate), 'enemy-current-destruction-rate')}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
@@ -1034,6 +1102,26 @@ export class EnemySetupController {
       <div class="flex flex-col gap-0.5">
         <span class="text-xs text-gray-500">${label}</span>
         <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${formatter ? formatter(value) : value}</span>
+      </div>`;
+  }
+
+  #selectFieldHtml(key, label, value, editable, options, labelFn = (v) => String(v)) {
+    if (editable) {
+      const optionsHtml = options.map((v) =>
+        `<option value="${v}"${v === value ? ' selected' : ''}>${labelFn(v)}</option>`
+      ).join('');
+      return `
+        <label class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-500">${label}</span>
+          <select data-edit-field="${key}"
+                  class="text-xs rounded border border-gray-300 px-1 py-0.5 w-full
+                         focus:outline-none focus:ring-1 focus:ring-blue-400">${optionsHtml}</select>
+        </label>`;
+    }
+    return `
+      <div class="flex flex-col gap-0.5">
+        <span class="text-xs text-gray-500">${label}</span>
+        <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${labelFn(value)}</span>
       </div>`;
   }
 

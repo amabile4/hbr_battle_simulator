@@ -44,6 +44,39 @@ export function buildActionFlowFromRecord(record) {
         action?.damageContext && typeof action.damageContext === 'object'
           ? structuredClone(action.damageContext)
           : null,
+      specialPassiveModifiers:
+        action?.specialPassiveModifiers && typeof action.specialPassiveModifiers === 'object'
+          ? structuredClone(action.specialPassiveModifiers)
+          : null,
+      skillHitCount: Number(action?.skillHitCount ?? 0),
+      skillBaseHitCount: Number(action?.skillBaseHitCount ?? 0),
+      skillFunnelHitBonus: Number(action?.skillFunnelHitBonus ?? 0),
+      perHitDpDamageByEnemy:
+        action?.perHitDpDamageByEnemy && typeof action.perHitDpDamageByEnemy === 'object'
+          ? structuredClone(action.perHitDpDamageByEnemy)
+          : null,
+      totalDpDamageByEnemy:
+        action?.totalDpDamageByEnemy && typeof action.totalDpDamageByEnemy === 'object'
+          ? structuredClone(action.totalDpDamageByEnemy)
+          : null,
+      perHitHpDamageByEnemy:
+        action?.perHitHpDamageByEnemy && typeof action.perHitHpDamageByEnemy === 'object'
+          ? structuredClone(action.perHitHpDamageByEnemy)
+          : null,
+      totalHpDamageByEnemy:
+        action?.totalHpDamageByEnemy && typeof action.totalHpDamageByEnemy === 'object'
+          ? structuredClone(action.totalHpDamageByEnemy)
+          : null,
+      manualBreakEnemyIndexes: Array.isArray(action?.manualBreakEnemyIndexes)
+        ? [...action.manualBreakEnemyIndexes]
+        : [],
+      manualHpBreakEnemyIndexes: Array.isArray(action?.manualHpBreakEnemyIndexes)
+        ? [...action.manualHpBreakEnemyIndexes]
+        : [],
+      hpBreakCount:
+        Number.isFinite(Number(action?.hpBreakCount))
+          ? Number(action.hpBreakCount)
+          : 0,
       costDelta: Number.isFinite(costDelta) ? costDelta : 0,
       costPreSp: Number.isFinite(startSp) ? startSp : null,
       costPostSp: Number.isFinite(endSp) ? endSp : null,
@@ -55,6 +88,10 @@ export function buildActionFlowFromRecord(record) {
       autoBreakEnemyIndexes: Array.isArray(action?.autoBreakEnemyIndexes)
         ? [...action.autoBreakEnemyIndexes]
         : [],
+      destructionBreakdownByEnemy:
+        action?.destructionBreakdownByEnemy && typeof action.destructionBreakdownByEnemy === 'object'
+          ? structuredClone(action.destructionBreakdownByEnemy)
+          : null,
     };
   });
 }

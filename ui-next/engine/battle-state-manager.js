@@ -5,6 +5,7 @@ import {
 } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
+import { cloneEnemyExtraDpGaugeState, getEnemyExtraDpGaugeCurrentMax } from '../../src/domain/enemy-extra-dp-gauge.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 import {
@@ -33,6 +34,10 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 });
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
+// destructionMultiplierByEnemy には enemy.json の raw d_rate をそのまま格納する。
+// - スキル破壊率（calc-core）: dr×4×d_rate/100 = dr×(d_rate/25) = dr×DR で正典一致。
+// - 通常攻撃破壊率（calc-core）: 基礎 = d_rate/100（実機実測: d_rate=5→5%, 10→10%）。
+const DEFAULT_D_RATE_RAW = 5;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
 const MIN_ENEMY_COUNT = 1;
@@ -233,11 +238,15 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     maxHp: enemySetup?.maxHp,
     currentHp: enemySetup?.currentHp,
     param_border: enemySetup?.param_border,
+    dp: enemySetup?.dp,
+    hp: enemySetup?.hp,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
+    d_rate: enemySetup?.d_rate,
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
+    extra_dp_gauge: cloneEnemyExtraDpGaugeState(enemySetup?.extra_dp_gauge),
     extra_hp_gauge: cloneEnemyExtraHpGaugeState(enemySetup?.extra_hp_gauge),
   };
 }
@@ -259,7 +268,94 @@ function resolveEnemySlots(enemySetup = {}) {
   return Array.from({ length: legacyCount }, () => ({ ...fallbackSlot }));
 }
 
-function buildEnemyStateOverrides(enemySetup = {}) {
+function resolveEnemySlotDp(slot = {}, dataStore = null) {
+  const direct = Number(slot?.dp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const extraDpGaugeState = resolveEnemySlotExtraDpGaugeState(slot, dataStore);
+  const stagedDp = getEnemyExtraDpGaugeCurrentMax(extraDpGaugeState);
+  if (Number.isFinite(stagedDp) && stagedDp >= 0) {
+    return stagedDp;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
+  const baseDp = Number(enemy?.base_param?.dp ?? enemy?.dp);
+  return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
+}
+
+function resolveEnemySlotExtraDpGaugeState(slot = {}, dataStore = null) {
+  const direct = cloneEnemyExtraDpGaugeState(slot?.extra_dp_gauge ?? slot?.extraDpGaugeState);
+  if (direct) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  if (!Number.isFinite(selectedEnemyId)) {
+    return null;
+  }
+  const battleEnemy =
+    typeof dataStore?.battleEnemiesById?.get === 'function'
+      ? dataStore.battleEnemiesById.get(selectedEnemyId)
+      : null;
+  if (battleEnemy) {
+    return cloneEnemyExtraDpGaugeState(battleEnemy?.base_param?.eg?.dp);
+  }
+  const selectedEnemyName = String(slot?.selectedEnemyName ?? '').trim();
+  const battleEnemyByName =
+    selectedEnemyName && typeof dataStore?.battleEnemiesByName?.get === 'function'
+      ? dataStore.battleEnemiesByName.get(selectedEnemyName)
+      : null;
+  return cloneEnemyExtraDpGaugeState(battleEnemyByName?.base_param?.eg?.dp);
+}
+
+// maxHP は保存対象外（操作イベント正本の方針）。slot 直接値またはenemies.json から再導出する。
+function resolveEnemySlotHp(slot = {}, dataStore = null) {
+  const direct = Number(slot?.hp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
+  const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
+  if (Number.isFinite(baseHp) && baseHp >= 0) {
+    return baseHp;
+  }
+  const selectedEnemyName = String(slot?.selectedEnemyName ?? '').trim();
+  const battleEnemyByName =
+    selectedEnemyName && typeof dataStore?.battleEnemiesByName?.get === 'function'
+      ? dataStore.battleEnemiesByName.get(selectedEnemyName)
+      : null;
+  const battleBaseHp = Number(battleEnemyByName?.base_param?.hp ?? battleEnemyByName?.hp);
+  return Number.isFinite(battleBaseHp) && battleBaseHp >= 0 ? battleBaseHp : 0;
+}
+
+function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
+  // raw d_rate をそのまま返す（標準敵=5, スカルフェザー最終=10）。
+  const direct = Number(slot?.d_rate);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
+  const baseRate = Number(enemy?.base_param?.d_rate ?? enemy?.d_rate);
+  return Number.isFinite(baseRate) ? baseRate : DEFAULT_D_RATE_RAW;
+}
+
+function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
+  if (!Number.isFinite(selectedEnemyId)) {
+    return null;
+  }
+  if (typeof dataStore?.enemiesById?.get === 'function') {
+    const found = dataStore.enemiesById.get(selectedEnemyId);
+    if (found) return found;
+  }
+  if (Array.isArray(dataStore?.enemies)) {
+    return dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId) ?? null;
+  }
+  return null;
+}
+
+function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
   const resolvedSlots = resolveEnemySlots(enemySetup);
   const enemyCount = normalizeEnemyCount(resolvedSlots.length);
   const slots = resolvedSlots.length > 0
@@ -274,6 +370,7 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
+    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierRaw(slot, dataStore);
     return {
       enemyId: slot?.selectedEnemyId ?? null,
       enemyName,
@@ -286,11 +383,15 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
         ? Number(slot.param_border)
         : DEFAULT_ENEMY_PARAM_BORDER,
+      dp: resolveEnemySlotDp(slot, dataStore),
+      hp: resolveEnemySlotHp(slot, dataStore),
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
+      rawDestructionMultiplier,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
+      extraDpGaugeState: resolveEnemySlotExtraDpGaugeState(slot, dataStore),
       extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
     };
   });
@@ -309,11 +410,20 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     paramBorderByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.paramBorder])
     ),
+    enemyDpByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.dp])
+    ),
+    enemyHpByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.hp])
+    ),
     damageRatesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
     ),
     destructionRateCapByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.maxDestructionRate])
+    ),
+    destructionMultiplierByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.rawDestructionMultiplier])
     ),
     absorbElementsByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), [...slotState.absorbElements]])
@@ -323,13 +433,21 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     ),
     eShieldStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.eShieldState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
+        .map((slotState, index) => [index, slotState.eShieldState])
+        .filter(([, eShieldState]) => Boolean(eShieldState))
+        .map(([index, eShieldState]) => [String(index), structuredClone(eShieldState)])
+    ),
+    extraDpGaugeStateByEnemy: Object.fromEntries(
+      slotStates
+        .map((slotState, index) => [index, slotState.extraDpGaugeState])
+        .filter(([, extraDpGaugeState]) => Boolean(extraDpGaugeState))
+        .map(([index, extraDpGaugeState]) => [String(index), structuredClone(extraDpGaugeState)])
     ),
     extraHpGaugeStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.extraHpGaugeState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.extraHpGaugeState)])
+        .map((slotState, index) => [index, slotState.extraHpGaugeState])
+        .filter(([, extraHpGaugeState]) => Boolean(extraHpGaugeState))
+        .map(([index, extraHpGaugeState]) => [String(index), structuredClone(extraHpGaugeState)])
     ),
   };
 }
@@ -354,6 +472,8 @@ function buildPreemptiveZoneState(enemySetup) {
  */
 export class BattleStateManager {
   #store;
+  #enemyCatalog = [];
+  #enemyCatalogById = new Map();
   #state = null;
   #party = null;
   #isDirty = false;
@@ -369,6 +489,24 @@ export class BattleStateManager {
 
   markDirty() {
     this.#isDirty = true;
+  }
+
+  setEnemyCatalog(enemies = []) {
+    this.#enemyCatalog = Array.isArray(enemies) ? enemies : [];
+    this.#enemyCatalogById = new Map(
+      this.#enemyCatalog.map((enemy) => [Number(enemy?.id), enemy])
+    );
+  }
+
+  #getEnemyDataSource() {
+    if (this.#enemyCatalog.length === 0) {
+      return this.#store;
+    }
+    return {
+      ...this.#store,
+      enemies: this.#enemyCatalog,
+      enemiesById: this.#enemyCatalogById,
+    };
   }
 
   /**
@@ -418,10 +556,31 @@ export class BattleStateManager {
     const drivePierceByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.drivePierceByPartyIndex[srcIdx] ?? 0])
     );
+    const pierceByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => {
+        const entry =
+          snapshot.pierceByPartyIndex?.[srcIdx] ??
+          snapshot.pierceByPartyIndex?.[String(srcIdx)] ??
+          null;
+        if (entry && typeof entry === 'object') {
+          return [newIdx, { type: String(entry.type ?? 'none'), percent: Number(entry.percent ?? 0) }];
+        }
+        // 旧 snapshot 互換: drivePierce のみの場合はドライブピアスとして扱う
+        const drivePierce = Number(snapshot.drivePierceByPartyIndex?.[srcIdx] ?? 0);
+        return [newIdx, drivePierce > 0 ? { type: 'drive', percent: drivePierce } : { type: 'none', percent: 0 }];
+      })
+    );
     const startSpEquipByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [
         newIdx,
         Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
+      ])
+    );
+    const chainEquipByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => [
+        newIdx,
+        snapshot.chainEquipByPartyIndex?.[srcIdx] === true ||
+          snapshot.chainEquipByPartyIndex?.[String(srcIdx)] === true,
       ])
     );
     const normalAttackElementsByPartyIndex = Object.fromEntries(
@@ -451,7 +610,7 @@ export class BattleStateManager {
     );
 
     const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
-    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup);
+    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#getEnemyDataSource());
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
@@ -459,6 +618,8 @@ export class BattleStateManager {
       styleIds,
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
+      pierceByPartyIndex,
+      chainEquipByPartyIndex,
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,
@@ -479,12 +640,16 @@ export class BattleStateManager {
       enemyGaugeStateByEnemy: enemyStateOverrides.gaugeStateByEnemy,
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
+      enemyDpByEnemy: enemyStateOverrides.enemyDpByEnemy,
+      enemyHpByEnemy: enemyStateOverrides.enemyHpByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
+      destructionMultiplierByEnemy: enemyStateOverrides.destructionMultiplierByEnemy,
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,
+      extraDpGaugeStateByEnemy: enemyStateOverrides.extraDpGaugeStateByEnemy,
       extraHpGaugeStateByEnemy: enemyStateOverrides.extraHpGaugeStateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},

@@ -3,6 +3,8 @@
 > **ステータス**: ✅ 完了（P-0〜P-8） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-29
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の後続。攻撃者ステータスの正本を PartySetup に持たせ、計算機へ供給する。
+> 2026-06-07: `characters.json` の `base_param.<stat>[1]` と `styles.json` の `base_param.<stat>` から初期実 stats を生成し、旧 snapshot / preset の stats 欠落時にも PartySetup snapshot へ補完するよう更新。`0/null` stats は欠落扱いで既存 fallback を維持。
+> 2026-06-07: ステータス手動入力パネルの表示を日本語ラベルに変更し、入力順を `力/器用さ`, `体力/精神`, `知性/運`（内部キー `str,dex,con,spr,wis,luk`）へ調整。
 
 ## 1. 背景・なぜ必要か
 

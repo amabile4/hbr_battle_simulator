@@ -3427,7 +3427,7 @@ test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.45);
+  assert.equal(event.power, 0.3);
 });
 
 test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
@@ -3441,7 +3441,7 @@ test('まだまだ行くで！ applies Fragile enemy status in real data', () =>
   );
 
   assert.ok(fragile);
-  assert.equal(fragile.power, 0.4);
+  assert.equal(fragile.power, 0.3);
   assert.equal(fragile.exitCond, 'Eternal');
 });
 
@@ -3481,7 +3481,7 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.ok(resistStatus);
   assert.equal(resistStatus.exitCond, 'Eternal');
   assert.deepEqual(resistStatus.elements, ['Dark']);
-  assert.equal(resistStatus.power, 0.6);
+  assert.equal(resistStatus.power, 0.45);
 });
 
 test('今宵、快楽ナイトメア grants 5-hit Funnel only to frontline Dark styles in real data', () => {
@@ -3559,6 +3559,7 @@ test('コードダクネス stores Hacking from the selected SkillSwitch variant
   assert.ok(hacking);
   assert.equal(hacking.remainingTurns, 2);
   assert.equal(hacking.exitCond, 'EnemyTurnEnd');
+  assert.equal(action.damageContext?.enemyAllAbilityDownByEnemy?.['0'], 100);
   assert.ok(fragile);
   assert.equal(fragile.remainingTurns, 2);
 });
@@ -3786,7 +3787,7 @@ test('ハードブレード applies DefenseDown in real data despite top-level D
   const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
 
   assert.ok(enemyStatus);
-  assert.equal(enemyStatus.power, 0.45);
+  assert.equal(enemyStatus.power, 0.3);
   assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
 });
 
@@ -5850,7 +5851,7 @@ test('normal/od/extra boundary transitions keep expected turn labels and indices
   assert.equal(state.turnState.sequenceId, 4);
 });
 
-function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
+function createTranscendenceTestParty({ initialGaugePercent = null, withBurst = false } = {}) {
   const members = Array.from({ length: 6 }, (_, idx) =>
     new CharacterStyle({
       characterId: `TC${idx + 1}`,
@@ -5867,7 +5868,22 @@ function createTranscendenceTestParty({ initialGaugePercent = null } = {}) {
               initialGaugePercentPerMatchingElementMember: 15,
               gaugeGainPercentOnMatchingElementAction: 4,
               maxGaugePercent: 100,
-              triggerOnReachMax: { odGaugeDeltaPercent: 100 },
+              triggerOnReachMax: {
+                odGaugeDeltaPercent: 100,
+                burst: withBurst
+                  ? {
+                      enabled: true,
+                      element: 'Ice',
+                      attackUpPercent: 300,
+                      destructionRateBonusPercent: 10,
+                      attackBuffSkillEffectUpPercent: 20,
+                      debuffSkillEffectUpPercent: 20,
+                      criticalGuaranteed: true,
+                      criticalDamageUpPercent: 100,
+                      destructionRateCapPercent: 300,
+                    }
+                  : null,
+              },
             }
           : null,
       partyIndex: idx,
@@ -5951,6 +5967,263 @@ test('transcendence gauge gains +4 per matching-element action and is capped at 
   const committed2 = commitTurn(state, preview2);
   assert.equal(committed2.nextState.turnState.odGauge, 110);
   assert.equal(committed2.nextState.turnState.transcendence?.gaugePercent, 100);
+});
+
+test('transcendence burst applies matching-element attack and critical modifiers after reaching 100%', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    ...state.party[0].skills,
+    {
+      id: 15200,
+      skillId: 15200,
+      name: 'Ice Burst Hit',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+  state.party[1].elements = ['Fire'];
+  state.party[1].skills = Object.freeze([
+    ...state.party[1].skills,
+    {
+      id: 15201,
+      skillId: 15201,
+      name: 'Fire Burst Miss',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15200, targetEnemyIndex: 0 },
+    1: { characterId: 'TC2', skillId: 15201, targetEnemyIndex: 0 },
+  });
+  const iceAction = findActionByCharacterId(preview, 'TC1');
+  const fireAction = findActionByCharacterId(preview, 'TC2');
+
+  assert.equal(iceAction.specialPassiveModifiers.transcendenceBurstAttackUpRate, 3);
+  assert.equal(iceAction.specialPassiveModifiers.attackUpRate, 3);
+  assert.equal(iceAction.specialPassiveModifiers.criticalRateUpRate, 1);
+  assert.equal(iceAction.specialPassiveModifiers.criticalDamageUpRate, 1);
+  assert.equal(fireAction.specialPassiveModifiers.transcendenceBurstAttackUpRate, 0);
+  assert.equal(fireAction.specialPassiveModifiers.attackUpRate, 0);
+
+  const { committedRecord } = commitTurn(state, preview);
+  const committedIceAction = findActionByCharacterId(committedRecord, 'TC1');
+  assert.equal(committedIceAction.damageContext.attackUpRate, 3);
+  assert.equal(committedIceAction.damageContext.transcendenceBurstAttackUpRate, 3);
+  assert.equal(committedIceAction.damageContext.criticalRateBreakdown?.isCriticalGuaranteed, true);
+});
+
+test('transcendence burst modifiers stay zero before burst is triggered', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 99, withBurst: true });
+  state.party[0].skills = Object.freeze([
+    ...state.party[0].skills,
+    {
+      id: 15205,
+      skillId: 15205,
+      name: 'Ice Pre Burst Hit',
+      sp_cost: 0,
+      hit_count: 1,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', elements: ['Ice'] }],
+    },
+  ]);
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15205, targetEnemyIndex: 0 },
+  });
+  const action = findActionByCharacterId(preview, 'TC1');
+
+  assert.equal(state.turnState.transcendence?.burstTriggered, false);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstAttackUpRate, 0);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstCriticalRateUpRate, 0);
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstDestructionRateGainBonusRate, 0);
+});
+
+test('transcendence burst scales matching-element attack buff and debuff skill effects by 20%', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    {
+      id: 15210,
+      skillId: 15210,
+      name: 'Burst Attack Buff',
+      sp_cost: 0,
+      target_type: 'Self',
+      parts: [
+        {
+          skill_type: 'AttackUp',
+          target_type: 'Self',
+          power: [0.5, 0],
+          effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+        },
+      ],
+    },
+  ]);
+  state.party[1].skills = Object.freeze([
+    {
+      id: 15211,
+      skillId: 15211,
+      name: 'Burst Defense Down',
+      sp_cost: 0,
+      target_type: 'Single',
+      parts: [
+        {
+          skill_type: 'DefenseDown',
+          target_type: 'Single',
+          power: [0.5, 0],
+          effect: { limitType: 'Default', exitCond: 'PlayerTurnEnd', exitVal: [1, 0] },
+        },
+      ],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15210 },
+    1: { characterId: 'TC2', skillId: 15211, targetEnemyIndex: 0 },
+  });
+  assert.equal(findActionByCharacterId(preview, 'TC1').specialPassiveModifiers.giveAttackBuffUpRate, 0.2);
+  assert.equal(findActionByCharacterId(preview, 'TC2').specialPassiveModifiers.giveDefenseDebuffUpRate, 0.2);
+
+  const { committedRecord } = commitTurn(state, preview);
+  assert.equal(findActionByCharacterId(committedRecord, 'TC1').statusEffectsApplied[0].power, 0.6);
+  assert.equal(findActionByCharacterId(committedRecord, 'TC2').enemyStatusChanges[0].power, 0.6);
+});
+
+test('transcendence burst raises destruction gain and cap without stacking with SuperBreak cap bonus', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  state.party[0].skills = Object.freeze([
+    {
+      id: 15220,
+      skillId: 15220,
+      name: 'Burst Destruction Hit',
+      hitCount: 2,
+      sp_cost: 10,
+      target_type: 'Single',
+      parts: [
+        { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } },
+        { skill_type: 'SuperBreak', target_type: 'Single' },
+      ],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'TC1', skillId: 15220, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const action = findActionByCharacterId(preview, 'TC1');
+  assert.equal(action.specialPassiveModifiers.transcendenceBurstDestructionRateGainBonusRate, 0.1);
+
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const committedAction = findActionByCharacterId(committedRecord, 'TC1');
+  assert.equal(committedAction.damageContext?.destructionRateCapByEnemy?.['0'], 600);
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 591.0999999999999);
+});
+
+test('transcendence burst applies its destruction bonus to the matching-element pursuit source', () => {
+  const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+  state.turnState.transcendence.burstTriggered = true;
+  const pursuitSource = state.party[3];
+  pursuitSource.elements = ['Ice'];
+  pursuitSource.skills = Object.freeze([
+    {
+      id: 15221,
+      skillId: 15221,
+      name: 'Ice Pursuit',
+      hitCount: 1,
+      sp_cost: 0,
+      target_type: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } }],
+    },
+  ]);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 1 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 999 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 10 };
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: 'TC1',
+      skillId: 15000,
+      targetEnemyIndex: 0,
+      pursuedHitCount: 1,
+      pursuitSourceCharacterId: pursuitSource.characterId,
+      pursuitSourcePosition: pursuitSource.position,
+      pursuitSourceSkillId: 15221,
+    },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'TC1');
+
+  // 追撃基礎 +10% に、属性一致した超越バーストの +10% が掛かる。
+  assert.ok(Math.abs(nextState.turnState.enemyState.destructionRateByEnemy['0'] - 111) < 1e-9);
+  assert.ok(Math.abs(action.pursuitDestructionBreakdownByEnemy['0'].appliedGainPercent - 11) < 1e-9);
+  assert.equal(
+    action.pursuitDestructionBreakdownByEnemy['0'].breakdown.transcendenceBurstActionMultiplier,
+    1.1
+  );
+});
+
+test('transcendence burst destruction cap is actor-element gated and does not add to higher stored cap', () => {
+  const createState = (characterId, elements, storedRate, storedCap) => {
+    const state = createTranscendenceTestParty({ initialGaugePercent: 100, withBurst: true });
+    state.turnState.transcendence.burstTriggered = true;
+    state.party[0].characterId = characterId;
+    state.party[0].elements = elements;
+    state.party[0].skills = Object.freeze([
+      {
+        id: 15225,
+        skillId: 15225,
+        name: 'Burst Cap Boundary Hit',
+        hitCount: 2,
+        sp_cost: 10,
+        target_type: 'Single',
+        parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } }],
+      },
+    ]);
+    state.turnState.enemyState.enemyCount = 1;
+    state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+    state.turnState.enemyState.statuses = [
+      { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+    ];
+    state.turnState.enemyState.destructionRateByEnemy = { 0: storedRate };
+    state.turnState.enemyState.destructionRateCapByEnemy = { 0: storedCap };
+    state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
+    return state;
+  };
+
+  const nonMatchingState = createState('TC_FIRE_CAP', ['Fire'], 290, 300);
+  const nonMatchingPreview = previewTurn(nonMatchingState, {
+    0: { characterId: 'TC_FIRE_CAP', skillId: 15225, targetEnemyIndex: 0 },
+  });
+  const nonMatchingCommitted = commitTurn(nonMatchingState, nonMatchingPreview);
+  assert.ok(
+    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 291.0) < 1e-9
+  );
+
+  const highStoredCapState = createState('TC_ICE_CAP', ['Ice'], 690, 700);
+  const highStoredCapPreview = previewTurn(highStoredCapState, {
+    0: { characterId: 'TC_ICE_CAP', skillId: 15225, targetEnemyIndex: 0 },
+  });
+  const highStoredCapCommitted = commitTurn(highStoredCapState, highStoredCapPreview);
+  assert.ok(
+    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 691.1) < 1e-9
+  );
 });
 
 test('transcendence gauge ignores matching skill element when actor element does not match', () => {
@@ -17349,6 +17622,77 @@ test('AttackUpPerToken + AttackUp の合算: specialPassiveModifiers.attackUpRat
   );
 });
 
+test('support DamageRateUp resolves as resonanceDestructionRateBonus without merging AttackUp', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `DR${idx + 1}`,
+      characterName: `DR${idx + 1}`,
+      styleId: 3600 + idx,
+      styleName: `DRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 272000151,
+                name: 'Fly High!',
+                desc: '自身のスキル攻撃時の破壊率上昇量+30% かつ スキル攻撃力+30%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                sourceType: 'support',
+                parts: [
+                  { skill_type: 'DamageRateUp', target_type: 'Self', power: [0.3, 0] },
+                  { skill_type: 'AttackUp', target_type: 'Self', power: [0.3, 0] },
+                ],
+              },
+              {
+                id: 272000999,
+                name: '通常枠DamageRateUp',
+                desc: 'support 以外の DamageRateUp は共鳴破壊率として扱わない',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'DamageRateUp', target_type: 'Self', power: [0.9, 0] }],
+              },
+            ]
+          : [],
+      skills: [
+        {
+          id: 30600 + idx,
+          name: 'Act',
+          label: `DRSkill${idx + 1}`,
+          sp_cost: 4,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DR1', skillId: 30600, targetEnemyIndex: 0 },
+  });
+  const action = preview.actions[0];
+
+  assert.equal(action.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0);
+  assert.ok(
+    (action.specialPassiveEvents ?? []).some(
+      (event) =>
+        event.passiveName === 'Fly High!' &&
+        event.effectType === 'DamageRateUp' &&
+        event.resonanceDestructionRateBonus === 0.3
+    ),
+    'specialPassiveEvents に共鳴 DamageRateUp が記録されている'
+  );
+
+  const { committedRecord } = commitTurn(state, preview);
+  const committedAction = committedRecord.actions[0];
+  assert.equal(committedAction.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(committedAction.damageContext?.resonanceDestructionRateBonus, 0.3);
+});
+
 // ─────────────────────────────────────────────────────────────
 // SP条件スキル（cond: Sp()...）テスト
 // 仕様: docs/specs/sp_condition_skill_spec.md
@@ -18834,6 +19178,42 @@ test('T13: BIYamawakiServant(155) — Eternal型: 複数付与・CountBC(>=6)判
   const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
   applyPassiveTiming(state, 'OnPlayerTurnStart');
   assert.equal(state.party.find((m) => m.characterId === 'M1').sp.current - spBefore, 3, 'しもべ状態6人以上のときパッシブが発動してSP+3');
+});
+
+test('T13: BIYamawakiServant(155) legacy remaining=0 entries count as active', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          initialSP: 5,
+          passives: [
+            {
+              id: 91007,
+              name: '旧形式しもべ条件',
+              timing: 'OnPlayerTurnStart',
+              condition: 'CountBC(IsPlayer()&&SpecialStatusCountByType(155)>=1)>=6',
+              parts: [{ skill_type: 'HealSp', target_type: 'Self', power: [3, 0] }],
+            },
+          ],
+        }
+      : {}
+  );
+  const state = createBattleStateFromParty(party);
+
+  for (const member of state.party) {
+    member.statusEffects.push({
+      statusType: 'BIYamawakiServant',
+      remaining: 0,
+      metadata: { specialStatusTypeId: 155 },
+    });
+  }
+
+  const spBefore = state.party.find((m) => m.characterId === 'M1').sp.current;
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  assert.equal(
+    state.party.find((m) => m.characterId === 'M1').sp.current - spBefore,
+    3,
+    '旧形式のremaining=0しもべ状態6人でもCountBC条件を満たすこと'
+  );
 });
 
 test('SkillCondition variants use CountBC thresholds and same-action Before Funnel for OD gain', () => {
@@ -20913,7 +21293,7 @@ test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシ�
   const LI_CHARACTER_ID = 'LShanhua';
   const KAREN_CHARACTER_ID = 'KAsakura';
   const FUNNEL_POWER = 5;
-  const ATTACK_UP_POWER = 0.75;
+  const ATTACK_UP_POWER = 1.1238084;
   const EX_SP_COST = 14;
   const PARTY_MEMBER_COUNT = 6;
   const REAL_DATA_TEST_INITIAL_SP = 30;
@@ -23294,6 +23674,233 @@ for (const { weaponType, pursuedHitCount, skillId } of [
   });
 }
 
+const OD_GAUGE_GAIN_BONUS_PERCENT = 5;
+const NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE = 99400;
+const PURSUIT_OD_TEST_SKILL_ID_BASE = 99410;
+const PURSUIT_HIT_COUNT = 2;
+const MIZUHARA_AINA_STYLE_ID = 1005601;
+const MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID = 46005601;
+const MIZUHARA_AINA_ATTACK_SKILL_ID = 46005602;
+const MIZUHARA_AINA_PURSUIT_SKILL_ID = 46005691;
+const MIZUHARA_AINA_MASTER_PASSIVE_SKILL_ID = 46515601;
+const MIZUHARA_AINA_DRIVE_PIERCE_PERCENT = 15;
+const PROTECTION_SKILL_ID = 46300004;
+const UNSCOPED_OD_RATE_UP_POWER = 0.5;
+
+function buildMizuharaAinaMasterPassiveParty(store, {
+  mizuharaPosition = 0,
+  skillSetsByPartyIndex = {},
+  drivePierceByPartyIndex = {},
+} = {}) {
+  const fillerStyleIds = getSixUsableStyleIds(store).filter((styleId) => styleId !== MIZUHARA_AINA_STYLE_ID);
+  const styleIds = [...fillerStyleIds];
+  styleIds.splice(mizuharaPosition, 0, MIZUHARA_AINA_STYLE_ID);
+  styleIds.length = 6;
+  const mizuharaSkillIds = [
+    ...(skillSetsByPartyIndex[mizuharaPosition] ?? []),
+    MIZUHARA_AINA_MASTER_PASSIVE_SKILL_ID,
+  ];
+
+  return store.buildPartyFromStyleIds(styleIds, {
+    initialSP: 20,
+    drivePierceByPartyIndex,
+    skillSetsByPartyIndex: {
+      ...skillSetsByPartyIndex,
+      [mizuharaPosition]: mizuharaSkillIds,
+    },
+  });
+}
+
+test('ODゲージ上昇量補正は通常攻撃3回には適用されず、合計22.5%となる', () => {
+  const normalAttackSkill = (id) => ({
+    id,
+    name: '通常攻撃',
+    label: `NormalAttackOdBonus${id}`,
+    hit_count: 1,
+    sp_cost: 0,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+  });
+  const party = createSixMemberManualParty((idx) =>
+    idx <= 2
+      ? {
+          skills: [normalAttackSkill(NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + idx)],
+        }
+      : {
+          skills: [createProtectionSkill(NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.stageSetupEnchantEffects = [
+    { effectType: 'odGaugeGainBonusPercent', amount: OD_GAUGE_GAIN_BONUS_PERCENT },
+  ];
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'M1', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE, targetEnemyIndex: 0 },
+    1: { characterId: 'M2', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + 1, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: NORMAL_ATTACK_OD_TEST_SKILL_ID_BASE + 2, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.odGauge, 22.5);
+});
+
+for (const { repeatCount, expectedOdGauge } of [
+  { repeatCount: 4, expectedOdGauge: 20 },
+  { repeatCount: 5, expectedOdGauge: 25 },
+]) {
+  test(`ODゲージ上昇量補正は2hit追撃${repeatCount}回には適用されず、合計${expectedOdGauge}%となる`, () => {
+    const pursuitSkillId = PURSUIT_OD_TEST_SKILL_ID_BASE + repeatCount;
+    const party = createSixMemberManualParty((idx) => ({
+      skills: [createProtectionSkill(pursuitSkillId + idx)],
+    }));
+    let state = createBattleStateFromParty(party, { enemyCount: 1 });
+    state.stageSetupEnchantEffects = [
+      { effectType: 'odGaugeGainBonusPercent', amount: OD_GAUGE_GAIN_BONUS_PERCENT },
+    ];
+
+    for (let index = 0; index < repeatCount; index += 1) {
+      const preview = previewTurn(state, {
+        0: {
+          characterId: 'M1',
+          skillId: pursuitSkillId,
+          targetEnemyIndex: 0,
+          pursuedHitCount: PURSUIT_HIT_COUNT,
+        },
+      });
+      ({ nextState: state } = commitTurn(state, preview));
+    }
+
+    assert.equal(state.turnState.odGauge, expectedOdGauge);
+  });
+}
+
+test('瑞原あいなのマスターパッシブ「母の灯を継いで」は通常攻撃3回のODゲージを23.61%にする', () => {
+  const store = getStore();
+  let state = createBattleStateFromParty(
+    buildMizuharaAinaMasterPassiveParty(store, {
+      skillSetsByPartyIndex: { 0: [MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID] },
+    }),
+    { enemyCount: 1 }
+  );
+
+  for (let turn = 0; turn < 3; turn += 1) {
+    applyPassiveTiming(state, 'OnPlayerTurnStart');
+    const actor = state.party[0];
+    const preview = previewTurn(state, {
+      0: {
+        characterId: actor.characterId,
+        skillId: MIZUHARA_AINA_NORMAL_ATTACK_SKILL_ID,
+        targetEnemyIndex: 0,
+      },
+    });
+    ({ nextState: state } = commitTurn(state, preview));
+  }
+
+  assert.equal(state.turnState.odGauge, 23.61);
+});
+
+for (const { repeatCount, expectedOdGauge } of [
+  { repeatCount: 4, expectedOdGauge: 20.96 },
+  { repeatCount: 5, expectedOdGauge: 26.2 },
+]) {
+  test(`瑞原あいなのマスターパッシブ「母の灯を継いで」は2hit追撃${repeatCount}回のODゲージを${expectedOdGauge}%にする`, () => {
+    const store = getStore();
+    let state = createBattleStateFromParty(
+      buildMizuharaAinaMasterPassiveParty(store, {
+        mizuharaPosition: 3,
+        skillSetsByPartyIndex: {
+          0: [PROTECTION_SKILL_ID],
+          3: [MIZUHARA_AINA_PURSUIT_SKILL_ID],
+        },
+      }),
+      { enemyCount: 1 }
+    );
+
+    for (let turn = 0; turn < repeatCount; turn += 1) {
+      applyPassiveTiming(state, 'OnPlayerTurnStart');
+      const pursuitSource = state.party[3];
+      const actor = state.party[0];
+      const preview = previewTurn(state, {
+        0: {
+          characterId: actor.characterId,
+          skillId: PROTECTION_SKILL_ID,
+          targetEnemyIndex: 0,
+          pursuedHitCount: PURSUIT_HIT_COUNT,
+          pursuitSourceCharacterId: pursuitSource.characterId,
+          pursuitSourcePosition: pursuitSource.position,
+          pursuitSourceSkillId: MIZUHARA_AINA_PURSUIT_SKILL_ID,
+        },
+      });
+      ({ nextState: state } = commitTurn(state, preview));
+    }
+
+    assert.equal(state.turnState.odGauge, expectedOdGauge);
+  });
+}
+
+test('瑞原あいなのOD上昇量はスキルでドライブピアス補正と固定5%を加算する', () => {
+  const store = getStore();
+  let state = createBattleStateFromParty(
+    buildMizuharaAinaMasterPassiveParty(store, {
+      drivePierceByPartyIndex: { 0: MIZUHARA_AINA_DRIVE_PIERCE_PERCENT },
+      skillSetsByPartyIndex: { 0: [MIZUHARA_AINA_ATTACK_SKILL_ID] },
+    }),
+    { enemyCount: 1 }
+  );
+  applyPassiveTiming(state, 'OnPlayerTurnStart');
+  const actor = state.party[0];
+  const preview = previewTurn(state, {
+    0: {
+      characterId: actor.characterId,
+      skillId: MIZUHARA_AINA_ATTACK_SKILL_ID,
+      targetEnemyIndex: 0,
+    },
+  });
+  ({ nextState: state } = commitTurn(state, preview));
+
+  // 1hit のドライブピアス +15% は +5%、母の灯を継いでの固定 +5% と加算される。
+  assert.equal(state.turnState.odGauge, 2.75);
+});
+
+test('scope指定のないOverDriveRateUpは通常攻撃・追撃のOD上昇量に影響しない', () => {
+  const pursuitSkillId = PURSUIT_OD_TEST_SKILL_ID_BASE + 20;
+  const normalAttackSkill = {
+    id: pursuitSkillId,
+    name: '通常攻撃',
+    label: 'UnscopedOverDriveRateUpNormalAttack',
+    hit_count: 1,
+    sp_cost: 0,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+  };
+  const party = createSixMemberManualParty((idx) => ({
+    skills: [idx === 0 ? normalAttackSkill : createProtectionSkill(pursuitSkillId + idx)],
+  }));
+  const state = createBattleStateFromParty(party, { enemyCount: 1 });
+  state.party[0].addStatusEffect({
+    statusType: 'OverDriveRateUp',
+    power: UNSCOPED_OD_RATE_UP_POWER,
+    limitType: 'None',
+    exitCond: 'Eternal',
+    remaining: 0,
+  });
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: state.party[0].characterId,
+      skillId: pursuitSkillId,
+      targetEnemyIndex: 0,
+      pursuedHitCount: PURSUIT_HIT_COUNT,
+      pursuitSourceCharacterId: state.party[0].characterId,
+    },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  // 通常攻撃 7.5% + scope なしOverDriveRateUpを持つ追撃 2hit × 2.5% = 12.5%
+  assert.equal(nextState.turnState.odGauge, 12.5);
+});
+
 test('追撃は属性ベルト効果を受けない無属性扱いで、通常攻撃の hit のみが E-shield を減らす', () => {
   // 属性ベルト Fire + E-shield Fire 一致 → 通常攻撃の hit 数だけ E-shield が減る。
   // 追撃は無属性扱いで属性ベルトが乗らないため、pursuedHitCount は E-shield を減らさない。
@@ -23789,6 +24396,192 @@ test('dp > 0 併存時でも Eシールド減算が優先されブレイク経�
   assert.equal(destructionRate, 0);
 });
 
+test('攻撃時に既にBREAK中の敵は破壊率が上昇し cap でクランプされる', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'DEST_BROKEN',
+          characterName: 'DEST_BROKEN',
+          skills: [
+            {
+              id: 99182,
+              name: 'Destruction Hit',
+              hitCount: 2,
+              sp_cost: 10,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99282 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 299.75 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEST_BROKEN', skillId: 99182, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 300);
+});
+
+test('Count Funnel消費後のmetadata.damageBonusで破壊率上昇倍率を解決する', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'DEST_FUNNEL',
+          characterName: 'DEST_FUNNEL',
+          statusEffects: [
+            {
+              effectId: 99190,
+              statusType: 'Funnel',
+              limitType: 'Default',
+              exitCond: 'Count',
+              remaining: 1,
+              power: 3,
+              metadata: { damageBonus: 0.25 },
+            },
+          ],
+          skills: [
+            {
+              id: 99190,
+              name: 'Funnel Destruction Hit',
+              hit_count: 8,
+              hitCount: 8,
+              sp_cost: 10,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 20.25 } },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99290 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 0 },
+  ];
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 1000 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 10 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEST_FUNNEL', skillId: 99190, targetEnemyIndex: 0 },
+  });
+  const { committedRecord, nextState } = commitTurn(state, preview);
+  const action = findActionByCharacterId(committedRecord, 'DEST_FUNNEL');
+
+  assert.equal(action.consumedFunnelEffects?.[0]?.metadata?.damageBonus, 0.25);
+  assert.equal(nextState.party[0].getFunnelEffects({ activeOnly: true }).length, 0);
+  assert.ok(
+    Math.abs(nextState.turnState.enemyState.destructionRateByEnemy['0'] - 454.375) < 1e-9,
+    `Funnel大の破壊率上昇がmetadata.damageBonus由来で計算されること（DR=${nextState.turnState.enemyState.destructionRateByEnemy['0']}）`
+  );
+});
+
+test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用する', () => {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'DEST_SUPER',
+          characterName: 'DEST_SUPER',
+          skills: [
+            {
+              id: 99183,
+              name: 'Destruction SuperBreak',
+              hitCount: 2,
+              sp_cost: 10,
+              target_type: 'Single',
+              parts: [
+                { skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 1 } },
+                { skill_type: 'SuperBreak', target_type: 'Single' },
+              ],
+            },
+          ],
+        }
+      : {
+          skills: [createProtectionSkill(99283 + idx)],
+        }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DEST_SUPER', skillId: 99183, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 591);
+});
+
+// 通常攻撃の破壊率はスキルと別式（実機実測で確定）: ブレイク中の通常攻撃は
+// enemy raw d_rate と等しい % だけ破壊率を上げる（d_rate=5→+5%, 10→+10%）。
+// 共鳴・装備・武器種などは通常攻撃には乗らない（超越ゲージ100%の×1.10のみ別途）。
+function runNormalAttackOnBrokenEnemy(dRateRaw) {
+  const party = createSixMemberManualParty((idx) =>
+    idx === 0
+      ? {
+          characterId: 'NORM_ATK',
+          characterName: 'NORM_ATK',
+          skills: [
+            {
+              id: 99190,
+              name: '通常攻撃',
+              label: 'TestAttackNormal',
+              hitCount: 3,
+              sp_cost: 0,
+              target_type: 'Single',
+              parts: [{ skill_type: 'AttackNormal', target_type: 'Single', type: 'Slash' }],
+            },
+          ],
+        }
+      : { skills: [createProtectionSkill(99290 + idx)] }
+  );
+  const state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
+  state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { 0: 999 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: dRateRaw };
+  // 敵をブレイク状態にして通常攻撃が破壊率を加算する状態にする
+  state.turnState.enemyState.statuses = [
+    { statusType: 'Break', targetIndex: 0, remainingTurns: 3 },
+  ];
+  const preview = previewTurn(state, {
+    0: { characterId: 'NORM_ATK', skillId: 99190, targetEnemyIndex: 0 },
+  });
+  const { nextState } = commitTurn(state, preview);
+  return nextState.turnState.enemyState.destructionRateByEnemy['0'];
+}
+
+test('通常攻撃の破壊率上昇は enemy raw d_rate と等しい（ヒット数非依存・共鳴非適用）', () => {
+  // d_rate=5（標準敵）→ +5.0%（100→105）
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(5) - 105) < 1e-9, 'd_rate=5 → +5%');
+  // d_rate=10（強敵）→ +10.0%（100→110）
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(10) - 110) < 1e-9, 'd_rate=10 → +10%');
+  // d_rate=7 → +7.0%
+  assert.ok(Math.abs(runNormalAttackOnBrokenEnemy(7) - 107) < 1e-9, 'd_rate=7 → +7%');
+});
+
 test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
   const party = createSixMemberManualParty((idx) =>
     idx === 0
@@ -24085,4 +24878,340 @@ test('HOLD UP is cleared when DownTurn expires', () => {
     nextState.turnState.enemyState.statuses.some((status) => status.statusType === 'DownTurn'),
     false
   );
+});
+
+test('perHitDpDamageByEnemy: DPダメージがアクション間・ターン間で累積されブレイクを自動判定する', () => {
+  // シナリオ:
+  //   敵DP = 200万、破壊率初期100%、上限500%
+  //   T1: M1(500k DP) + M2(100万 DP) → 残り500k、ブレイクなし
+  //   T2: M1(500k DP) → 残り0、自動ブレイク発生
+  //       M2: ブレイク済みとして DR加算が走る
+
+  const party = createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return {
+        characterId: 'DP_A',
+        characterName: 'DP_A',
+        skills: [
+          {
+            id: 99500,
+            name: 'DP Attack A',
+            sp_cost: 10,
+            hit_count: 1,
+            hitCount: 1,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+          },
+        ],
+      };
+    }
+    if (idx === 1) {
+      return {
+        characterId: 'DP_B',
+        characterName: 'DP_B',
+        skills: [
+          {
+            id: 99501,
+            name: 'DP Attack B',
+            sp_cost: 10,
+            hit_count: 1,
+            hitCount: 1,
+            target_type: 'Single',
+            parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+          },
+        ],
+      };
+    }
+    return {};
+  });
+
+  let state = createBattleStateFromParty(party);
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  // T1: M1(500k) + M2(100万) → 残り500k、ブレイクなし
+  const t1Preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 1000000 } },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT1 } = commitTurn(state, t1Preview);
+
+  // T1終了後: ブレイクなし、残りDP=500k
+  assert.equal(
+    stateAfterT1.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false,
+    'T1終了時点でブレイクしていないこと'
+  );
+  assert.equal(
+    stateAfterT1.turnState.enemyState.remainingDpByEnemy?.['0'],
+    500000,
+    'T1後の残りDP=500k'
+  );
+
+  // T2: M1(500k) → DP枯渇・自動ブレイク、M2はブレイク後として DR加算
+  const t1Dr = stateAfterT1.turnState.enemyState.destructionRateByEnemy['0'];
+  const t2Preview = previewTurn(stateAfterT1, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT2 } = commitTurn(stateAfterT1, t2Preview);
+
+  // T2終了後: 自動ブレイク発生、残りDP=0
+  assert.equal(
+    stateAfterT2.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    true,
+    'T2でM1がDPを枯渇させ自動ブレイク発生すること'
+  );
+  assert.equal(
+    stateAfterT2.turnState.enemyState.remainingDpByEnemy?.['0'],
+    0,
+    'T2後の残りDP=0'
+  );
+
+  // T2終了後: M2はブレイク後として DR加算が実行される
+  const t2Dr = stateAfterT2.turnState.enemyState.destructionRateByEnemy['0'];
+  assert.ok(
+    t2Dr > t1Dr,
+    `T2後のDR(${t2Dr})がT1後のDR(${t1Dr})より増加していること（M2のブレイク後DR加算）`
+  );
+});
+
+function createDpTrackingTestParty() {
+  const dpAttackSkill = (id, name) => ({
+    id,
+    name,
+    sp_cost: 10,
+    hit_count: 1,
+    hitCount: 1,
+    target_type: 'Single',
+    parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+  });
+  return createSixMemberManualParty((idx) => {
+    if (idx === 0) {
+      return { characterId: 'DP_A', characterName: 'DP_A', skills: [dpAttackSkill(99500, 'DP Attack A')] };
+    }
+    if (idx === 1) {
+      return { characterId: 'DP_B', characterName: 'DP_B', skills: [dpAttackSkill(99501, 'DP Attack B')] };
+    }
+    return {};
+  });
+}
+
+test('手動ブレイク指定はperHitDpDamageのDP残量より優先され、DRが加算されDPが0になる', () => {
+  // DP=200万に対して1ヒット50万（枯渇しない）でも、手動ブレイク指定があれば
+  // ブレイク扱いでDR加算が走り、DP残量も0として扱われる。
+  let state = createBattleStateFromParty(createDpTrackingTestParty());
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { '0': 1 };
+
+  const preview = previewTurn(state, {
+    0: {
+      characterId: 'DP_A',
+      skillId: 99500,
+      targetEnemyIndex: 0,
+      perHitDpDamageByEnemy: { '0': 500000 },
+      manualBreakEnemyIndexes: [0],
+    },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    true,
+    '手動ブレイク指定によりブレイクすること'
+  );
+  assert.equal(
+    nextState.turnState.enemyState.remainingDpByEnemy?.['0'],
+    0,
+    '手動ブレイク指定によりDP残量が0になること'
+  );
+  const dr = nextState.turnState.enemyState.destructionRateByEnemy['0'];
+  // 新式: d_rate=1, 1hit, dr=10 の加算が各10%。DP_A(手動ブレイク)+DP_B(ブレイク後) = +20%
+  assert.ok(
+    Math.abs(dr - 120.0) < 1e-6,
+    `手動ブレイクのDR加算が反映されること（DR=${dr}）`
+  );
+});
+
+test('DPゲージ未設定の敵はperHitDpDamageがあっても自動ブレイクしない', () => {
+  // DP0で行動する敵（DPゲージなし）は自動ブレイクの対象外。
+  let state = createBattleStateFromParty(createDpTrackingTestParty());
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState } = commitTurn(state, preview);
+
+  assert.equal(
+    nextState.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false,
+    'DPゲージ未設定の敵が自動ブレイクしないこと'
+  );
+  assert.equal(
+    nextState.turnState.enemyState.destructionRateByEnemy['0'],
+    100,
+    'ブレイクしていないのでDRが加算されないこと'
+  );
+});
+
+test('ブレイク解除後はDPゲージが最大値まで全回復する', () => {
+  // T1でDP枯渇→自動ブレイク。ブレイク解除（ユーザー操作相当）後の
+  // T2ではDPが最大値から再消費され、即再ブレイクしないこと。
+  let state = createBattleStateFromParty(createDpTrackingTestParty());
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  const t1Preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 2000000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT1 } = commitTurn(state, t1Preview);
+  assert.equal(
+    stateAfterT1.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    true,
+    'T1でDP枯渇により自動ブレイクすること'
+  );
+  assert.equal(stateAfterT1.turnState.enemyState.remainingDpByEnemy?.['0'], 0, 'T1後の残りDP=0');
+
+  // ユーザー操作によるブレイク解除を模擬
+  stateAfterT1.turnState.enemyState.statuses = stateAfterT1.turnState.enemyState.statuses.filter(
+    (s) => s.statusType !== 'Break' && s.statusType !== 'DownTurn'
+  );
+
+  const t1Dr = stateAfterT1.turnState.enemyState.destructionRateByEnemy['0'];
+  const t2Preview = previewTurn(stateAfterT1, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT2 } = commitTurn(stateAfterT1, t2Preview);
+
+  assert.equal(
+    stateAfterT2.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false,
+    'ブレイク解除後のT2で即再ブレイクしないこと'
+  );
+  assert.equal(
+    stateAfterT2.turnState.enemyState.remainingDpByEnemy?.['0'],
+    1500000,
+    'T2は最大DP(200万)から50万消費した150万が残ること'
+  );
+  assert.equal(
+    stateAfterT2.turnState.enemyState.destructionRateByEnemy['0'],
+    t1Dr,
+    'ブレイクしていないT2ではDRが増加しないこと'
+  );
+});
+
+test('DP枯渇による自動ブレイクがDownTurnイベントとして記録される', () => {
+  let state = createBattleStateFromParty(createDpTrackingTestParty());
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 500000 };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 500000 } },
+    1: { characterId: 'DP_B', skillId: 99501, targetEnemyIndex: 0 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const committed = commitTurn(state, preview);
+
+  const action = committed.committedRecord.actions.find((entry) => entry.characterId === 'DP_A');
+  assert.ok(action, 'DP_Aのアクションが記録されること');
+  const event = (action.enemyStatusChanges ?? []).find(
+    (item) => item.statusType === 'DownTurn' && item.source === 'auto'
+  );
+  assert.ok(event, 'DP枯渇による自動ブレイクがDownTurnイベント(source=auto)として記録されること');
+  assert.equal(event.targetIndex, 0);
+  assert.equal(event.mode, 'DownTurn');
+});
+
+test('複数DPゲージは同一バトルターン中に1本だけ破壊し、次ゲージは残DP1で止まる', () => {
+  let state = createBattleStateFromParty(createDpTrackingTestParty());
+  state.turnState.turnIndex = 1;
+  state.turnState.enemyState.enemyCount = 1;
+  state.turnState.enemyState.enemyDpByEnemy = { '0': 100 };
+  state.turnState.enemyState.extraDpGaugeStateByEnemy = {
+    '0': { total: 3, remaining: 3, values: [100, 100, 100] },
+  };
+  state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
+  state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+
+  const t1Preview = previewTurn(state, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 250 } },
+    1: { characterId: 'DP_B', skillId: 99501 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: stateAfterT1 } = commitTurn(state, t1Preview);
+
+  assert.equal(stateAfterT1.turnState.enemyState.remainingDpByEnemy?.['0'], 1);
+  assert.equal(stateAfterT1.turnState.enemyState.enemyDpByEnemy?.['0'], 100);
+  assert.deepEqual(stateAfterT1.turnState.enemyState.extraDpGaugeStateByEnemy?.['0'], {
+    total: 3,
+    remaining: 2,
+    values: [100, 100, 100],
+  });
+  assert.equal(stateAfterT1.turnState.enemyState.dpGaugeBreakTurnByEnemy?.['0'], 1);
+  assert.equal(
+    stateAfterT1.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false,
+    '非最終DPゲージ破壊ではBreak状態にしないこと'
+  );
+
+  stateAfterT1.turnState.turnIndex = 1;
+  const sameBattleTurnPreview = previewTurn(stateAfterT1, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 250 } },
+    1: { characterId: 'DP_B', skillId: 99501 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: sameBattleTurnState } = commitTurn(stateAfterT1, sameBattleTurnPreview);
+
+  assert.equal(
+    sameBattleTurnState.turnState.enemyState.remainingDpByEnemy?.['0'],
+    1,
+    '追加ターン/OD相当の同一turnIndex中は2本目を割らず残DP1で止まること'
+  );
+  assert.deepEqual(sameBattleTurnState.turnState.enemyState.extraDpGaugeStateByEnemy?.['0'], {
+    total: 3,
+    remaining: 2,
+    values: [100, 100, 100],
+  });
+  assert.equal(
+    sameBattleTurnState.turnState.enemyState.statuses.some((s) => s.statusType === 'Break' && s.targetIndex === 0),
+    false
+  );
+
+  sameBattleTurnState.turnState.turnIndex = 2;
+  const nextBattleTurnPreview = previewTurn(sameBattleTurnState, {
+    0: { characterId: 'DP_A', skillId: 99500, targetEnemyIndex: 0, perHitDpDamageByEnemy: { '0': 250 } },
+    1: { characterId: 'DP_B', skillId: 99501 },
+    2: { characterId: 'M3', skillId: 8002 },
+  });
+  const { nextState: nextBattleTurnState } = commitTurn(sameBattleTurnState, nextBattleTurnPreview);
+
+  assert.equal(nextBattleTurnState.turnState.enemyState.remainingDpByEnemy?.['0'], 1);
+  assert.deepEqual(nextBattleTurnState.turnState.enemyState.extraDpGaugeStateByEnemy?.['0'], {
+    total: 3,
+    remaining: 1,
+    values: [100, 100, 100],
+  });
+  assert.equal(nextBattleTurnState.turnState.enemyState.dpGaugeBreakTurnByEnemy?.['0'], 2);
 });

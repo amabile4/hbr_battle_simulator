@@ -193,6 +193,8 @@ function normalizeGroup(group, rateSum) {
   const multiplier =
     group.id === 'affinity'
       ? (Number.isFinite(Number(rateSum)) ? roundTo(rateSum) : 1)
+      : group.id === 'token-passive'
+        ? roundTo(calculateTokenPassiveMultiplier(group.contributions))
       : group.id === 'crit-mindeye'
         ? roundTo(rateSum || CRITICAL_BASE_MULTIPLIER)
         : roundTo(1 + rateSum);
@@ -204,6 +206,17 @@ function normalizeGroup(group, rateSum) {
     formula: buildFormula(group.id, group.contributions, multiplier),
     contributions: group.contributions,
   };
+}
+
+function calculateTokenPassiveMultiplier(contributions) {
+  const entries = Array.isArray(contributions) ? contributions : [];
+  const rateTotal = entries
+    .filter((entry) => String(entry?.kind ?? 'rate') !== 'multiplier')
+    .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0);
+  const multiplierTotal = entries
+    .filter((entry) => String(entry?.kind ?? 'rate') === 'multiplier')
+    .reduce((product, entry) => product * toFiniteNumber(entry.value, 1), 1);
+  return (1 + rateTotal) * multiplierTotal;
 }
 
 function buildFormula(groupId, contributions, multiplier) {
@@ -219,6 +232,15 @@ function buildFormula(groupId, contributions, multiplier) {
         .filter((entry) => entry.label !== 'クリティカル基礎倍率')
         .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0)
     )}`;
+  }
+  if (groupId === 'token-passive' && contributions.some((entry) => String(entry?.kind ?? 'rate') === 'multiplier')) {
+    const rateTotal = contributions
+      .filter((entry) => String(entry?.kind ?? 'rate') !== 'multiplier')
+      .reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0);
+    const multiplierTerms = contributions
+      .filter((entry) => String(entry?.kind ?? 'rate') === 'multiplier')
+      .map((entry) => formatMultiplier(entry.value));
+    return `式: (1.0 + ${formatSignedPercent(rateTotal)}) * ${multiplierTerms.join(' * ')}`;
   }
   return `式: 1.0 + ${formatSignedPercent(
     contributions.reduce((sum, entry) => sum + toFiniteNumber(entry.value, 0), 0)
@@ -253,8 +275,10 @@ function getTargetIndexes(input) {
   return Number.isInteger(target) && target >= 0 ? [target] : [0];
 }
 
-function getTargetLabel(targetEnemyIndex) {
-  return `E${Number(targetEnemyIndex) + 1}`;
+function getTargetLabel(input, targetEnemyIndex) {
+  const slotLabel = `E${Number(targetEnemyIndex) + 1}`;
+  const enemyName = String(input?.enemyNamesByEnemy?.[String(targetEnemyIndex)] ?? '').trim();
+  return enemyName ? `${slotLabel} ${enemyName}` : slotLabel;
 }
 
 function collectAttackBuffContributions(input, targetContext) {
@@ -324,11 +348,42 @@ function collectAttackBuffContributions(input, targetContext) {
     );
   }
 
+  const transcendenceBurstAttackUpRate = toFiniteNumber(input?.transcendenceBurstAttackUpRate, 0);
+  if (transcendenceBurstAttackUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト 攻撃力',
+        value: transcendenceBurstAttackUpRate,
+        iconStatusType: 'AttackUp',
+      })
+    );
+  }
+
   for (const contribution of cloneArray(input?.accessoryContributions)) {
     const value = toFiniteNumber(contribution?.value ?? contribution?.rate, 0);
     if (value !== 0) {
       contributions.push(createStaticContribution({ ...contribution, value }));
     }
+  }
+
+  const representedAttackUp =
+    sumValues(effects.map((effect) => createRateContribution(effect))) +
+    foodBuffAttackUpRate +
+    highBoostSkillAtkRate +
+    toFiniteNumber(input?.babiedSkillAttackUpRate, 0) +
+    toFiniteNumber(input?.divaSkillAttackUpRate, 0) +
+    toFiniteNumber(input?.markAttackUpRate, 0) +
+    transcendenceBurstAttackUpRate +
+    toFiniteNumber(input?.attackUpPerTokenRate, 0);
+  const missingAttackUpRate = toFiniteNumber(input?.attackUpRate, 0) - representedAttackUp;
+  if (missingAttackUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '攻撃力UP',
+        value: missingAttackUpRate,
+        iconStatusType: 'AttackUp',
+      })
+    );
   }
 
   return contributions;
@@ -348,6 +403,32 @@ function collectCritMindEyeContributions(input) {
   );
   for (const effect of criticalDamageEffects) {
     contributions.push(createRateContribution(effect));
+  }
+  const transcendenceBurstCriticalDamageUpRate = toFiniteNumber(
+    input?.transcendenceBurstCriticalDamageUpRate,
+    0
+  );
+  if (transcendenceBurstCriticalDamageUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト クリティカル威力',
+        value: transcendenceBurstCriticalDamageUpRate,
+        iconStatusType: 'CriticalDamageUp',
+      })
+    );
+  }
+  const representedCriticalDamageUp =
+    sumValues(criticalDamageEffects.map((effect) => createRateContribution(effect))) +
+    transcendenceBurstCriticalDamageUpRate;
+  const missingCriticalDamageUpRate = toFiniteNumber(input?.criticalDamageUpRate, 0) - representedCriticalDamageUp;
+  if (missingCriticalDamageUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'クリティカル威力UP',
+        value: missingCriticalDamageUpRate,
+        iconStatusType: 'CriticalDamageUp',
+      })
+    );
   }
   const markCriticalDamageUp = toFiniteNumber(input?.markCriticalDamageUp, 0);
   if (markCriticalDamageUp !== 0) {
@@ -411,7 +492,7 @@ function collectTokenPassiveContributions(input) {
       createStaticContribution({
         label: 'DP条件倍率',
         kind: 'multiplier',
-        value: attackByOwnDpRateResolvedMultiplier - 1,
+        value: attackByOwnDpRateResolvedMultiplier,
         iconStatusType: 'AttackUp',
       })
     );
@@ -474,7 +555,7 @@ function normalizeTargetContext(input, targetEnemyIndex) {
   const affinityMultiplier = toFiniteNumber(input?.effectiveDamageRatesByEnemy?.[String(targetEnemyIndex)], 100) / 100;
   return {
     targetEnemyIndex,
-    targetLabel: getTargetLabel(targetEnemyIndex),
+    targetLabel: getTargetLabel(input, targetEnemyIndex),
     affinityMultiplier: affinityMultiplier > 0 ? affinityMultiplier : 1,
     isWeak: affinityMultiplier > 1,
     isNormalAttack: input?.isNormalAttack === true,
@@ -526,6 +607,32 @@ export function buildCriticalRateBreakdown(input = {}) {
   );
   for (const effect of criticalRateEffects) {
     contributions.push(createRateContribution(effect));
+  }
+  const transcendenceBurstCriticalRateUpRate = toFiniteNumber(
+    input?.transcendenceBurstCriticalRateUpRate,
+    0
+  );
+  if (transcendenceBurstCriticalRateUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト クリティカル率',
+        value: transcendenceBurstCriticalRateUpRate,
+        iconStatusType: 'CriticalRateUp',
+      })
+    );
+  }
+  const representedCriticalRateUp =
+    sumValues(criticalRateEffects.map((effect) => createRateContribution(effect))) +
+    transcendenceBurstCriticalRateUpRate;
+  const missingCriticalRateUpRate = toFiniteNumber(input?.criticalRateUpRate, 0) - representedCriticalRateUp;
+  if (missingCriticalRateUpRate > 0) {
+    contributions.push(
+      createStaticContribution({
+        label: 'クリティカル率UP',
+        value: missingCriticalRateUpRate,
+        iconStatusType: 'CriticalRateUp',
+      })
+    );
   }
   const markCriticalRateUp = toFiniteNumber(input?.markCriticalRateUp, 0);
   if (markCriticalRateUp !== 0) {

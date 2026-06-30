@@ -67,6 +67,7 @@ export const UNIFIED_STATUS_TYPE_ID_MAP = Object.freeze({
   ResistUp:             100,
   ResistDown:           102,
   Fragile:              104,
+  Hacking:              105,
 
   // --- 混乱 / 束縛（enemy 側の正規名 → SORT-TODO-2） ---
   Confusion:            106,   // enemy only

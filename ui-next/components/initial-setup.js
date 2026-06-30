@@ -220,6 +220,20 @@ export class InitialSetupController {
     this.#enemySetup = new EnemySetupController({
       root: enemyRoot,
       enemies: this.#enemies,
+      onChange: () => {
+        this.#updateFooterButtons();
+        if (this.#isApplyingSetupSnapshot) {
+          return;
+        }
+        const partySnapshot = this.#partySetup?.getSnapshot();
+        if (!this.#hasActiveBattle || !partySnapshot?.isFrontFilled) {
+          return;
+        }
+        this.#onRecalculate?.(this.getSetupSnapshot(partySnapshot), {
+          automatic: true,
+          meta: { enemySetupChanged: true },
+        });
+      },
     });
     this.#enemySetup.mount();
 

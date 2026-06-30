@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 
 import { PartySetupController } from '../ui-next/components/party-setup.js';
+import { ANCIENT_CHAIN_EQUIP_ID } from '../src/config/battle-defaults.js';
 
 function withDom(run) {
   const dom = new JSDOM(
@@ -43,7 +44,7 @@ function withDom(run) {
   }
 }
 
-function createStyle(id, chara, tier = 'SS') {
+function createStyle(id, chara, tier = 'SS', base_param = null) {
   return {
     id,
     name: `${chara} style`,
@@ -52,7 +53,7 @@ function createStyle(id, chara, tier = 'SS') {
     image: '',
     tier,
     role: id === 1001 ? 'Attacker' : 'Buffer',
-    base_param: { str: 0, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
+    base_param: base_param ?? { str: 0, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
     ability_tree: [],
     limit_break: { stat_up_per_level: 2.5, bonus_per_level: [] },
     passives: [],
@@ -129,6 +130,30 @@ function createStoreStub() {
   };
 }
 
+function createStoreStubWithBaseStats() {
+  const store = createStoreStub();
+  const stats = { str: 10, dex: 20, wis: 30, spr: 40, luk: 50, con: 60 };
+  store.characters = [
+    {
+      label: 'C1001',
+      base_param: Object.fromEntries(
+        Object.entries(stats).map(([key, value]) => [key, [1, value]])
+      ),
+    },
+    {
+      label: 'C1002',
+      base_param: Object.fromEntries(
+        Object.entries(stats).map(([key, value]) => [key, [1, value + 100]])
+      ),
+    },
+  ];
+  store.styles[0].base_param = { str: 1, dex: 2, wis: 3, spr: 4, luk: 5, con: 6 };
+  store.styles[1].base_param = { str: 7, dex: 8, wis: 9, spr: 10, luk: 11, con: 12 };
+  store.getCharacterByLabel = (label) =>
+    store.characters.find((character) => character.label === label) ?? null;
+  return store;
+}
+
 test('PartySetupController defaults all SP equip selectors to SP +3', () =>
   withDom(({ root, pickerOverlay }) => {
     const controller = new PartySetupController({
@@ -172,6 +197,14 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     const panel = win.document.querySelector('#stats-settings-panel');
     assert.equal(panel.style.display, 'block');
     assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
+    assert.deepEqual(
+      [...panel.querySelectorAll('[data-stat]')].map((input) => input.dataset.stat),
+      ['str', 'dex', 'con', 'spr', 'wis', 'luk']
+    );
+    assert.deepEqual(
+      [...panel.querySelectorAll('.party-stats-panel__grid span')].map((label) => label.textContent),
+      ['力', '器用さ', '体力', '精神', '知性', '運']
+    );
     panel.querySelector('[data-stat="str"]').value = '700';
     panel.querySelector('[data-action="apply-stats"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -189,7 +222,7 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
   }));
 
-test('PartySetupController prefills unsaved main stats with support 10%', () =>
+test('PartySetupController fills missing snapshot main stats with fallback defaults', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -216,6 +249,30 @@ test('PartySetupController prefills unsaved main stats with support 10%', () =>
     assert.equal(panel.querySelector('[data-stat="str"]').value, '710');
     assert.equal(panel.querySelector('[data-stat="wis"]').value, '667');
     assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats, undefined);
+  }));
+
+test('PartySetupController fills missing snapshot stats from character and style base_param', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStubWithBaseStats(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {},
+    });
+
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0']?.stats, undefined);
+
+    root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const panel = win.document.querySelector('#stats-settings-panel');
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '11');
+    assert.equal(panel.querySelector('[data-stat="dex"]').value, '22');
   }));
 
 test('PartySetupController keeps automatic stats unsaved, follows LB, and reset clears manual input', () =>
@@ -1299,4 +1356,98 @@ test('PartySetupController clears selection when clicking clear button or outsid
     // Click outside of character cards (e.g. background body)
     win.document.body.dispatchEvent(new win.MouseEvent('mousedown', { bubbles: true }));
     assert.equal(root.querySelector('[data-slot="0"]').classList.contains('is-selected'), false);
+  }));
+
+test('PartySetupController exports/restores pierce type and percent via pierceByPartyIndex', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, 1003, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      pierceByPartyIndex: {
+        0: { type: 'attack', percent: 15 },
+        1: { type: 'blast', percent: 12 },
+        2: { type: 'break', percent: 10 },
+      },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    const values = [...root.querySelectorAll('select[data-field="pierce"]')].map((select) => select.value);
+    assert.equal(values[0], 'attack:15');
+    assert.equal(values[1], 'blast:12');
+    assert.equal(values[2], 'break:10');
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.pierceByPartyIndex[0], { type: 'attack', percent: 15 });
+    assert.deepEqual(snapshot.pierceByPartyIndex[1], { type: 'blast', percent: 12 });
+    assert.deepEqual(snapshot.pierceByPartyIndex[2], { type: 'break', percent: 10 });
+    // 旧形式互換列: ドライブピアス以外は 0
+    assert.deepEqual(
+      Object.values(snapshot.drivePierceByPartyIndex),
+      [0, 0, 0, 0, 0, 0],
+    );
+  }));
+
+test('PartySetupController treats legacy drivePierceByPartyIndex as drive pierce when pierceByPartyIndex is absent', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      drivePierceByPartyIndex: { 0: 15, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    });
+
+    const select = root.querySelector('select[data-field="pierce"][data-slot-index="0"]');
+    assert.equal(select.value, 'drive:15');
+
+    const snapshot = controller.getSnapshot();
+    assert.deepEqual(snapshot.pierceByPartyIndex[0], { type: 'drive', percent: 15 });
+    assert.equal(snapshot.drivePierceByPartyIndex[0], 15);
+  }));
+
+test('PartySetupController exports ancient chain as chain equip while keeping SP+3 compatibility', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+
+    controller.applySnapshot({
+      styleIds: [1001, 1002, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0, 1: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0 },
+      chainEquipByPartyIndex: { 0: true },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3 },
+    });
+
+    const selects = root.querySelectorAll('select[data-field="spEquip"]');
+    assert.equal(selects[0].value, ANCIENT_CHAIN_EQUIP_ID);
+    assert.equal(selects[1].value, '3');
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.chainEquipByPartyIndex[0], true);
+    assert.equal(snapshot.chainEquipByPartyIndex[1], false);
+    assert.equal(snapshot.startSpEquipByPartyIndex[0], 3);
+    assert.equal(snapshot.startSpEquipByPartyIndex[1], 3);
   }));

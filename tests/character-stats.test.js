@@ -46,6 +46,8 @@ test('resolveStatsWithSupport returns main stats without support and rejects inc
 
 test('normalizers reject incomplete stats and preserve valid slot entries', () => {
   assert.equal(normalizeCharacterStats({ str: 650 }), null);
+  assert.equal(normalizeCharacterStats({ ...MAIN_STATS, dex: 0 }), null);
+  assert.equal(normalizeCharacterStats({ ...MAIN_STATS, wis: null }), null);
   assert.deepEqual(normalizeStatsByPartyIndex({
     0: { stats: MAIN_STATS },
     1: { supportStats: MAIN_STATS },

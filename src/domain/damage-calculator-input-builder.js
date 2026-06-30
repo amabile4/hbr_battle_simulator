@@ -85,9 +85,14 @@ function normalizeStats(defaultStats, attackerStatsInput = {}) {
   return Object.fromEntries(
     DAMAGE_CALCULATION_STAT_KEYS.map((key) => [
       key,
-      toFiniteNumber(attackerStatsInput?.[key], defaultStats[key]),
+      normalizeStatValue(attackerStatsInput?.[key], defaultStats[key]),
     ])
   );
+}
+
+function normalizeStatValue(value, fallback) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 }
 
 function buildResistanceMap(affinityRate) {
@@ -147,6 +152,23 @@ function resolveAffinityRate(damageContext = {}, enemyAdapter = {}, targetEnemyI
   return getGroupMultiplier(targetBreakdown, 'affinity') || DEFAULT_AFFINITY_RATE;
 }
 
+function resolveDestructionRate(damageContext = {}, enemyAdapter = {}, targetEnemyIndex = 0) {
+  const adapterRate = Number(enemyAdapter?.destructionRate);
+  if (Number.isFinite(adapterRate) && adapterRate > 0) {
+    return adapterRate;
+  }
+  const keyedPercent = Number(damageContext?.destructionRateByEnemy?.[String(targetEnemyIndex)]);
+  if (Number.isFinite(keyedPercent) && keyedPercent > 0) {
+    return keyedPercent / 100;
+  }
+  return DEFAULT_DESTRUCTION_RATE;
+}
+
+function resolveEnemyAllAbilityDown(damageContext = {}, targetEnemyIndex = 0) {
+  const keyedPenalty = Number(damageContext?.enemyAllAbilityDownByEnemy?.[String(targetEnemyIndex)]);
+  return Number.isFinite(keyedPenalty) && keyedPenalty > 0 ? keyedPenalty : 0;
+}
+
 export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_COUNT) {
   const roleKey = normalizeRole(role);
   const base = DEFAULT_STATS_BY_ROLE[roleKey] ?? DEFAULT_STATS_BY_ROLE.admiral;
@@ -156,15 +178,48 @@ export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_
   );
 }
 
+function buildFightingSpiritStatSource(damageContext = {}, bonusValue = 0) {
+  if (!Number.isFinite(bonusValue) || bonusValue === 0) {
+    return null;
+  }
+  const sourceEffect = Array.isArray(damageContext?.activeStatusEffects)
+    ? damageContext.activeStatusEffects.find((effect) => String(effect?.statusType ?? '') === 'FightingSpirit')
+    : null;
+  const sourceName = String(sourceEffect?.sourceSkillName ?? sourceEffect?.sourceCharacterName ?? '').trim();
+  return {
+    id: 'fightingSpirit',
+    label: '闘志',
+    delta: bonusValue,
+    statKeys: [...DAMAGE_CALCULATION_STAT_KEYS],
+    ...(sourceName ? { sourceName } : {}),
+  };
+}
+
 export function buildDamageStatDeltaViewModel(damageContext = {}, attackerStatsInput = {}, enemyAdapter = {}) {
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const attackerStats = normalizeStats(defaultStats, attackerStatsInput);
+  const targetEnemyIndex = getTargetEnemyIndex(damageContext, enemyAdapter);
   const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
+  const enemyAllAbilityDown = resolveEnemyAllAbilityDown(damageContext, targetEnemyIndex);
+  const fightingSpiritBonus = toFiniteNumber(damageContext?.fightingSpiritBonusValue, 0);
+  const fightingSpiritSource = buildFightingSpiritStatSource(damageContext, fightingSpiritBonus);
   const enemyStats = Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, paramBorder]));
-  const makeRow = (base) => ({ base, buffDelta: 0, debuffDelta: 0, resolved: base });
+  const makeRow = (base) => ({
+    base,
+    buffDelta: fightingSpiritBonus,
+    debuffDelta: 0,
+    resolved: base + fightingSpiritBonus,
+    sources: fightingSpiritSource ? [fightingSpiritSource] : [],
+  });
+  const makeEnemyRow = (base) => ({
+    base,
+    buffDelta: 0,
+    debuffDelta: enemyAllAbilityDown,
+    resolved: Math.max(0, base - enemyAllAbilityDown),
+  });
   return {
     attacker: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeRow(attackerStats[key])])),
-    enemy: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeRow(enemyStats[key])])),
+    enemy: Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, makeEnemyRow(enemyStats[key])])),
   };
 }
 
@@ -173,7 +228,14 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
   const targetBreakdown = getTargetBreakdown(damageContext, targetEnemyIndex);
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const stats = normalizeStats(defaultStats, attackerStatsInput);
+  const fightingSpiritBonus = toFiniteNumber(damageContext?.fightingSpiritBonusValue, 0);
+  const boostedStats = fightingSpiritBonus > 0
+    ? Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, stats[key] + fightingSpiritBonus]))
+    : stats;
   const affinityRate = resolveAffinityRate(damageContext, enemyAdapter, targetEnemyIndex, targetBreakdown);
+  const destructionRate = resolveDestructionRate(damageContext, enemyAdapter, targetEnemyIndex);
+  const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
+  const enemyAllAbilityDown = resolveEnemyAllAbilityDown(damageContext, targetEnemyIndex);
   const tokenPassiveMultiplier = getGroupMultiplier(targetBreakdown, 'token-passive');
   const tokenRatio = Number.isFinite(Number(attackerStatsInput?.tokenRatio))
     ? Number(attackerStatsInput.tokenRatio)
@@ -185,17 +247,19 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
       styleId: toFiniteNumber(damageContext?.actorStyleId, 0),
       role: String(attackerStatsInput?.role ?? 'Attacker'),
       limitBreakCount: clampLimitBreakCount(attackerStatsInput?.limitBreakCount),
-      stats,
+      stats: boostedStats,
       tokenCount: toFiniteNumber(attackerStatsInput?.tokenCount, damageContext?.tokenAttackTokenCount ?? 0),
       tokenRatio,
+      attackPierceUpRate: toFiniteNumber(damageContext?.attackPierceUpRate, 0),
+      breakPierceUpRate: toFiniteNumber(damageContext?.breakPierceUpRate, 0),
       statusEffects: buildSyntheticAttackerEffects(damageContext, targetBreakdown),
     },
     defender: {
       enemyId: enemyAdapter?.enemyId ?? null,
       enemyName: String(enemyAdapter?.enemyName ?? targetBreakdown?.targetLabel ?? ''),
-      paramBorder: toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER),
+      paramBorder: Math.max(0, paramBorder - enemyAllAbilityDown),
       isHpTarget: enemyAdapter?.isHpTarget !== false,
-      destructionRate: DEFAULT_DESTRUCTION_RATE,
+      destructionRate,
       affinityRate,
       resistances: buildResistanceMap(affinityRate),
       statusEffects: buildSyntheticDefenderEffects(targetBreakdown),

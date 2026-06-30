@@ -2,6 +2,7 @@ import { TurnRowController } from './turn-row.js';
 import { buildPassiveDebugLogRows } from '../utils/passive-debug-log.js';
 import { createHumanReadableMessageFormatter } from '../utils/human-readable-message.js';
 import { REPLAY_OPERATION_TYPES } from '../../src/ui/lightweight-replay-script.js';
+import { clearAllPreviewInputs } from '../utils/preview-input-store.js';
 
 function createEmptyRowDiagnostics() {
   return {
@@ -32,6 +33,9 @@ export class TurnAreaController {
   #dismissedStatusKey = '';
   #rowsRoot = null;
   #editSession = null;
+  // 一時比較ビュー（手動指定の一括無効化）。ビュー状態のみで保存JSON非対象
+  #comparisonMode = false;
+  #comparisonResult = null;
   #formatMessage = (message) => String(message ?? '');
 
   constructor({
@@ -72,6 +76,18 @@ export class TurnAreaController {
     this.#editSession = null;
     this.#engineManager.recalculateAll(newInitialState);
     this.#renderRows();
+    this.#emitPassiveLogRows();
+  }
+
+  /**
+   * エンジン側で recalculateFrom() 等を直接呼び出した後に UI を最新状態へ同期する。
+   * scroll 位置を維持したまま行を再描画し、受動ログも更新する。
+   */
+  refreshRows() {
+    if (!this.#rowsRoot) {
+      return;
+    }
+    this.#renderRows({ preserveScroll: true });
     this.#emitPassiveLogRows();
   }
 
@@ -169,16 +185,26 @@ export class TurnAreaController {
     this.#ensureScaffold();
     this.#clearRows();
 
+    // 一時プレビュー入力（T6）はターン内限定の寿命。
+    // 行再描画（コミット・再計算・ターン移動・セッションロード）で必ず破棄する。
+    clearAllPreviewInputs();
+
+    // 比較モード中は最新の比較バッファを再構築する（外部の recalculate に追随）
+    if (this.#comparisonMode) {
+      this.#comparisonResult = this.#engineManager.buildComparisonComputedStates();
+    }
+
     const replayTurns = this.#engineManager.replayScript?.turns ?? [];
     for (let turnIndex = 0; turnIndex < replayTurns.length; turnIndex += 1) {
-      if (this.#editSession?.turnIndex === turnIndex) {
+      if (!this.#comparisonMode && this.#editSession?.turnIndex === turnIndex) {
         this.#appendEditRow(turnIndex);
         continue;
       }
       this.#appendCommittedRow(turnIndex);
     }
 
-    if (!this.#editSession && !this.#engineManager.replayDiagnostics.error) {
+    // 比較モード中は閲覧専用（input 行を出さず commit / 編集を抑止する）
+    if (!this.#comparisonMode && !this.#editSession && !this.#engineManager.replayDiagnostics.error) {
       this.#appendInputRow();
     }
 
@@ -186,6 +212,28 @@ export class TurnAreaController {
     if (scrollState) {
       this.#restoreScrollState(scrollState);
     }
+  }
+
+  /**
+   * 一時比較ビュー: 手動ブレイク/討伐指定を一括無効化した自動計算のみの推移を表示する。
+   * ビュー状態のみで replayScript / 保存JSONには影響しない（OFF で即復帰）。
+   */
+  setComparisonMode(enabled) {
+    const next = Boolean(enabled);
+    if (next === this.#comparisonMode) {
+      return;
+    }
+    this.#comparisonMode = next;
+    if (!next) {
+      this.#comparisonResult = null;
+    }
+    if (this.#rowsRoot) {
+      this.#renderRows({ preserveScroll: true });
+    }
+  }
+
+  get comparisonMode() {
+    return this.#comparisonMode;
   }
 
   #captureScrollState() {
@@ -267,6 +315,17 @@ export class TurnAreaController {
           ? formatMessage(diagnostics.error.message)
           : null,
     };
+  }
+
+  #buildCommittedRowDiagnostics(turnIndex, comparison = null) {
+    const diagnostics = this.#buildRowDiagnostics(turnIndex);
+    if (comparison && !comparison.records?.[turnIndex]) {
+      diagnostics.warnings = [
+        ...diagnostics.warnings,
+        '比較計算がこのターンで失敗したため、保存済みの操作履歴を表示しています。',
+      ];
+    }
+    return diagnostics;
   }
 
   #buildEditSnapshot(turnIndex, draft) {
@@ -371,21 +430,37 @@ export class TurnAreaController {
     const rowEl = document.createElement('div');
     this.#rowsRoot.appendChild(rowEl);
     const replayTurn = this.#engineManager.getReplayTurn(turnIndex);
+    const comparison = this.#comparisonMode ? this.#comparisonResult : null;
+    const comparisonRecord = comparison?.records?.[turnIndex] ?? null;
+    const hasComparisonRecord = Boolean(comparisonRecord);
+    const mainRecord = this.#engineManager.computedRecords[turnIndex] ?? null;
+    const mainStateBefore = this.#engineManager.getStateBefore(turnIndex);
+    const mainStateAfter = this.#engineManager.computedStates[turnIndex] ?? null;
+    // 比較モード中: record/state を比較バッファから供給し、手動指定チップ表示も無効化する
+    const displayReplayTurn = comparison && hasComparisonRecord && replayTurn
+      ? { ...structuredClone(replayTurn), actionOutcomeOverrides: [] }
+      : replayTurn;
     const row = new TurnRowController({
       root: rowEl,
       store: this.#store,
       enemyPresets: this.#enemyPresets,
       turnIndex,
       rowMode: 'committed',
-      rowDiagnostics: this.#buildRowDiagnostics(turnIndex),
-      record: this.#engineManager.computedRecords[turnIndex] ?? null,
-      replayTurn,
+      rowDiagnostics: this.#buildCommittedRowDiagnostics(turnIndex, comparison),
+      record: comparison
+        ? (comparisonRecord ?? mainRecord)
+        : mainRecord,
+      replayTurn: displayReplayTurn,
       operations: replayTurn?.operations ?? [],
       operationState: null,
-      stateBefore: this.#engineManager.getStateBefore(turnIndex),
-      stateAfter: this.#engineManager.computedStates[turnIndex] ?? null,
+      stateBefore: comparison
+        ? (comparison.stateBefores?.[turnIndex] ?? mainStateBefore)
+        : mainStateBefore,
+      stateAfter: comparison
+        ? (comparison.states?.[turnIndex] ?? mainStateAfter)
+        : mainStateAfter,
       simulatorSettings: this.#simulatorSettings,
-      onEditStart: (ti) => this.#handleEditStart(ti),
+      onEditStart: this.#comparisonMode ? null : (ti) => this.#handleEditStart(ti),
     });
     row.mount();
     this.#rowControllers.push(row);

@@ -13,9 +13,10 @@ test.describe('Party Setup drag and drop', () => {
     await page.getByRole('button', { name: /並替 OFF/ }).click();
 
     await page.locator('select[data-field="lb"][data-slot-index="0"]').selectOption('4');
-    await page.locator('select[data-field="drivePierce"][data-slot-index="0"]').selectOption('10');
+    await page.locator('select[data-field="pierce"][data-slot-index="0"]').selectOption('drive:10');
+    await page.locator('select[data-field="spEquip"][data-slot-index="0"]').selectOption('ancient_chain');
     await page.locator('select[data-field="lb"][data-slot-index="3"]').selectOption('2');
-    await page.locator('select[data-field="drivePierce"][data-slot-index="3"]').selectOption('15');
+    await page.locator('select[data-field="pierce"][data-slot-index="3"]').selectOption('drive:15');
 
     const beforeFront = await getPartySetupSlotState(page, 0);
     const beforeBack = await getPartySetupSlotState(page, 3);
@@ -34,14 +35,17 @@ test.describe('Party Setup drag and drop', () => {
       page.locator('select[data-field="lb"][data-slot-index="0"]')
     ).toHaveValue(beforeBack.lb);
     await expect(
-      page.locator('select[data-field="drivePierce"][data-slot-index="0"]')
-    ).toHaveValue(beforeBack.drivePierce);
+      page.locator('select[data-field="pierce"][data-slot-index="0"]')
+    ).toHaveValue(beforeBack.pierce);
     await expect(
       page.locator('select[data-field="lb"][data-slot-index="3"]')
     ).toHaveValue(beforeFront.lb);
     await expect(
-      page.locator('select[data-field="drivePierce"][data-slot-index="3"]')
-    ).toHaveValue(beforeFront.drivePierce);
+      page.locator('select[data-field="pierce"][data-slot-index="3"]')
+    ).toHaveValue(beforeFront.pierce);
+    await expect(
+      page.locator('select[data-field="spEquip"][data-slot-index="3"]')
+    ).toHaveValue('ancient_chain');
   });
 
   test('tap-to-swap: front ↔ back via main icon click in reorder mode', async ({ page }) => {

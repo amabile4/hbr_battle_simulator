@@ -185,14 +185,21 @@
 
 - `Enemy Setup` の enemy preset は単一 select ではなく `カテゴリ -> 敵` の2段 select とする
 - `ui-next/utils/enemy-list.js` は flat list を維持しつつ `categoryKey/categoryLabel` を付与し、Enemy Setup 側はこの metadata を使ってカテゴリ select を描画する
-- カテゴリの並びは `テンプレート`、通常 enemy 用カテゴリ定義（`異時層EX`、`恒星掃戦線`）、`直近3ヶ月` の月別カテゴリの順とする
+- カテゴリの並びは `テンプレート`、通常 enemy 用カテゴリ定義（`異時層`、`異時層EX`、`恒星掃戦線`、`オーブボス`）、`直近3ヶ月` の月別カテゴリの順とする
 - `テンプレート` category には `希望を喰むもの` に加え、Eシールド確認用の `Dimension_09_X_KaleidoOuroboros` を常時表示し、デフォルトのカテゴリのまま選択できるようにする
+- `異時層` は `Hard_...` label の enemy をまとめる通常 enemy 用カテゴリとし、`スカルフェザー 最終形態` もテンプレートではなくこのカテゴリから選択する
 - `異時層EX` は `Ex_...` label の enemy をまとめる通常 enemy 用カテゴリとし、`デススラッグEX 第一形態` / `デススラッグEX 第二形態`、`ロータリーモールEX`、`レッドクリムゾンEX` へ到達できるよう同名重複を保持する
 - `異時層EX` のカテゴリ内並びは初出の年月日昇順とし、同日内は enemy id 昇順で安定化する
 - `恒星掃戦線` は通常 enemy 用カテゴリ定義の 1 つとして扱い、`Dimension_09_X_KaleidoOuroboros` などへ専用 hardcode なしで到達できるようにする
+- `オーブボス` は `battles.json` の Lv.4 実戦闘 enemy から `エグゾウォッチャーΩ : Lv.4` / `レクタス・ニールΩ : Lv.4` / `シニスター・ニールΩ : Lv.4` / `アモンΩ : Lv.4` の 4 件を合成し、Enemy Setup の通常カテゴリとして選択できるようにする
 - 同名 enemy が難易度違いで複数あるカテゴリは、もっとも高いランクの 1 件だけを selector に残す
 - `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する
 - manual Eシールド編集結果は `enemy.enemySlots[*].manual.e_shield` と legacy flat `enemy.e_shield` の両方へ乗せ、session save/load でも保持する
+
+### 2026-06-07 追記: 戦闘中 Enemy Setup 変更の反映
+
+- 戦闘開始後に Enemy Setup の preset / 手動値を変更した場合は、保存用 snapshot だけでなく現在の BattleState も自動再計算する
+- 再計算 snapshot には `enemy.enemySlots[*].selectedEnemyName` / `param_border` / 耐性を含め、威力詳細の target label と敵パラメータへ反映する
 
 ## Block 3: Stage Setup
 
@@ -239,6 +246,7 @@
 - turn row の自己状態バフアイコンは固定3種ではなく、状態変化ページの statusType 定義順に準拠したバフ系表示へ拡張する（デバフ系は除外）
 - 同一 statusType 内で `Only` / `Count` が競合する場合、`Only=最強1件` と `Count=上位2件合算` を比較して採用側のみアイコン表示する（同値は `Count` 側優先、非採用側は詳細テキスト側で確認）
 - turn row バフアイコンは視認性確保のため全体表示上限を設ける（現在値: 10）
+- 敵詳細ポップアップ / turn row の敵状態アイコンは debuff 優先順で表示し、`Hacking` は `Fragile` 直後の高優先 debuff として `assets/skill_type/Hacking.webp` を表示する
 - turn row の OD ゲージ badge は正値帯を `0 / 1 / 2 / 3`、負値帯を debt bucket として `-99..0 => 0`、`-199..-100 => 1`、`-299..-200 => 2`、`<= -300 => 3` で表示し、負値時の赤系 track / badge tone は維持する
 - キャラクター詳細ポップアップの `フィールド` タブは `Zone / Territory / Talisman` の属性・倍率・継続を併記し、`remainingTurns=null` は `永続` として表示する
 - turn row の note 列上部には active なフィールド状態チップを表示し、`talismanState` は `active=true` または `level>0`（もしくは明示名/説明あり）の場合のみ表示する

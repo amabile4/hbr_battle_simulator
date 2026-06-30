@@ -6,6 +6,7 @@ import {
 import { cloneDpState } from '../domain/dp-state.js';
 import { cloneEnemyEShieldState } from '../domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
+import { cloneEnemyExtraDpGaugeState } from '../domain/enemy-extra-dp-gauge.js';
 import { MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
 
 const DEFAULT_ENEMY_PARAM_BORDER = 770;
@@ -166,13 +167,17 @@ export function createInitialTurnState() {
       gaugeStateByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      destructionMultiplierByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraDpGaugeStateByEnemy: {},
       extraHpGaugeStateByEnemy: {},
+      dpGaugeBreakTurnByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
+      enemyDpByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
       disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },
@@ -232,6 +237,16 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          destructionMultiplierByEnemy:
+            turnState.enemyState.destructionMultiplierByEnemy &&
+            typeof turnState.enemyState.destructionMultiplierByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.destructionMultiplierByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : 100,
+                  ])
+                )
+              : {},
           absorbElementsByEnemy:
             turnState.enemyState.absorbElementsByEnemy &&
             typeof turnState.enemyState.absorbElementsByEnemy === 'object'
@@ -263,6 +278,15 @@ export function cloneTurnState(turnState) {
                     .filter(([, state]) => Boolean(state))
                 )
               : {},
+          extraDpGaugeStateByEnemy:
+            turnState.enemyState.extraDpGaugeStateByEnemy &&
+            typeof turnState.enemyState.extraDpGaugeStateByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.extraDpGaugeStateByEnemy)
+                    .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraDpGaugeState(state)])
+                    .filter(([, state]) => Boolean(state))
+                )
+              : {},
           extraHpGaugeStateByEnemy:
             turnState.enemyState.extraHpGaugeStateByEnemy &&
             typeof turnState.enemyState.extraHpGaugeStateByEnemy === 'object'
@@ -270,6 +294,16 @@ export function cloneTurnState(turnState) {
                   Object.entries(turnState.enemyState.extraHpGaugeStateByEnemy)
                     .map(([targetIndex, state]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(state)])
                     .filter(([, state]) => Boolean(state))
+                )
+              : {},
+          dpGaugeBreakTurnByEnemy:
+            turnState.enemyState.dpGaugeBreakTurnByEnemy &&
+            typeof turnState.enemyState.dpGaugeBreakTurnByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.dpGaugeBreakTurnByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) ? Number(value) : 0,
+                  ])
                 )
               : {},
           breakStateByEnemy:
@@ -325,6 +359,46 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          enemyDpByEnemy:
+            turnState.enemyState.enemyDpByEnemy &&
+            typeof turnState.enemyState.enemyDpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.enemyDpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : {},
+          remainingDpByEnemy:
+            turnState.enemyState.remainingDpByEnemy &&
+            typeof turnState.enemyState.remainingDpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.remainingDpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : null,
+          enemyHpByEnemy:
+            turnState.enemyState.enemyHpByEnemy &&
+            typeof turnState.enemyState.enemyHpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.enemyHpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : {},
+          remainingHpByEnemy:
+            turnState.enemyState.remainingHpByEnemy &&
+            typeof turnState.enemyState.remainingHpByEnemy === 'object'
+              ? Object.fromEntries(
+                  Object.entries(turnState.enemyState.remainingHpByEnemy).map(([targetIndex, value]) => [
+                    String(targetIndex),
+                    Number.isFinite(Number(value)) && Number(value) >= 0 ? Number(value) : 0,
+                  ])
+                )
+              : null,
           zoneConfigByEnemy:
             turnState.enemyState.zoneConfigByEnemy &&
             typeof turnState.enemyState.zoneConfigByEnemy === 'object'
@@ -371,13 +445,19 @@ export function cloneTurnState(turnState) {
           damageRatesByEnemy: {},
           destructionRateByEnemy: {},
           destructionRateCapByEnemy: {},
+          destructionMultiplierByEnemy: {},
           absorbElementsByEnemy: {},
           odRateByEnemy: {},
           eShieldStateByEnemy: {},
+          extraDpGaugeStateByEnemy: {},
           extraHpGaugeStateByEnemy: {},
+          dpGaugeBreakTurnByEnemy: {},
           breakStateByEnemy: {},
           enemyNamesByEnemy: {},
           paramBorderByEnemy: {},
+          enemyDpByEnemy: {},
+          enemyHpByEnemy: {},
+          remainingHpByEnemy: null,
           zoneConfigByEnemy: {},
           talismanState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 },
           disasterState: { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 },

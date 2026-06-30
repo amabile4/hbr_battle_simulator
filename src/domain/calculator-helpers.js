@@ -138,23 +138,42 @@ export function findSkillByNameAndSuffix(skills, name, suffix) {
   return skills.find((skill) => skill?.name === name && skillIdEndsWith(skill, suffix)) ?? null;
 }
 
+export function collectSearchableSkills(skills = []) {
+  const searchable = [];
+  for (const skill of skills ?? []) {
+    searchable.push(skill);
+    for (const part of skill?.parts ?? []) {
+      if (String(part?.skill_type ?? '') !== 'SkillSwitch' || !Array.isArray(part?.strval)) {
+        continue;
+      }
+      for (const variant of part.strval) {
+        if (variant?.parts) {
+          searchable.push(variant);
+        }
+      }
+    }
+  }
+  return searchable;
+}
+
 export function findSkill(skills, skillId, skillName) {
+  const searchableSkills = collectSearchableSkills(skills);
   let candidates = [];
   if (hasValue(skillId)) {
-    candidates = skills.filter((skill) => Number(skill?.id) === Number(skillId));
+    candidates = searchableSkills.filter((skill) => Number(skill?.id) === Number(skillId));
   }
 
   const cleanedName = cleanSkillName(skillName);
   if (!candidates.length && cleanedName === NORMAL_ATTACK_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
+    const skill = findSkillByNameAndSuffix(searchableSkills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
     candidates = skill ? [skill] : [];
   }
   if (!candidates.length && cleanedName === PURSUIT_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
+    const skill = findSkillByNameAndSuffix(searchableSkills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
     candidates = skill ? [skill] : [];
   }
   if (!candidates.length && cleanedName) {
-    candidates = skills.filter((skill) => skill?.name === cleanedName);
+    candidates = searchableSkills.filter((skill) => skill?.name === cleanedName);
   }
   if (!candidates.length) {
     return null;
@@ -192,6 +211,141 @@ export function resolveProviderStat(effect) {
   return DEFAULT_PROVIDER_STAT;
 }
 
+export function resolveEffectPowerFromPart(part, options = {}) {
+  const powers = part?.power ?? DEFAULT_EFFECT_POWER;
+  const vMin = toNumber(powers[0]) * 100;
+  const vMax = toNumber(powers[1], vMin / 100) * 100;
+  const threshold = toNumber(part?.diff_for_max);
+  const growths = part?.growth ?? DEFAULT_GROWTHS;
+  const gMin = toNumber(growths[0], DEFAULT_GROWTHS[0]);
+  const gMax = toNumber(growths[1], gMin);
+
+  let providerStatVal;
+  const providerStats = options.providerStats;
+  if (providerStats && typeof providerStats === 'object') {
+    const normStats = {};
+    for (const [k, v] of Object.entries(providerStats)) {
+      const kl = String(k).toLowerCase();
+      if (kl === 'int') {
+        normStats['wis'] = toNumber(v);
+      } else if (kl === 'mnd') {
+        normStats['spr'] = toNumber(v);
+      } else {
+        normStats[kl] = toNumber(v);
+      }
+    }
+    
+    let weightedSum = 0;
+    let weightSum = 0;
+    const weights = part?.parameters ?? {};
+    for (const [k, w] of Object.entries(weights)) {
+      const numericWeight = Number(w);
+      if (numericWeight > 0) {
+        const statVal = normStats[k] ?? 600;
+        weightedSum += statVal * numericWeight;
+        weightSum += numericWeight;
+      }
+    }
+    providerStatVal = weightSum > 0 ? (weightedSum / weightSum) : (options.defaultStat ?? DEFAULT_PROVIDER_STAT);
+  } else {
+    if (hasValue(options.providerWis)) {
+      providerStatVal = toNumber(options.providerWis);
+    } else if (hasValue(options.providerWisOrLuk)) {
+      providerStatVal = toNumber(options.providerWisOrLuk);
+    } else {
+      providerStatVal = options.defaultStat ?? DEFAULT_PROVIDER_STAT;
+    }
+  }
+
+  const skillLevel = toNumber(options.skillLevel, DEFAULT_LEVEL);
+  const orbLevel = toNumber(options.orbLevel, DEFAULT_ORB_LEVEL);
+
+  const minAtLevel = vMin * (1 + gMin * (skillLevel - 1));
+  const maxAtLevel = vMax * (1 + gMax * (skillLevel - 1));
+  
+  const statusType = options.statusType;
+  const isDebuff = options.isEnemyDebuff !== undefined
+    ? Boolean(options.isEnemyDebuff)
+    : ['DefenseDown', 'ElementResistDown', 'Fragile'].includes(statusType);
+  
+  let resolvedPower = 0;
+  let regime = 'belowMin';
+  let jewelAddition = 0;
+  let statDiff = 0;
+
+  if (isDebuff) {
+    const enemyBorder = toNumber(options.enemyBorder ?? DEFAULT_ENEMY_BORDER);
+    statDiff = providerStatVal - enemyBorder;
+    if (statDiff < 0) {
+      resolvedPower = minAtLevel;
+      regime = 'belowMin';
+    } else if (statDiff < threshold) {
+      resolvedPower = ((maxAtLevel - minAtLevel) / threshold) * statDiff + minAtLevel;
+      regime = 'linear';
+    } else {
+      resolvedPower = maxAtLevel * (1 + 0.001 * (statDiff - threshold));
+      regime = 'overCap';
+    }
+    
+    if (orbLevel > 0) {
+      const tOrb = 20 * orbLevel;
+      const tJewel = threshold + tOrb;
+      
+      if (statDiff < 0) {
+        jewelAddition = vMin * orbLevel * 0.02;
+      } else if (statDiff < tJewel) {
+        jewelAddition = (((vMax - vMin) / tJewel) * statDiff + vMin) * orbLevel * 0.02;
+      } else {
+        jewelAddition = vMax * orbLevel * 0.02;
+      }
+      resolvedPower += jewelAddition;
+    }
+    
+    resolvedPower = Math.floor(100 * resolvedPower) / 100;
+  } else {
+    if (threshold <= 0) {
+      resolvedPower = maxAtLevel;
+      regime = 'overCap';
+    } else if (providerStatVal >= threshold) {
+      resolvedPower = maxAtLevel * (1 + 0.0002 * (providerStatVal - threshold));
+      regime = 'overCap';
+    } else if (providerStatVal < 0) {
+      resolvedPower = minAtLevel;
+      regime = 'belowMin';
+    } else {
+      resolvedPower = ((maxAtLevel - minAtLevel) / threshold) * providerStatVal + minAtLevel;
+      regime = 'linear';
+    }
+    
+    if (orbLevel > 0) {
+      const tOrb = 60 * orbLevel;
+      const tJewel = threshold + tOrb;
+      
+      if (providerStatVal >= tJewel) {
+        jewelAddition = vMax * orbLevel * 0.04;
+      } else {
+        jewelAddition = (((vMax - vMin) / tJewel) * providerStatVal + vMin) * orbLevel * 0.04;
+      }
+      resolvedPower += jewelAddition;
+    }
+  }
+  
+  const power = Math.max(0, resolvedPower);
+  const breakdown = {
+    providerStatVal,
+    threshold,
+    minAtLevel,
+    maxAtLevel,
+    regime,
+    jewelAddition,
+  };
+  if (isDebuff) {
+    breakdown.statDiff = statDiff;
+  }
+
+  return { power, breakdown };
+}
+
 export function resolveEffectPower(effect, skills, options = {}) {
   if (hasValue(effect?.power)) {
     return Number(effect.power);
@@ -204,30 +358,17 @@ export function resolveEffectPower(effect, skills, options = {}) {
     return 0;
   }
 
-  const powers = part.power ?? DEFAULT_EFFECT_POWER;
-  const vMin = toNumber(powers[0]) * 100;
-  const vMax = toNumber(powers[1], vMin / 100) * 100;
-  const threshold = toNumber(part.diff_for_max);
-  const growths = part.growth ?? DEFAULT_GROWTHS;
-  const gMin = toNumber(growths[0], DEFAULT_GROWTHS[0]);
-  const gMax = toNumber(growths[1], gMin);
-  const providerStat = resolveProviderStat(effect);
-  const skillLevel = toNumber(effect?.skillLevel, options.defaultLevel ?? DEFAULT_LEVEL);
-  const orbLevel = toNumber(effect?.orbLevel, options.defaultOrbLevel ?? DEFAULT_ORB_LEVEL);
-  const orbPowerRate = ORB_POWER_RATE_PER_LEVEL * orbLevel;
-  const orbThreshold = ORB_THRESHOLD_PER_LEVEL * orbLevel;
+  const resolvedOptions = {
+    providerStats: effect?.providerStats ?? effect?.stats,
+    providerWis: effect?.providerWis,
+    providerWisOrLuk: effect?.providerWisOrLuk,
+    statusType,
+    enemyBorder: options.enemyBorder,
+    skillLevel: effect?.skillLevel ?? options.defaultLevel,
+    orbLevel: effect?.orbLevel ?? options.defaultOrbLevel,
+    defaultStat: options.defaultStat,
+  };
 
-  const minAtLevel = vMin * (1 + gMin * (skillLevel - 1));
-  const maxAtLevel = vMax * (1 + gMax * (skillLevel - 1)) * (1 + orbPowerRate);
-  const finalThreshold = threshold + orbThreshold;
-
-  if (finalThreshold <= 0 || providerStat >= finalThreshold) {
-    return Math.max(0, maxAtLevel);
-  }
-  if (providerStat < 0) {
-    return Math.max(0, minAtLevel);
-  }
-
-  const resolved = ((maxAtLevel - minAtLevel) / finalThreshold) * providerStat + minAtLevel;
-  return Math.max(0, resolved);
+  const { power } = resolveEffectPowerFromPart(part, resolvedOptions);
+  return power;
 }

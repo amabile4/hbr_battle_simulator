@@ -300,6 +300,8 @@ export function createInitializedBattleSnapshot({
   skillSetsByPartyIndex,
   limitBreakLevelsByPartyIndex,
   drivePierceByPartyIndex,
+  pierceByPartyIndex = {},
+  chainEquipByPartyIndex = {},
   normalAttackElementsByPartyIndex,
   startSpEquipByPartyIndex,
   initialMotivationByPartyIndex = {},
@@ -319,12 +321,16 @@ export function createInitializedBattleSnapshot({
   enemyGaugeStateByEnemy = {},
   enemyNamesByEnemy = {},
   paramBorderByEnemy = {},
+  enemyDpByEnemy = {},
+  enemyHpByEnemy = {},
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
   destructionRateCapByEnemy = {},
+  destructionMultiplierByEnemy = {},
   absorbElementsByEnemy = {},
   odRateByEnemy = {},
   eShieldStateByEnemy = {},
+  extraDpGaugeStateByEnemy = {},
   extraHpGaugeStateByEnemy = {},
   enemyStatuses = [],
   breakStateByEnemy = {},
@@ -349,6 +355,8 @@ export function createInitializedBattleSnapshot({
     skillSetsByPartyIndex,
     limitBreakLevelsByPartyIndex,
     drivePierceByPartyIndex,
+    pierceByPartyIndex,
+    chainEquipByPartyIndex,
     normalAttackElementsByPartyIndex,
     supportStyleIdsByPartyIndex,
     supportLimitBreakLevelsByPartyIndex,
@@ -386,6 +394,10 @@ export function createInitializedBattleSnapshot({
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
           : {},
+      destructionMultiplierByEnemy:
+        destructionMultiplierByEnemy && typeof destructionMultiplierByEnemy === 'object'
+          ? structuredClone(destructionMultiplierByEnemy)
+          : {},
       absorbElementsByEnemy:
         absorbElementsByEnemy && typeof absorbElementsByEnemy === 'object'
           ? structuredClone(absorbElementsByEnemy)
@@ -395,6 +407,10 @@ export function createInitializedBattleSnapshot({
       eShieldStateByEnemy:
         eShieldStateByEnemy && typeof eShieldStateByEnemy === 'object'
           ? structuredClone(eShieldStateByEnemy)
+          : {},
+      extraDpGaugeStateByEnemy:
+        extraDpGaugeStateByEnemy && typeof extraDpGaugeStateByEnemy === 'object'
+          ? structuredClone(extraDpGaugeStateByEnemy)
           : {},
       extraHpGaugeStateByEnemy:
         extraHpGaugeStateByEnemy && typeof extraHpGaugeStateByEnemy === 'object'
@@ -406,6 +422,11 @@ export function createInitializedBattleSnapshot({
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:
         paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
+      enemyDpByEnemy:
+        enemyDpByEnemy && typeof enemyDpByEnemy === 'object' ? structuredClone(enemyDpByEnemy) : {},
+      // maxHP は enemies.json / slot 設定からの再導出値（保存対象外の派生供給）
+      enemyHpByEnemy:
+        enemyHpByEnemy && typeof enemyHpByEnemy === 'object' ? structuredClone(enemyHpByEnemy) : {},
       zoneConfigByEnemy:
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
@@ -450,6 +471,8 @@ export function createInitializedBattleSnapshot({
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
+      pierceByPartyIndex: structuredClone(pierceByPartyIndex),
+      chainEquipByPartyIndex: structuredClone(chainEquipByPartyIndex),
       normalAttackElementsByPartyIndex: structuredClone(normalAttackElementsByPartyIndex),
       startSpEquipByPartyIndex: structuredClone(startSpEquipByPartyIndex),
       initialMotivationByPartyIndex: structuredClone(initialMotivationByPartyIndex),
@@ -468,6 +491,8 @@ export function createInitializedBattleSnapshot({
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:
         paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
+      enemyDpByEnemy:
+        enemyDpByEnemy && typeof enemyDpByEnemy === 'object' ? structuredClone(enemyDpByEnemy) : {},
       damageRatesByEnemy:
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
       destructionRateByEnemy:
@@ -477,6 +502,10 @@ export function createInitializedBattleSnapshot({
       destructionRateCapByEnemy:
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
+          : {},
+      destructionMultiplierByEnemy:
+        destructionMultiplierByEnemy && typeof destructionMultiplierByEnemy === 'object'
+          ? structuredClone(destructionMultiplierByEnemy)
           : {},
       enemyStatuses: Array.isArray(enemyStatuses)
         ? enemyStatuses

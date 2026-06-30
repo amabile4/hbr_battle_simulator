@@ -16,6 +16,8 @@ import {
   isPursuitOnlySkill as isPursuitOnlySkillClassifier,
 } from '../domain/skill-classifiers.js';
 import {
+  ANCIENT_CHAIN_FLAT_DESTRUCTION_RATE_BONUS,
+  ANCIENT_CHAIN_SKILL_ATTACK_UP_RATE,
   DEFAULT_INITIAL_SP,
   buildMarkEffectsFromDefineValues,
   buildHighBoostDefaultsFromDefineValues,
@@ -412,6 +414,8 @@ export class HbrDataStore {
       return skill;
     });
     this.passives = payload.passives;
+    this.enemies = payload.enemies ?? [];
+    this.battles = payload.battles ?? [];
     this.accessories = payload.accessories ?? [];
     this.skillRuleOverrides = payload.skillRuleOverrides ?? [];
     this.epRuleOverrides = payload.epRuleOverrides ?? [];
@@ -430,6 +434,29 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.enemiesById = new Map(this.enemies.map((row) => [Number(row.id), row]));
+    this.battleEnemiesById = new Map();
+    this.battleEnemiesByName = new Map();
+    for (const battle of this.battles) {
+      for (const enemy of battle?.enemy_list ?? []) {
+        const enemyId = Number(enemy?.id);
+        if (
+          Number.isFinite(enemyId) &&
+          (!this.battleEnemiesById.has(enemyId) ||
+            shouldPreferBattleEnemy(enemy, this.battleEnemiesById.get(enemyId)))
+        ) {
+          this.battleEnemiesById.set(enemyId, enemy);
+        }
+        const enemyName = String(enemy?.name ?? '').trim();
+        if (
+          enemyName &&
+          (!this.battleEnemiesByName.has(enemyName) ||
+            shouldPreferBattleEnemy(enemy, this.battleEnemiesByName.get(enemyName)))
+        ) {
+          this.battleEnemiesByName.set(enemyName, enemy);
+        }
+      }
+    }
     this.skillNamesById = buildSkillNameIndex({
       skills: this.skills,
       styles: this.styles,
@@ -523,6 +550,8 @@ export class HbrDataStore {
       styles: readJson(resolve(dir, 'styles.json')),
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
+      enemies: readJsonOrFallback(resolve(dir, 'enemies.json'), []),
+      battles: readJsonOrFallback(resolve(dir, 'battles.json'), []),
       accessories: readJson(resolve(dir, 'accessories.json')),
       skillRuleOverrides: readJson(resolve(dir, 'skill_rule_overrides.json')),
       epRuleOverrides: readJson(resolve(dir, 'ep_rule_overrides.json')),
@@ -543,6 +572,8 @@ export class HbrDataStore {
       styles: payload.styles ?? [],
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
+      enemies: payload.enemies ?? [],
+      battles: payload.battles ?? [],
       accessories: payload.accessories ?? [],
       skillRuleOverrides: payload.skillRuleOverrides ?? [],
       epRuleOverrides: payload.epRuleOverrides ?? [],
@@ -1535,6 +1566,11 @@ export class HbrDataStore {
     initialBreak = false,
     spBonus = 0,
     drivePiercePercent = 0,
+    attackPiercePercent = 0,
+    breakPiercePercent = 0,
+    blastPiercePercent = 0,
+    chainSkillAttackUpRate = 0,
+    chainDestructionRateBonus = 0,
     normalAttackElements = [],
     equippedSkillIds = null,
     limitBreakLevel = null,
@@ -1659,6 +1695,11 @@ export class HbrDataStore {
       partyIndex: Number(partyIndex),
       position: Number(partyIndex),
       drivePiercePercent: Number(drivePiercePercent),
+      attackPiercePercent: Number(attackPiercePercent),
+      breakPiercePercent: Number(breakPiercePercent),
+      blastPiercePercent: Number(blastPiercePercent),
+      chainSkillAttackUpRate: Number(chainSkillAttackUpRate),
+      chainDestructionRateBonus: Number(chainDestructionRateBonus),
       normalAttackElements: Array.isArray(normalAttackElements) ? [...normalAttackElements] : [],
       initialSP: Number(initialSP),
       initialMotivation: Number(initialMotivation),
@@ -1698,6 +1739,8 @@ export class HbrDataStore {
     const initialDpStateByPartyIndex = options.initialDpStateByPartyIndex ?? {};
     const initialBreakByPartyIndex = options.initialBreakByPartyIndex ?? {};
     const drivePierceByPartyIndex = options.drivePierceByPartyIndex ?? {};
+    const pierceByPartyIndex = options.pierceByPartyIndex ?? {};
+    const chainEquipByPartyIndex = options.chainEquipByPartyIndex ?? {};
     const normalAttackElementsByPartyIndex = options.normalAttackElementsByPartyIndex ?? {};
     const skillSetsByPartyIndex = options.skillSetsByPartyIndex ?? {};
     const limitBreakLevelsByPartyIndex = options.limitBreakLevelsByPartyIndex ?? {};
@@ -1719,6 +1762,27 @@ export class HbrDataStore {
       }
     }
 
+    const resolvePierceForIndex = (index) => {
+      const entry = pierceByPartyIndex[index] ?? pierceByPartyIndex[String(index)] ?? null;
+      if (entry && typeof entry === 'object') {
+        const type = String(entry.type ?? 'none');
+        const percent = Number(entry.percent ?? 0);
+        return {
+          drivePiercePercent: type === 'drive' ? percent : 0,
+          attackPiercePercent: type === 'attack' ? percent : 0,
+          breakPiercePercent: type === 'break' ? percent : 0,
+          blastPiercePercent: type === 'blast' ? percent : 0,
+        };
+      }
+      // 旧経路互換: drivePierceByPartyIndex のみの呼び出し元はドライブピアスとして扱う
+      return {
+        drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
+        attackPiercePercent: 0,
+        breakPiercePercent: 0,
+        blastPiercePercent: 0,
+      };
+    };
+
     const members = styleIds.map((styleId, index) =>
       this.buildCharacterStyle({
         styleId,
@@ -1731,7 +1795,15 @@ export class HbrDataStore {
             : null,
         initialBreak: Boolean(initialBreakByPartyIndex[index]),
         spBonus: Number(spBonusMap[index] ?? 0),
-        drivePiercePercent: Number(drivePierceByPartyIndex[index] ?? 0),
+        ...resolvePierceForIndex(index),
+        chainSkillAttackUpRate:
+          chainEquipByPartyIndex[index] === true || chainEquipByPartyIndex[String(index)] === true
+            ? ANCIENT_CHAIN_SKILL_ATTACK_UP_RATE
+            : 0,
+        chainDestructionRateBonus:
+          chainEquipByPartyIndex[index] === true || chainEquipByPartyIndex[String(index)] === true
+            ? ANCIENT_CHAIN_FLAT_DESTRUCTION_RATE_BONUS
+            : 0,
         normalAttackElements: Array.isArray(normalAttackElementsByPartyIndex[index])
           ? normalAttackElementsByPartyIndex[index]
           : [],
@@ -1759,4 +1831,13 @@ export class HbrDataStore {
 
     return new Party(members);
   }
+}
+
+function hasExtraDpGauges(enemy = null) {
+  const dpGauges = enemy?.base_param?.eg?.dp;
+  return Array.isArray(dpGauges) && dpGauges.length > 1;
+}
+
+function shouldPreferBattleEnemy(candidate = null, current = null) {
+  return hasExtraDpGauges(candidate) && !hasExtraDpGauges(current);
 }
