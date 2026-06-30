@@ -192,27 +192,10 @@ test.describe('DPダメージガイド', () => {
     await loadDpFixture(page);
     await waitForDeferredDpGuide(page);
 
-    await page.evaluate(() => {
-      document.addEventListener('change', (e) => {
-        console.log(`[DEBUG_GLOBAL_CHANGE] document captured change event! target.tagName=${e.target?.tagName}, target.value=${e.target?.value}, target.dataset.position=${e.target?.dataset?.position}`);
-      }, true);
-    });
-
     // 攻撃スキルを選択（コミット前）。dp=1 なので preview 計算で DP0 到達見込み
     await selectSkillForPosition(page, 0, 46002102);
-    console.log('[DEBUG_TEST] inputRow count:', await page.locator('[data-turn-row][data-row-mode="input"]').count());
     const select = page.locator('[data-turn-row][data-row-mode="input"]').last().locator('[data-skill-select][data-position="0"]');
-    console.log('[DEBUG_TEST] select value:', await select.inputValue());
 
-    const selectAttrs = await select.evaluate((el) => {
-      return {
-        outerHTML: el.outerHTML,
-        parentNodeTagName: el.parentNode?.tagName,
-        parentNodeOuterHTML: el.parentNode?.outerHTML.substring(0, 200),
-        isConnected: el.isConnected,
-      };
-    });
-    console.log('[DEBUG_TEST_SELECT_ATTRS]', selectAttrs);
     await waitForDeferredDpGuide(page);
 
     // 入力行に data-preview="true" 付きの予測チップが表示されること

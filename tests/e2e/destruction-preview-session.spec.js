@@ -1,3 +1,20 @@
+/**
+ * E2E 実機確認フィクスチャ更新履歴 ＆ 実測根拠 (Fixture Governance):
+ * 
+ * 1. 対象フィクスチャ: tests/e2e/fixtures/ui_next_session_destruction_preview_2026-06-14.json
+ *    - 更新日時: 2026-07-01
+ *    - 実測根拠: 2026-06-14 に測定された実機セッション。マスタデータ（json/*.json）更新により、
+ *      和泉ユキの基礎ステータスが上昇したことで、コードダクネスによるDP突破（BREAK）発生タイミングが
+ *      7ヒット目から8ヒット目へズレ（Yukiの破壊率上昇値も 132.63% -> 121.75% へ変化）。
+ *      この物理挙動の変動を正本とし、E2Eテストのアサーション期待値を実測キャリブレーション値に更新。
+ * 
+ * 2. 対象フィクスチャ: tests/e2e/fixtures/ui_next_session_enemy_status_desc_fixture.json
+ *    - 更新日時: 2026-07-01
+ *    - 実測根拠: レイアウト検証用とデバフ説明検証用のテストデータが共通化されていたため、
+ *      敵（フィギュリンホーン: HP 55,500）がオーバーキルされて committed 行が消滅する干渉が発生。
+ *      対策としてデバフ説明用に `ui_next_session_enemy_status_desc_fixture_for_desc.json` を新しく分離。
+ *      知性を 999 にしてソフニング効果を確実に付与しつつ、力・器用を 1 に固定して生存させる実測データを正本として採用。
+ */
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
