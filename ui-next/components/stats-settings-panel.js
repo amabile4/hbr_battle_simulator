@@ -5,11 +5,12 @@ import {
 const STAT_LABELS = Object.freeze({
   str: '力',
   dex: '器用さ',
-  con: '体力',
-  spr: '精神',
   wis: '知性',
+  spr: '精神',
   luk: '運',
+  con: '体力',
 });
+const STATS_PANEL_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 
 const STAT_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 
@@ -81,9 +82,20 @@ export class StatsSettingsPanel {
   }
 
   #resolveDefaultStats() {
-    return normalizeCharacterStats(
-      this.#resolveDefaults?.(this.#currentSlotIndex, this.#currentMode)
-    );
+    if (this.#resolveDefaults) {
+      return normalizeCharacterStats(
+        this.#resolveDefaults(this.#currentSlotIndex, this.#currentMode)
+      );
+    }
+    const slot = this.#getCurrentSlot();
+    const isSupport = this.#currentMode === 'support';
+    const style = isSupport ? slot?.supportStyle : slot?.style;
+    const lb = isSupport ? slot?.supportLb : slot?.lb;
+    const defaults = normalizeCharacterStats(isSupport ? slot?.supportDefaultStats : slot?.defaultStats)
+      ?? resolveDefaultStats(style?.role, lb);
+    return isSupport
+      ? defaults
+      : resolveStatsWithSupport(defaults, slot?.supportStats);
   }
 
   #resolveCurrentStats() {
@@ -150,7 +162,7 @@ export class StatsSettingsPanel {
         </label>
       </div>` : ''}
       <div class="party-stats-panel__grid">
-        ${STAT_DISPLAY_ORDER.map((key) => `
+        ${STATS_PANEL_DISPLAY_ORDER.map((key) => `
           <label>
             <span>${STAT_LABELS[key]}</span>
             <input type="number" step="1" data-stat="${key}" value="${stats[key]}">

@@ -18,6 +18,15 @@
 - これは完全な no-op ではないが、現在の実装と実データ運用では「行動なしにかなり近い代替」として扱う。
 - 今後の unit/integration test でも、明示的な意図がない限り `行動なし` の代替として `プロテクション` を優先する。
 
+## Fixture Governance
+
+- fixture は「計算生成 fixture」と「実機確認 fixture」を区別する。
+- 計算生成 fixture（例: `tests/fixtures/test_cases_*.json`）は、式変更で期待値が正しく変わる場合に再生成してよい。ただし、再生成理由・実行コマンド・影響件数を最終報告または commit message に残す。
+- 実機確認 fixture（実測コメント・動画コマ送り・実機スクリーンショット等を正本にした fixture、例: `tests/e2e/fixtures/` の session regression）は regression oracle として扱い、計算結果に合わせて気軽に期待値を書き換えない。
+- 実機確認 fixture の期待値更新は、ユーザーの明示確認または新しい実測根拠がある場合に限る。
+- 実機確認 fixture を変更する場合は、実測ソース（コメント、動画、スクリーンショット、JSON path、観測日時）と、どの値を正本として採用したかを docs かテストコメントに残す。
+- 計算式変更で実機確認 fixture とずれた場合は、fixture を直す前に「実装が誤りか、仮説が古いか、実測データが更新されたか」を切り分ける。
+
 ## Implementation Conventions
 
 - マジックナンバーは原則として新規導入しない。ゲーム仕様値、UI制約値、既定値は意味のある定数名を与えて管理する。
@@ -31,6 +40,14 @@
   - 例（jq）: `cat json/foo.json | jq '.key'`
   - 例（node）: `node -e "const d=require('./json/foo.json'); console.log(JSON.stringify(d.key, null, 2))"`
 - Grep ツールや grep コマンドで `json/` 以下を検索しない。
+
+## 計算機コア（calc-core）の正本
+
+- **ダメージ・破壊率計算コア（`src/domain/damage-calculator.js` / `destruction-calculator.js` / `calculator-helpers.js`、`src/contracts/damage-calculation.js`、`src/data/damage-calculation-data.js`）の正本は本リポジトリ**。2026-06-14 に `hbr_calc` を統合し一本化した。
+- **不具合修正・機能拡張は本リポジトリで直接行う**。旧運用「hbr_calc で実装→PRマージ→simulator へ同期（デプロイ）」は**廃止**。`hbr_calc` リポジトリはアーカイブ（read-only）。
+- 計算式変更時は `npm test`（`tests/*.test.js`）と `npm run test:calc`（破壊率 fixture 回帰 1007件）を回す。
+- Python版エンジン・移植時の解析資料は `reference/calc-python/`（静的リファレンス、build/CI 対象外）。JS↔Python parity の照合用。
+- 計算モデルのドキュメントは `docs/calc/`（index は `docs/README.md`）。統合経緯は `docs/calc/hbr_calc_integration_record.md`。
 
 ## Repo Workflow
 

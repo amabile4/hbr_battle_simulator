@@ -6,6 +6,25 @@ import {
   DAMAGE_FRAGILE_CATEGORIES,
 } from '../contracts/damage-calculation.js';
 
+import {
+  toNumber,
+  hasValue,
+  clonePlainObject,
+  skillIdEndsWith,
+  cleanSkillName,
+  flattenSkillParts,
+  findAttackPart,
+  findSkill,
+  findEffectPart,
+  getEnemyBorder,
+  resolveEffectPower,
+  ATTACK_PART_TYPES,
+  NORMAL_ATTACK_SKILL_NAME,
+  PURSUIT_SKILL_NAME,
+  NORMAL_ATTACK_ID_SUFFIX,
+  PURSUIT_ID_SUFFIX,
+} from './calculator-helpers.js';
+
 const DEFAULT_ENEMY_BORDER = 770;
 const DEFAULT_LEVEL = 10;
 const DEFAULT_ORB_LEVEL = 0;
@@ -27,23 +46,9 @@ const DEFAULT_EFFECT_POWER = Object.freeze([0, 0]);
 const DEFAULT_ATTACK_PARAMETERS = Object.freeze({ str: 1, dex: 1 });
 const DEFAULT_MULTIPLIERS = Object.freeze({ hp: 1, dp: 1 });
 
-export const NORMAL_ATTACK_SKILL_NAME = '通常攻撃';
-export const PURSUIT_SKILL_NAME = '追撃';
-export const NORMAL_ATTACK_ID_SUFFIX = '01';
-export const PURSUIT_ID_SUFFIX = '91';
 
-export const ATTACK_PART_TYPES = Object.freeze([
-  'AttackNormal',
-  'AttackSkill',
-  'DamageRateChangeAttackSkill',
-  'PenetrationCriticalAttack',
-  'PenetrationNormalAttack',
-  'PenetrationSkill',
-  'TokenAttack',
-  'AttackBySp',
-  'AttackByOwnDpRate',
-  'FixedHpDamageRateAttack',
-]);
+
+
 
 const NESTED_PART_TYPES = new Set(['SkillCondition', 'SkillRandom', 'SkillSwitch']);
 const ATTACK_PART_TYPE_SET = new Set(ATTACK_PART_TYPES);
@@ -72,165 +77,6 @@ const ZONE_ELEMENT_MAP = Object.freeze({
   darkzone: 'dark',
   lightzone: 'light',
 });
-
-function toNumber(value, fallback = 0) {
-  const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : fallback;
-}
-
-function hasValue(value) {
-  return value !== null && value !== undefined && value !== '';
-}
-
-function clonePlainObject(value) {
-  return value && typeof value === 'object' ? { ...value } : {};
-}
-
-function skillIdEndsWith(skill, suffix) {
-  return String(skill?.id ?? '').endsWith(suffix);
-}
-
-function cleanSkillName(skillName) {
-  return String(skillName ?? '')
-    .replace('[単独発動]', '')
-    .split('[')[0]
-    .split('(')[0]
-    .split('（')[0]
-    .trim();
-}
-
-export function flattenSkillParts(parts = []) {
-  const flat = [];
-  for (const part of parts ?? []) {
-    const skillType = String(part?.skill_type ?? '');
-    if (!NESTED_PART_TYPES.has(skillType)) {
-      flat.push(part);
-      continue;
-    }
-
-    const nested = part?.strval;
-    if (Array.isArray(nested)) {
-      for (const subSkill of nested) {
-        if (subSkill?.parts) {
-          flat.push(...flattenSkillParts(subSkill.parts));
-        }
-      }
-      continue;
-    }
-
-    if (nested?.parts) {
-      flat.push(...flattenSkillParts(nested.parts));
-    }
-  }
-  return flat;
-}
-
-function findAttackPart(skill) {
-  for (const part of flattenSkillParts(skill?.parts ?? [])) {
-    if (ATTACK_PART_TYPE_SET.has(String(part?.skill_type ?? ''))) {
-      return part;
-    }
-  }
-  return null;
-}
-
-function findSkillByNameAndSuffix(skills, name, suffix) {
-  return skills.find((skill) => skill?.name === name && skillIdEndsWith(skill, suffix)) ?? null;
-}
-
-function findSkill(skills, skillId, skillName) {
-  let candidates = [];
-  if (hasValue(skillId)) {
-    candidates = skills.filter((skill) => Number(skill?.id) === Number(skillId));
-  }
-
-  const cleanedName = cleanSkillName(skillName);
-  if (!candidates.length && cleanedName === NORMAL_ATTACK_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
-    candidates = skill ? [skill] : [];
-  }
-  if (!candidates.length && cleanedName === PURSUIT_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
-    candidates = skill ? [skill] : [];
-  }
-  if (!candidates.length && cleanedName) {
-    candidates = skills.filter((skill) => skill?.name === cleanedName);
-  }
-  if (!candidates.length) {
-    return null;
-  }
-
-  return candidates.find((candidate) => Boolean(findAttackPart(candidate))) ?? candidates[0];
-}
-
-function findEffectPart(skills, skillId, skillName, targetTypes) {
-  const skill = findSkill(skills, skillId, skillName);
-  if (!skill) {
-    return null;
-  }
-  const targetTypeSet = new Set(targetTypes);
-  return (
-    flattenSkillParts(skill.parts ?? []).find((part) =>
-      targetTypeSet.has(String(part?.skill_type ?? ''))
-    ) ?? null
-  );
-}
-
-function getEnemyBorder(enemies, enemyId) {
-  const enemy = enemies.find((entry) => String(entry?.id) === String(enemyId));
-  const border = Number(enemy?.base_param?.param_border);
-  return border > 0 ? border : DEFAULT_ENEMY_BORDER;
-}
-
-function resolveProviderStat(effect) {
-  if (hasValue(effect?.providerWis)) {
-    return toNumber(effect.providerWis, DEFAULT_PROVIDER_STAT);
-  }
-  if (hasValue(effect?.providerWisOrLuk)) {
-    return toNumber(effect.providerWisOrLuk, DEFAULT_PROVIDER_STAT);
-  }
-  return DEFAULT_PROVIDER_STAT;
-}
-
-export function resolveEffectPower(effect, skills, options = {}) {
-  if (hasValue(effect?.power)) {
-    return Number(effect.power);
-  }
-
-  const statusType = effect?.statusType;
-  const targetTypes = EFFECT_PART_TYPES_BY_STATUS[statusType] ?? [statusType];
-  const part = findEffectPart(skills, effect?.sourceSkillId, effect?.skillName, targetTypes);
-  if (!part) {
-    return 0;
-  }
-
-  const powers = part.power ?? DEFAULT_EFFECT_POWER;
-  const vMin = toNumber(powers[0]) * 100;
-  const vMax = toNumber(powers[1], vMin / 100) * 100;
-  const threshold = toNumber(part.diff_for_max);
-  const growths = part.growth ?? DEFAULT_GROWTHS;
-  const gMin = toNumber(growths[0], DEFAULT_GROWTHS[0]);
-  const gMax = toNumber(growths[1], gMin);
-  const providerStat = resolveProviderStat(effect);
-  const skillLevel = toNumber(effect?.skillLevel, options.defaultLevel ?? DEFAULT_LEVEL);
-  const orbLevel = toNumber(effect?.orbLevel, options.defaultOrbLevel ?? DEFAULT_ORB_LEVEL);
-  const orbPowerRate = ORB_POWER_RATE_PER_LEVEL * orbLevel;
-  const orbThreshold = ORB_THRESHOLD_PER_LEVEL * orbLevel;
-
-  const minAtLevel = vMin * (1 + gMin * (skillLevel - 1));
-  const maxAtLevel = vMax * (1 + gMax * (skillLevel - 1)) * (1 + orbPowerRate);
-  const finalThreshold = threshold + orbThreshold;
-
-  if (finalThreshold <= 0 || providerStat >= finalThreshold) {
-    return Math.max(0, maxAtLevel);
-  }
-  if (providerStat < 0) {
-    return Math.max(0, minAtLevel);
-  }
-
-  const resolved = ((maxAtLevel - minAtLevel) / finalThreshold) * providerStat + minAtLevel;
-  return Math.max(0, resolved);
-}
 
 function aggregateBuffs(buffs) {
   const normalBuffs = [];
@@ -449,7 +295,11 @@ export function calculateDamage(input, data) {
       ignoredEffects.push({ statusType: buff.statusType, skillName: buff.skillName ?? '', side: 'attacker' });
       continue;
     }
-    const resolved = { ...buff, skillName: buff.skillName ?? '', resolvedPower: resolveEffectPower(buff, skills) };
+    const buffWithStats = { ...buff };
+    if (!buffWithStats.providerStats && !buffWithStats.stats && !buffWithStats.providerWis && !buffWithStats.providerWisOrLuk) {
+      buffWithStats.providerStats = stats;
+    }
+    const resolved = { ...buffWithStats, skillName: buffWithStats.skillName ?? '', resolvedPower: resolveEffectPower(buffWithStats, skills) };
     if (['AttackUp', 'Charge', 'ElementAttackUp'].includes(buff.statusType)) {
       buffsResolved.push(resolved);
     } else if (['CritDamageUp', 'CritBuff'].includes(buff.statusType)) {
@@ -467,7 +317,7 @@ export function calculateDamage(input, data) {
       ignoredEffects.push({ statusType: debuff.statusType, skillName: debuff.skillName ?? '', side: 'defender' });
       continue;
     }
-    const resolved = { ...debuff, skillName: debuff.skillName ?? '', resolvedPower: resolveEffectPower(debuff, skills) };
+    const resolved = { ...debuff, skillName: debuff.skillName ?? '', resolvedPower: resolveEffectPower(debuff, skills, { enemyBorder: paramBorder }) };
     if (['DefenseDown', 'ElementResistDown'].includes(debuff.statusType)) {
       debuffsResolved.push(resolved);
     } else if (debuff.statusType === 'Fragile') {
@@ -513,8 +363,7 @@ export function calculateDamage(input, data) {
   const critMindeyeMultiplier = (CRITICAL_BASE_RATE + critBuffTotal) / CRITICAL_BASE_RATE;
   const funnelMultiplier = 1 + funnelBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
   const tokenMultiplier = 1 + tokenRatio;
-  const destructionRate = toNumber(defender.destructionRate, 1);
-
+  const destructionRate = isHpTarget ? toNumber(defender.destructionRate, 1) : DEFAULT_DESTRUCTION_RATE;
   // ピアス装備（減衰型・ヒット数解決済み ratio）: アタック=対HPのみ / ブレイク=対DPのみ。
   // スキル攻撃力カテゴリのため通常攻撃・追撃には適用しない。
   const pierceUpRate = isHpTarget
@@ -584,219 +433,13 @@ export function calculateDamage(input, data) {
   };
 }
 
-/**
- * 破壊率（Destruction Rate）の計算およびヒットごとの累積シミュレーションを行う
- */
-export function calculateDestruction(input, data) {
-  const styles = data?.styles ?? [];
-  const enemies = data?.enemies ?? [];
-  const skills = data?.skills ?? [];
-  const spMapping = data?.spMapping ?? {};
-
-  const attacker = clonePlainObject(input?.attacker);
-  const defender = clonePlainObject(input?.defender);
-  const skillInput = clonePlainObject(input?.skill);
-  const hits = input?.hits ?? [];
-
-  const ignoredEffects = [];
-
-  // 1. 攻撃者の解決とロールの特定
-  const styleId = attacker.styleId;
-  const style = styles.find((s) => Number(s.id) === Number(styleId)) ?? null;
-  const role = style ? (style.role ?? 'Attacker') : 'Attacker';
-
-  // ブラスターロール補正（+200% = 2.00）
-  let bg27 = String(role).toLowerCase() === 'blaster' ? 2.00 : 0.0;
-
-  // 装備アクセサリ（ブラストピアス等）
-  const accessories = attacker.accessories ?? [];
-  if (accessories.includes('BlastPierce') || accessories.includes('ブラストピアス')) {
-    bg27 += 0.15;
-  }
-
-  // 2. スキルの基本情報の取得 (BG30)
-  const skillId = skillInput.skillId;
-  const skillName = skillInput.name;
-  const cleanName = cleanSkillName(skillName);
-
-  const skill = findSkill(skills, skillId, cleanName);
-
-  let bg30 = 0.0;
-  let hitCount = 1;
-  let part = null;
-
-  if (skill) {
-    hitCount = toNumber(skill.hit_count, 1);
-    const parts = flattenSkillParts(skill.parts ?? []);
-
-    for (const p of parts) {
-      if (ATTACK_PART_TYPE_SET.has(String(p.skill_type ?? ''))) {
-        part = p;
-        break;
-      }
-    }
-  }
-
-  if (part) {
-    const multipliers = part.multipliers ?? {};
-    const bg30Raw = toNumber(multipliers.dr, 1.0);
-
-    let isNormalAttack = false;
-    let isPursuit = false;
-    if (skillName) {
-      if (skillName.includes('通常攻撃')) {
-        isNormalAttack = true;
-      } else if (skillName.includes('追撃')) {
-        isPursuit = true;
-      }
-    }
-
-    if (isNormalAttack) {
-      bg30 = 0.08;
-    } else if (isPursuit) {
-      bg30 = bg30Raw;
-    } else {
-      let spCost = skill ? toNumber(skill.sp_cost, 0.0) : 0.0;
-      const mappingInfo = spMapping[skillName] || spMapping[cleanName];
-      if (mappingInfo) {
-        const spVal = mappingInfo.sp;
-        if (spVal !== undefined && spVal !== null && spVal !== '-') {
-          spCost = toNumber(spVal);
-        }
-      }
-      bg30 = (bg30Raw * spCost) / 100.0;
-    }
-  } else {
-    // フォールバック
-    bg30 = 1.0;
-    if (skillName) {
-      if (skillName.includes('通常攻撃')) {
-        bg30 = 0.08;
-      } else if (skillName.includes('追撃')) {
-        bg30 = 1.0;
-      }
-    }
-  }
-
-  // 3. バフの集約 (AS39)
-  const SUPPORTED_BUFFS = new Set(['DestructionUp']);
-  const buffs = attacker.statusEffects ?? [];
-  const destructionBuffsResolved = [];
-
-  for (const b of buffs) {
-    const st = b.statusType;
-    if (!SUPPORTED_BUFFS.has(st)) {
-      ignoredEffects.push({ statusType: st, skillName: b.skillName ?? '', side: 'attacker' });
-      continue;
-    }
-
-    const pResolved = resolveEffectPower(b, skills);
-    destructionBuffsResolved.push({
-      ...b,
-      resolvedPower: pResolved,
-    });
-  }
-
-  // 破壊率バフの集約ルール（通常バフと同様に、上位2枠の合計を適用）
-  destructionBuffsResolved.sort((a, b) => b.resolvedPower - a.resolvedPower);
-  const as39 = destructionBuffsResolved.slice(0, 2).reduce((sum, b) => sum + b.resolvedPower, 0) / 100.0;
-
-  // 4. デバフ側の処理 (現在サポートされていないデバフはすべて警告)
-  const debuffs = defender.statusEffects ?? [];
-  for (const d of debuffs) {
-    ignoredEffects.push({ statusType: d.statusType, skillName: d.skillName ?? '', side: 'defender' });
-  }
-
-  // 5. 敵の耐性と破壊上限の解決
-  const al10 = toNumber(defender.destructionResist, 0.0);
-
-  let destructionLimit = defender.destructionLimit;
-  if (destructionLimit === undefined || destructionLimit === null) {
-    const enemyId = defender.enemyId;
-    const enemy = enemies.find((e) => String(e.id) === String(enemyId));
-    if (enemy && enemy.base_param) {
-      const maxDRate = toNumber(enemy.base_param.max_d_rate, 150);
-      destructionLimit = maxDRate / 100.0;
-    } else {
-      destructionLimit = 3.0; // デフォルト 300%
-    }
-  }
-
-  // 6. 基本破壊率の計算 (D_base)
-  let dBase = 0.0;
-  let isNormalAttack = false;
-  let isPursuit = false;
-  if (skillName) {
-    if (skillName.includes('通常攻撃')) {
-      isNormalAttack = true;
-    } else if (skillName.includes('追撃')) {
-      isPursuit = true;
-    }
-  }
-
-  if (isNormalAttack || isPursuit) {
-    dBase = bg30;
-  } else if (bg27 === 0) {
-    dBase = Math.floor(bg30 * (1.0 + as39) * 10000) / 10000.0;
-  } else {
-    // ブラスター補正 (スロープ補正) の計算
-    const bPct = bg27 * 100.0;
-    let slopePct = 0.0;
-    if (hitCount < 11) {
-      slopePct = 5.0 + ((bPct - 5.0) * (hitCount - 1.0)) / 9.0;
-    } else {
-      slopePct = bPct;
-    }
-
-    dBase = Math.floor((bg30 * (100.0 + slopePct + as39 * 100.0)) / 100.0 * 10000) / 10000.0;
-  }
-
-  const destructionMultiplier = toNumber(defender.destructionMultiplier, DEFAULT_DESTRUCTION_MULTIPLIER);
-  const dFinalBase = dBase * (1.0 - al10) * destructionMultiplier;
-
-  // 7. ヒットごとの累積シミュレーション
-  // 破壊率は内部・戻り値ともに 1.0 ベース（100% = 1.0）で扱う。
-  const initialDestruction = defender.destructionRate !== undefined && defender.destructionRate !== null
-    ? toNumber(defender.destructionRate, DEFAULT_DESTRUCTION_RATE)
-    : DEFAULT_DESTRUCTION_RATE;
-  const dpInitial = toNumber(defender.dp, 0.0);
-  const autoBreak = input?.autoBreak === true;
-
-  let currentDestruction = initialDestruction;
-  let accumulatedDamage = 0.0;
-
-  for (const hit of hits) {
-    const damage = toNumber(hit.damage, 0.0);
-    const isMultiHit = Boolean(hit.isMultiHit);
-    const hitRatio = toNumber(hit.hitRatio, 1.0);
-
-    accumulatedDamage += damage;
-    const isBroken = autoBreak
-      ? accumulatedDamage >= dpInitial
-      : hit.isBreakHit === true;
-
-    let addVal = 0.0;
-    if (isBroken) {
-      if (isMultiHit) {
-        // 連撃ヒット
-        addVal = dFinalBase * hitRatio;
-      } else {
-        // 通常ヒット
-        addVal = dFinalBase / hitCount;
-      }
-    }
-    currentDestruction = Math.min(destructionLimit, currentDestruction + addVal);
-  }
-
-  return {
-    destructionRate: currentDestruction,
-    breakdown: {
-      baseDestruction: dBase,
-      finalBaseDestruction: dFinalBase,
-      blasterCorrection: bg27,
-      buffMultiplier: as39,
-      destructionMultiplier,
-      ignoredEffects,
-    },
-  };
-}
+export {
+  NORMAL_ATTACK_SKILL_NAME,
+  PURSUIT_SKILL_NAME,
+  NORMAL_ATTACK_ID_SUFFIX,
+  PURSUIT_ID_SUFFIX,
+  ATTACK_PART_TYPES,
+  flattenSkillParts,
+  resolveEffectPower,
+  resolveEffectPowerFromPart,
+} from './calculator-helpers.js';

@@ -1,11 +1,11 @@
 /**
- * 敵パラメータ減少デバフ（霊符・禍）の実数値記録テスト
+ * 敵パラメータ減少デバフ（霊符・禍・ハッキング・厄）の実数値記録テスト
  *
  * 確認ポイント:
  * - level × penaltyPerLevel の乗算値が damageContext に正確に記録されること
  * - 霊符は「攻撃を受けるごとにレベル+1」の仕様があるため、
  *   攻撃実行後の damageContext では level が開始値+attackCount になる
- * - 霊符と禍が両方存在する場合、高い方の能力ダウン値が採用されること
+ * - 霊符・禍・ハッキング・厄が複数存在する場合、高い方の能力ダウン値が採用されること
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,6 +15,10 @@ import { CharacterStyle, Party, createBattleStateFromParty, previewTurn, commitT
 const TALISMAN_PENALTY_PER_LEVEL = 10;
 // 禍 1レベルあたりの敵能力ダウン量
 const DISASTER_PENALTY_PER_LEVEL = 7;
+// ハッキングの敵能力ダウン量
+const HACKING_ALL_ABILITY_DOWN = 100;
+// 厄（Misfortune）の敵能力ダウン量
+const MISFORTUNE_ALL_ABILITY_DOWN = 20;
 
 /** ダメージスキルを持つ最小構成の6人パーティを生成する */
 function createMinimalDamageParty() {
@@ -229,4 +233,117 @@ test('霊符のみアクティブで禍が非アクティブ: 霊符の能力ダ
   assert.equal(ctx.enemyTalismanLevelByEnemy[0], 3);
   assert.equal(ctx.enemyDisasterLevelByEnemy[0], undefined, '禍は非アクティブでエントリなし');
   assert.equal(ctx.enemyAllAbilityDownByEnemy[0], 30, '霊符のみの能力ダウン = 30');
+});
+
+// ──────────────────────────────────────────────
+// ハッキング（Hacking）の実数値テスト
+// ──────────────────────────────────────────────
+
+test('ハッキング付与中: enemyAllAbilityDownByEnemy は固定 100', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Hacking',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    HACKING_ALL_ABILITY_DOWN,
+    'ハッキングの敵能力ダウン実数値は固定 100'
+  );
+});
+
+test('ハッキングと霊符・禍が同時存在: 高い方の 100 を採用', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.talismanState = {
+    active: true,
+    level: 4,
+    maxLevel: 10,
+    penaltyPerLevel: TALISMAN_PENALTY_PER_LEVEL,
+  };
+  state.turnState.enemyState.disasterState = {
+    active: true,
+    level: 5,
+    maxLevel: 10,
+    penaltyPerLevel: DISASTER_PENALTY_PER_LEVEL,
+  };
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Hacking',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  assert.equal(ctx.enemyTalismanLevelByEnemy[0], 5, '霊符は攻撃後+1');
+  assert.equal(ctx.enemyDisasterLevelByEnemy[0], 5, '禍はインクリメントなし');
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    HACKING_ALL_ABILITY_DOWN,
+    'ハッキング 100 が霊符 50 / 禍 35 より高いため採用'
+  );
+});
+
+// ──────────────────────────────────────────────
+// 厄（Misfortune）の実数値テスト
+// ──────────────────────────────────────────────
+
+test('厄付与中: enemyAllAbilityDownByEnemy は固定 20', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Misfortune',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    MISFORTUNE_ALL_ABILITY_DOWN,
+    '厄の敵能力ダウン実数値は固定 20'
+  );
+});
+
+test('厄と禍（低レベル）が同時存在: 高い方の 20 を採用', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.disasterState = {
+    active: true,
+    level: 2,
+    maxLevel: 10,
+    penaltyPerLevel: DISASTER_PENALTY_PER_LEVEL,
+  };
+  state.turnState.enemyState.statuses = [
+    {
+      statusType: 'Misfortune',
+      targetIndex: 0,
+      remainingTurns: 2,
+      exitCond: 'EnemyTurnEnd',
+    },
+  ];
+
+  const ctx = getDamageContext(state);
+  // 禍 level2 = 14, 厄 = 20 → max = 20
+  assert.equal(
+    ctx.enemyAllAbilityDownByEnemy[0],
+    MISFORTUNE_ALL_ABILITY_DOWN,
+    '厄 20 が禍 level2(14) より高いため採用'
+  );
+});
+
+test('厄なし: Misfortune ステータスがない場合は enemyAllAbilityDownByEnemy にエントリなし', () => {
+  const state = createBattleStateFromParty(createMinimalDamageParty());
+  state.turnState.enemyState.statuses = [];
+
+  const ctx = getDamageContext(state);
+  assert.equal(ctx.enemyAllAbilityDownByEnemy[0], undefined, '厄なしの場合はエントリなし');
 });

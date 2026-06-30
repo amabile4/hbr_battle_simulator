@@ -116,6 +116,22 @@ export async function gotoUiNext(page, options = {}) {
   }
 }
 
+export async function loadUiNextSession(page, sessionPath) {
+  await gotoUiNext(page);
+  await page.locator('#session-load-input').setInputFiles(sessionPath);
+  await page.waitForFunction(() => window.__UI_NEXT_DAMAGE_DATA_READY__ === true, undefined, {
+    timeout: 15000,
+  });
+  await expect
+    .poll(async () => page.locator('[data-turn-row][data-row-mode="committed"]').count(), {
+      timeout: 15000,
+    })
+    .toBeGreaterThan(0);
+  await expect(page.locator('[data-role="turn-replay-status"]')).toContainText('再計算完了', {
+    timeout: 15000,
+  });
+}
+
 export async function fillPartySetupSlots(page, slotIndexes = [0, 1, 2, 3]) {
   const overlay = page.locator('#style-picker-overlay');
 
@@ -286,13 +302,13 @@ export async function getPartySetupSlotState(page, slotIndex) {
   const lb = await page
     .locator(`select[data-field="lb"][data-slot-index="${slotIndex}"]`)
     .inputValue();
-  const drivePierce = await page
-    .locator(`select[data-field="drivePierce"][data-slot-index="${slotIndex}"]`)
+  const pierce = await page
+    .locator(`select[data-field="pierce"][data-slot-index="${slotIndex}"]`)
     .inputValue();
   return {
     alt,
     lb,
-    drivePierce,
+    pierce,
   };
 }
 

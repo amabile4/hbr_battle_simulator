@@ -44,6 +44,7 @@ const ENEMY_STATUS_TYPE_DISPLAY_ORDER = [
   'CriticalDamageDown',
   'ResistDown',
   'Fragile',
+  'Hacking',
   'Undermine',
   'DownTurn',
   'HealDown',

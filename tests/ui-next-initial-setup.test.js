@@ -1015,6 +1015,84 @@ test('InitialSetupController auto-recalculates when active battle gains skills f
     ]);
   }));
 
+test('InitialSetupController auto-recalculates active battle when enemy preset changes', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const recalculations = [];
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+      enemies: [
+        {
+          id: 13450045,
+          name: '希望を喰むもの',
+          categoryKey: 'template',
+          categoryLabel: 'テンプレート',
+          param_border: 770,
+          od_rate: 0,
+          max_d_rate: 999,
+          resistances: { element: {} },
+          absorbElementList: [],
+        },
+        {
+          id: 13420081,
+          name: '異時層 スカルフェザー 最終形態',
+          categoryKey: 'normal:dimension-hard',
+          categoryLabel: '異時層',
+          param_border: 500,
+          od_rate: 1,
+          max_d_rate: 999,
+          resistances: {
+            element: {
+              fire: 250,
+              ice: 250,
+              thunder: 250,
+              light: 250,
+              dark: 250,
+              nonelement: 10,
+            },
+          },
+          absorbElementList: [],
+        },
+      ],
+      onRecalculate: (snapshot, options) => {
+        recalculations.push({ snapshot, options });
+      },
+    });
+    controller.mount();
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        drivePierceByPartyIndex: { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
+        startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+      },
+    });
+    controller.setHasActiveBattle(true);
+    controller.setHasRecords(false);
+
+    root
+      .querySelector('[role="tab"][data-tab="enemy"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    categorySelect.value = 'normal:dimension-hard';
+    categorySelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+    recalculations.length = 0;
+
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    presetSelect.value = '13420081';
+    presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+
+    assert.equal(recalculations.length, 1);
+    assert.equal(recalculations[0].options.automatic, true);
+    assert.deepEqual(recalculations[0].options.meta, { enemySetupChanged: true });
+    assert.equal(recalculations[0].snapshot.enemy.selectedEnemyId, 13420081);
+    assert.equal(recalculations[0].snapshot.enemy.selectedEnemyName, '異時層 スカルフェザー 最終形態');
+    assert.equal(recalculations[0].snapshot.enemy.enemySlots[0].param_border, 500);
+  }));
+
 test('InitialSetupController 全体初期化 resets party, enemy, and stage setup values after confirmation', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new InitialSetupController({

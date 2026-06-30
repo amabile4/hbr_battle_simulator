@@ -32,6 +32,38 @@ function normalizeIndexedObject(source = {}, fallbackValue = 0) {
   return normalized;
 }
 
+function normalizeBooleanIndexedObject(source = {}) {
+  const normalized = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const key = String(index);
+    normalized[key] = source?.[key] === true || source?.[index] === true;
+  }
+  return normalized;
+}
+
+const PIERCE_TYPES_SET = new Set(['drive', 'attack', 'break', 'blast']);
+
+// percent は任意正数をラウンドトリップ保持する（10/12/15 以外は補正計算側で 0 扱い）
+function normalizePierceByPartyIndex(source, drivePierceByPartyIndex = {}) {
+  const normalized = {};
+  for (let index = 0; index < PARTY_SIZE; index += 1) {
+    const key = String(index);
+    const entry = source?.[key] ?? source?.[index] ?? null;
+    const type = String(entry?.type ?? '');
+    const percent = Number(entry?.percent ?? 0);
+    if (PIERCE_TYPES_SET.has(type) && Number.isFinite(percent) && percent > 0) {
+      normalized[key] = { type, percent };
+      continue;
+    }
+    // 旧 snapshot 互換: pierceByPartyIndex 不在時は drivePierce をドライブピアスとして扱う
+    const drivePierce = Number(drivePierceByPartyIndex?.[key] ?? drivePierceByPartyIndex?.[index] ?? 0);
+    normalized[key] = Number.isFinite(drivePierce) && drivePierce > 0
+      ? { type: 'drive', percent: drivePierce }
+      : { type: 'none', percent: 0 };
+  }
+  return normalized;
+}
+
 function normalizeSkillSetsByPartyIndex(source = {}) {
   const normalized = {};
   for (let index = 0; index < PARTY_SIZE; index += 1) {
@@ -150,6 +182,11 @@ export function normalizePartySetupSnapshot(snapshot = {}) {
     styleLevelsByPartyIndex: normalizeIndexedObject(snapshot?.styleLevelsByPartyIndex, 20),
     statsByPartyIndex: normalizeStatsByPartyIndex(snapshot?.statsByPartyIndex),
     drivePierceByPartyIndex: normalizeIndexedObject(snapshot?.drivePierceByPartyIndex, 0),
+    pierceByPartyIndex: normalizePierceByPartyIndex(
+      snapshot?.pierceByPartyIndex,
+      snapshot?.drivePierceByPartyIndex
+    ),
+    chainEquipByPartyIndex: normalizeBooleanIndexedObject(snapshot?.chainEquipByPartyIndex),
     startSpEquipByPartyIndex: normalizeIndexedObject(snapshot?.startSpEquipByPartyIndex, 0),
     normalAttackElementsByPartyIndex: normalizeNormalAttackElementsByPartyIndex(
       snapshot?.normalAttackElementsByPartyIndex

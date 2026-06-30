@@ -32,6 +32,7 @@ export const SPECIAL_STATUS_TYPE_NAMES = Object.freeze({
   146: 'NegativeState',
   155: 'BIYamawakiServant',
   164: 'Makeup',
+  185: 'FightingSpirit',
   258: 'Babied',
   303: 'Curry',
   304: 'Shchi',
@@ -391,6 +392,11 @@ export class CharacterStyle {
     this.stats = normalizeCharacterStats(input.stats);
     this.supportStats = normalizeCharacterStats(input.supportStats);
     this.drivePiercePercent = Number(input.drivePiercePercent ?? 0);
+    this.attackPiercePercent = Number(input.attackPiercePercent ?? 0);
+    this.breakPiercePercent = Number(input.breakPiercePercent ?? 0);
+    this.blastPiercePercent = Number(input.blastPiercePercent ?? 0);
+    this.chainSkillAttackUpRate = Number(input.chainSkillAttackUpRate ?? 0);
+    this.chainDestructionRateBonus = Number(input.chainDestructionRateBonus ?? 0);
     this.normalAttackElements = Object.freeze(
       Array.isArray(input.normalAttackElements)
         ? [...new Set(input.normalAttackElements.map((element) => String(element ?? '')).filter(Boolean))]
@@ -1251,6 +1257,9 @@ export class CharacterStyle {
         remainingBefore: before,
         remainingAfter: effect.remaining,
         elements: Array.isArray(effect.elements) ? structuredClone(effect.elements) : [],
+        metadata: effect.metadata && typeof effect.metadata === 'object'
+          ? structuredClone(effect.metadata)
+          : null,
       });
       changed = true;
     }
@@ -1525,6 +1534,11 @@ export class CharacterStyle {
     c.stats = this.stats ? { ...this.stats } : null;
     c.supportStats = this.supportStats ? { ...this.supportStats } : null;
     c.drivePiercePercent = this.drivePiercePercent;
+    c.attackPiercePercent = this.attackPiercePercent;
+    c.breakPiercePercent = this.breakPiercePercent;
+    c.blastPiercePercent = this.blastPiercePercent;
+    c.chainSkillAttackUpRate = this.chainSkillAttackUpRate;
+    c.chainDestructionRateBonus = this.chainDestructionRateBonus;
     c.partyIndex = this.partyIndex;
     c.skills = this.skills;
     c.triggeredSkills = this.triggeredSkills;

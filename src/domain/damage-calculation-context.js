@@ -1,4 +1,14 @@
 export function buildDamageCalculationContext(input = {}) {
+  const normalizeNumberMap = (value) =>
+    value && typeof value === 'object'
+      ? Object.fromEntries(
+          Object.entries(value).map(([targetIndex, mapValue]) => [
+            String(targetIndex),
+            Number(mapValue ?? 0),
+          ])
+        )
+      : {};
+
   return {
     actorCharacterId: String(input.actorCharacterId ?? ''),
     actorStyleId: Number(input.actorStyleId ?? 0),
@@ -7,6 +17,15 @@ export function buildDamageCalculationContext(input = {}) {
     skillName: String(input.skillName ?? ''),
     targetType: String(input.targetType ?? ''),
     isNormalAttack: input.isNormalAttack === true,
+    isPursuit: input.isPursuit === true,
+    destructionAttackPart:
+      input.destructionAttackPart && typeof input.destructionAttackPart === 'object'
+        ? structuredClone(input.destructionAttackPart)
+        : null,
+    destructionConditionResultsByEnemy:
+      input.destructionConditionResultsByEnemy && typeof input.destructionConditionResultsByEnemy === 'object'
+        ? structuredClone(input.destructionConditionResultsByEnemy)
+        : {},
     enemyCount: Number(input.enemyCount ?? 1),
     targetEnemyIndex:
       input.targetEnemyIndex === null || input.targetEnemyIndex === undefined
@@ -36,6 +55,41 @@ export function buildDamageCalculationContext(input = {}) {
       input.enemyParamBorderByEnemy && typeof input.enemyParamBorderByEnemy === 'object'
         ? Object.fromEntries(
             Object.entries(input.enemyParamBorderByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
+    enemyDpByEnemy: normalizeNumberMap(input.enemyDpByEnemy),
+    remainingDpByEnemy: normalizeNumberMap(input.remainingDpByEnemy),
+    enemyHpByEnemy: normalizeNumberMap(input.enemyHpByEnemy),
+    remainingHpByEnemy: normalizeNumberMap(input.remainingHpByEnemy),
+    extraHpGaugeStateByEnemy:
+      input.extraHpGaugeStateByEnemy && typeof input.extraHpGaugeStateByEnemy === 'object'
+        ? structuredClone(input.extraHpGaugeStateByEnemy)
+        : {},
+    enemyNamesByEnemy:
+      input.enemyNamesByEnemy && typeof input.enemyNamesByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyNamesByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              String(value ?? '').trim(),
+            ])
+          )
+        : {},
+    destructionRateByEnemy:
+      input.destructionRateByEnemy && typeof input.destructionRateByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.destructionRateByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
+    destructionRateCapByEnemy:
+      input.destructionRateCapByEnemy && typeof input.destructionRateCapByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.destructionRateCapByEnemy).map(([targetIndex, value]) => [
               String(targetIndex),
               Number(value ?? 0),
             ])
@@ -93,6 +147,7 @@ export function buildDamageCalculationContext(input = {}) {
     attackByOwnDpRateResolvedMultiplier: Number(input.attackByOwnDpRateResolvedMultiplier ?? 0),
     highBoostSkillAtkRate: Number(input.highBoostSkillAtkRate ?? 0),
     attackUpRate: Number(input.attackUpRate ?? 0),
+    fightingSpiritBonusValue: Number(input.fightingSpiritBonusValue ?? 0),
     defenseUpRate: Number(input.defenseUpRate ?? 0),
     criticalRateUpRate: Number(input.criticalRateUpRate ?? 0),
     criticalDamageUpRate: Number(input.criticalDamageUpRate ?? 0),
@@ -105,12 +160,31 @@ export function buildDamageCalculationContext(input = {}) {
     markAttackUpRate: Number(input.markAttackUpRate ?? 0),
     markDamageTakenDownRate: Number(input.markDamageTakenDownRate ?? 0),
     markDestructionRateGainBonusRate: Number(input.markDestructionRateGainBonusRate ?? 0), // 印Lv3: 破壊率上昇量+10%（WIP: 威力詳細未表示）
+    transcendenceBurstAttackUpRate: Number(input.transcendenceBurstAttackUpRate ?? 0),
+    transcendenceBurstDestructionRateGainBonusRate: Number(
+      input.transcendenceBurstDestructionRateGainBonusRate ?? 0
+    ),
+    resonanceDestructionRateBonus: Number(input.resonanceDestructionRateBonus ?? 0),
+    transcendenceBurstAttackBuffSkillEffectUpRate: Number(
+      input.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
+    ),
+    transcendenceBurstDebuffSkillEffectUpRate: Number(
+      input.transcendenceBurstDebuffSkillEffectUpRate ?? 0
+    ),
+    transcendenceBurstCriticalRateUpRate: Number(input.transcendenceBurstCriticalRateUpRate ?? 0),
+    transcendenceBurstCriticalDamageUpRate: Number(input.transcendenceBurstCriticalDamageUpRate ?? 0),
     markCriticalRateUp: Number(input.markCriticalRateUp ?? 0),
     markCriticalDamageUp: Number(input.markCriticalDamageUp ?? 0),
     accessoryAttackUpRate: Number(input.accessoryAttackUpRate ?? 0),
     accessoryContributions: Array.isArray(input.accessoryContributions)
       ? structuredClone(input.accessoryContributions)
       : [],
+    chainDestructionRateBonus: Number(input.chainDestructionRateBonus ?? 0),
+    // ピアス装備（ヒット数解決済み ratio）: attack=対HPダメージ乗数 / break=対DPダメージ乗数
+    attackPierceUpRate: Number(input.attackPierceUpRate ?? 0),
+    breakPierceUpRate: Number(input.breakPierceUpRate ?? 0),
+    // ブラストピアス（raw ratio・傾斜は destruction-calculator 側）
+    blastPierceDestructionRateBonus: Number(input.blastPierceDestructionRateBonus ?? 0),
     overDrivePointUpByTokenPerToken: Number(input.overDrivePointUpByTokenPerToken ?? 0),
     overDrivePointUpByTokenTokenCount: Number(input.overDrivePointUpByTokenTokenCount ?? 0),
     overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),

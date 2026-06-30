@@ -8,6 +8,7 @@ const DEFAULT_ENEMY_NAME = '';
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_OD_RATE_MULTIPLIER = 1;
+const DEFAULT_D_RATE_RAW = 5;
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 export const DEFAULT_ENEMY_PARAM_BORDER = 770;
 const ENEMY_ELEMENT_KEYS = Object.freeze([
@@ -50,6 +51,11 @@ function normalizeElementRatePercent(value) {
 function normalizeDestructionRate(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
+}
+
+function normalizeDestructionMultiplierPercent(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
 }
 
 function normalizeAbsorbElementList(list = []) {
@@ -103,6 +109,7 @@ function normalizeEnemyManual(manual = {}) {
     max_d_rate: Number.isFinite(Number(manual?.max_d_rate))
       ? Number(manual.max_d_rate)
       : DEFAULT_MAX_D_RATE,
+    d_rate: normalizeDestructionMultiplierPercent(manual?.d_rate),
     destructionRate: normalizeDestructionRate(manual?.destructionRate),
     element: Object.fromEntries(
       ENEMY_ELEMENT_KEYS.map((key) => [key, normalizeElementRatePercent(manual?.element?.[key])])
@@ -128,6 +135,8 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
   const absorbElementList = normalizeAbsorbElementList(
     source?.absorbElementList ?? source?.resistances?.element?.absorb_element_list ?? manual.absorbElementList
   );
+  const dpRaw = Number(source?.dp);
+  const hpRaw = Number(source?.hp);
   return {
     slotIndex,
     selectedEnemyId: toOptionalEnemyId(source?.selectedEnemyId),
@@ -135,10 +144,15 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     param_border: Number.isFinite(Number(source?.param_border)) && Number(source.param_border) > 0
       ? Number(source.param_border)
       : DEFAULT_ENEMY_PARAM_BORDER,
+    // dp / hp は選択済み敵またはフィクスチャから引き継ぐ。存在しない場合は省略して
+    // BattleStateManager が enemies.json から解決できるようにする。
+    ...(Number.isFinite(dpRaw) && dpRaw >= 0 ? { dp: dpRaw } : {}),
+    ...(Number.isFinite(hpRaw) && hpRaw >= 0 ? { hp: hpRaw } : {}),
     isManual: Boolean(source?.isManual),
     manual,
     od_rate: normalizeEnemyOdRateMultiplier(source?.od_rate ?? manual.od_rate),
     max_d_rate: Number.isFinite(Number(source?.max_d_rate)) ? Number(source.max_d_rate) : manual.max_d_rate,
+    d_rate: normalizeDestructionMultiplierPercent(source?.d_rate ?? manual.d_rate),
     destructionRate: normalizeDestructionRate(source?.destructionRate ?? manual.destructionRate),
     resistances,
     absorbElementList,
@@ -190,9 +204,13 @@ export function normalizeEnemySetupSnapshot(snapshot = {}) {
     manual: slot0.manual,
     od_rate: slot0.od_rate,
     max_d_rate: slot0.max_d_rate,
+    d_rate: slot0.d_rate,
     destructionRate: slot0.destructionRate,
     resistances: slot0.resistances,
     absorbElementList: slot0.absorbElementList,
+    // dp は敵のDPゲージ初期値、hp は討伐予測用の最大HP。選択した敵またはフィクスチャから引き継ぐ。
+    ...(slot0.dp != null ? { dp: slot0.dp } : {}),
+    ...(slot0.hp != null ? { hp: slot0.hp } : {}),
     ...(slot0.e_shield ? { e_shield: structuredClone(slot0.e_shield) } : {}),
     ...(slot0.extra_hp_gauge ? { extra_hp_gauge: structuredClone(slot0.extra_hp_gauge) } : {}),
   };

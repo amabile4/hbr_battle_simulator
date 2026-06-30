@@ -1,8 +1,28 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
 import { BattleStateManager } from '../ui-next/engine/battle-state-manager.js';
 import { getStore } from './helpers.js';
+
+const AMON_OMEGA_LV2_ENEMY_ID = 13402714;
+const AMON_OMEGA_LV2_BATTLE_INDEX = 461;
+const AMON_OMEGA_LV2_DP_GAUGES = [1_216_800, 1_216_800, 1_216_800];
+const NON_AMON_MULTI_DP_ENEMY_CASES = [
+  {
+    name: 'レイジングエクリプス',
+    battleIndex: 77,
+    selectedEnemyId: -8003313,
+    dpGauges: [200_000, 200_000, 200_000, 200_000],
+  },
+  {
+    name: 'ダイヤモンドアイS',
+    battleIndex: 2699,
+    selectedEnemyId: -8130503,
+    dpGauges: [15_000, 40_000, 40_000, 40_000],
+  },
+];
 
 function createPartySnapshot() {
   return {
@@ -56,6 +76,7 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
     selectedEnemyName: '敵テスト',
     param_border: 845,
     max_d_rate: 650,
+    d_rate: 5,
     resistances: {
       element: {
         slash: 150,
@@ -81,6 +102,9 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  // destructionMultiplierByEnemy は raw d_rate をそのまま格納（d_rate=5 → 5）
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 5);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
 });
@@ -96,6 +120,25 @@ test('BattleStateManager wires enemy od_rate to odRateByEnemy for each enemy slo
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
   assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 8500);
   assert.equal(state.turnState.enemyState.odRateByEnemy['2'], 8500);
+});
+
+test('BattleStateManager forwards ancient chain equip bonuses to party members', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(
+    {
+      ...createPartySnapshot(),
+      chainEquipByPartyIndex: { 0: true, 1: false },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3, 2: 3, 3: 3, 4: 3, 5: 3 },
+    },
+    { enemyCount: 1 }
+  );
+
+  assert.equal(state.party[0].chainSkillAttackUpRate, 0.1);
+  assert.equal(state.party[0].chainDestructionRateBonus, 0.1);
+  assert.equal(state.party[0].sp.current, 6);
+  assert.equal(state.party[1].chainSkillAttackUpRate, 0);
+  assert.equal(state.party[1].chainDestructionRateBonus, 0);
 });
 
 test('BattleStateManager forwards normalAttackElementsByPartyIndex into party members', () => {
@@ -176,8 +219,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         maxHp: 450000,
         currentHp: 450000,
         param_border: 812,
+        dp: 12345,
         od_rate: 8500,
         max_d_rate: 650,
+        d_rate: 150,
         e_shield: {
           count: 10,
           max: 10,
@@ -209,8 +254,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         maxHp: 300000,
         currentHp: 290000,
         param_border: 923,
+        dp: 0,
         od_rate: 0,
         max_d_rate: 999,
+        d_rate: 80,
         resistances: {
           element: {
             slash: 80,
@@ -246,8 +293,13 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 812);
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['1'], 923);
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 12345);
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
+  // raw d_rate をそのまま格納（150, 80）
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 150);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 80);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
   assert.equal(state.turnState.enemyState.odRateByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['0'].Fire, 200);
@@ -262,6 +314,156 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
     damageLimit: 0,
   });
   assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
+});
+
+test('BattleStateManager resolves missing enemy slot dp from selected enemy master', () => {
+  const store = Object.create(getStore());
+  store.enemies = [];
+  store.enemiesById = new Map([
+    [
+      13420081,
+      {
+        id: 13420081,
+        base_param: {
+          dp: 4550000,
+          hp: 156000000,
+          d_rate: 10,
+        },
+      },
+    ],
+  ]);
+  const manager = new BattleStateManager({ store });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 13420081,
+        selectedEnemyName: '異時層 スカルフェザー 最終形態',
+        param_border: 500,
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 156000000);
+  // raw d_rate=10 をそのまま格納
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 10);
+});
+
+test('BattleStateManager maps selected アモンΩ Lv.2 battle eg.dp gauges into enemy DP state', () => {
+  const battlesPath = path.resolve('json/battles.json');
+  const battles = JSON.parse(fs.readFileSync(battlesPath, 'utf8'));
+  const amonOmegaBattleEnemy = battles[AMON_OMEGA_LV2_BATTLE_INDEX]?.enemy_list?.[0];
+  assert.equal(amonOmegaBattleEnemy?.name, 'アモンΩ : Lv.2');
+  assert.deepEqual(amonOmegaBattleEnemy?.base_param?.eg?.dp, AMON_OMEGA_LV2_DP_GAUGES);
+
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: AMON_OMEGA_LV2_ENEMY_ID,
+        selectedEnemyName: 'アモンΩ : Lv.2',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], 'アモンΩ : Lv.2');
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 1_216_800);
+  assert.equal(state.turnState.enemyState.remainingDpByEnemy, null);
+  assert.deepEqual(state.turnState.enemyState.extraDpGaugeStateByEnemy['0'], {
+    total: 3,
+    remaining: 3,
+    values: AMON_OMEGA_LV2_DP_GAUGES,
+  });
+});
+
+for (const enemyCase of NON_AMON_MULTI_DP_ENEMY_CASES) {
+  test(`BattleStateManager maps selected ${enemyCase.name} battle eg.dp gauges into enemy DP state`, () => {
+    const battlesPath = path.resolve('json/battles.json');
+    const battles = JSON.parse(fs.readFileSync(battlesPath, 'utf8'));
+    const battleEnemy = battles[enemyCase.battleIndex]?.enemy_list?.[0];
+    assert.equal(battleEnemy?.name, enemyCase.name);
+    assert.deepEqual(battleEnemy?.base_param?.eg?.dp, enemyCase.dpGauges);
+
+    const manager = new BattleStateManager({ store: getStore() });
+
+    const state = manager.buildFromSnapshot(createPartySnapshot(), {
+      enemySlots: [
+        {
+          slotIndex: 0,
+          selectedEnemyId: enemyCase.selectedEnemyId,
+          selectedEnemyName: enemyCase.name,
+        },
+      ],
+    });
+
+    assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], enemyCase.name);
+    assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], enemyCase.dpGauges[0]);
+    assert.equal(state.turnState.enemyState.remainingDpByEnemy, null);
+    assert.deepEqual(state.turnState.enemyState.extraDpGaugeStateByEnemy['0'], {
+      total: enemyCase.dpGauges.length,
+      remaining: enemyCase.dpGauges.length,
+      values: enemyCase.dpGauges,
+    });
+  });
+}
+
+test('BattleStateManager resolves selected Lv.4 needle orb boss HP from battle enemy names', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: -80227042,
+        selectedEnemyName: 'レクタス・ニールΩ : Lv.4',
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: -80227043,
+        selectedEnemyName: 'シニスター・ニールΩ : Lv.4',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], 'レクタス・ニールΩ : Lv.4');
+  assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], 'シニスター・ニールΩ : Lv.4');
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 3_400_000);
+  assert.equal(state.turnState.enemyState.enemyHpByEnemy['1'], 3_400_000);
+  assert.equal(state.turnState.enemyState.remainingHpByEnemy, null);
+});
+
+test('BattleStateManager defaults missing selected enemy d_rate to raw 5', () => {
+  const store = Object.create(getStore());
+  store.enemies = [];
+  store.enemiesById = new Map([
+    [
+      990001,
+      {
+        id: 990001,
+        base_param: {
+          dp: 1000,
+          hp: 2000,
+        },
+      },
+    ],
+  ]);
+  const manager = new BattleStateManager({ store });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 990001,
+        selectedEnemyName: 'd_rate欠損敵',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {
@@ -322,6 +524,52 @@ test('BattleStateManager maps enemy extra_hp_gauge into extraHpGaugeStateByEnemy
     total: 3,
     remaining: 2,
     values: [40400000, 40400000, 40400000],
+  });
+});
+
+test('BattleStateManager preserves sparse enemy slot indexes for Eシールド and extra HP gauge', () => {
+  const manager = new BattleStateManager({ store: getStore() });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 7101,
+        selectedEnemyName: '通常敵',
+      },
+      {
+        slotIndex: 1,
+        selectedEnemyId: 7102,
+        selectedEnemyName: '特殊ゲージ敵',
+        e_shield: {
+          count: 12,
+          max: 12,
+          elements: ['Fire'],
+          def_up_rate: 5000,
+          dmg_limit: 0,
+        },
+        extra_hp_gauge: {
+          total: 2,
+          remaining: 2,
+          values: [100, 200],
+        },
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.eShieldStateByEnemy['0'], undefined);
+  assert.deepEqual(state.turnState.enemyState.eShieldStateByEnemy['1'], {
+    current: 12,
+    max: 12,
+    elements: ['Fire'],
+    defUpRate: 5000,
+    damageLimit: 0,
+  });
+  assert.equal(state.turnState.enemyState.extraHpGaugeStateByEnemy['0'], undefined);
+  assert.deepEqual(state.turnState.enemyState.extraHpGaugeStateByEnemy['1'], {
+    total: 2,
+    remaining: 2,
+    values: [100, 200],
   });
 });
 

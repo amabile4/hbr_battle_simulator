@@ -313,6 +313,24 @@ test('buildEnemyStatusIconsHtml generates img tags with limit', (t) => {
   assert.equal(imgCount, 2, 'should respect limit');
 });
 
+test('buildEnemyStatusIconsHtml shows Hacking icon within enemy debuff priority', () => {
+  const statuses = [
+    { statusType: 'AttackDown', remaining: 2, power: 0.3, exitCond: 'EnemyTurnEnd' },
+    { statusType: 'DefenseDown', remaining: 2, power: 0.3, exitCond: 'EnemyTurnEnd' },
+    { statusType: 'ResistDown', remaining: 2, power: 0.3, exitCond: 'EnemyTurnEnd' },
+    { statusType: 'Fragile', remaining: 2, power: 0.3, exitCond: 'EnemyTurnEnd' },
+    { statusType: 'HealDown', remaining: 2, power: 0.3, exitCond: 'EnemyTurnEnd' },
+    { statusType: 'Hacking', remaining: 2, power: 0, exitCond: 'EnemyTurnEnd' },
+  ];
+
+  const sorted = getActiveEnemyStatusesSorted(statuses);
+  assert.equal(sorted.slice(0, 5).some((status) => status.statusType === 'Hacking'), true);
+
+  const html = buildEnemyStatusIconsHtml(statuses, { limit: 5 });
+  assert.match(html, /assets\/skill_type\/Hacking\.webp/);
+  assert.match(html, /alt="ハッキング"/);
+});
+
 test('buildEnemyStatusIconsHtml handles empty status', (t) => {
   const html = buildEnemyStatusIconsHtml([], { limit: 5 });
   assert.equal(html, '', 'should return empty string for no statuses');

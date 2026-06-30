@@ -79,6 +79,7 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
   assert.deepEqual(snapshot.setup.skillSetsByPartyIndex['0'], [46000001, 46400001]);
   assert.equal(snapshot.setup.statsByPartyIndex['0'].stats.str, 650);
   assert.equal(snapshot.setup.statsByPartyIndex['0'].supportStats.str, 50);
+  assert.equal(snapshot.setup.chainEquipByPartyIndex['0'], false);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyId, 7001);
   assert.equal(snapshot.enemy.enemySlots[0].selectedEnemyName, '敵A');
   assert.equal(snapshot.enemy.enemySlots[0].param_border, 812);
@@ -103,6 +104,21 @@ test('normalizeSessionSnapshot fills defaults and migrates replay action inputs 
     ),
     false
   );
+});
+
+test('normalizeSessionSnapshot preserves ancient chain equip separately from legacy SP bonus', () => {
+  const snapshot = normalizeSessionSnapshot({
+    setup: {
+      styleIds: [1001, 1002, null, null, null, null],
+      chainEquipByPartyIndex: { 0: true },
+      startSpEquipByPartyIndex: { 0: 3, 1: 3 },
+    },
+  });
+
+  assert.equal(snapshot.setup.chainEquipByPartyIndex['0'], true);
+  assert.equal(snapshot.setup.chainEquipByPartyIndex['1'], false);
+  assert.equal(snapshot.setup.startSpEquipByPartyIndex['0'], 3);
+  assert.equal(snapshot.setup.startSpEquipByPartyIndex['1'], 3);
 });
 
 test('serializeSessionSnapshot writes a round-trippable JSON payload', () => {

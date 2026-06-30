@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildDamageBreakdown,
   buildDamageCalculationInput,
   buildDamageStatDeltaViewModel,
   calculateDamage,
@@ -47,6 +48,7 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
     zonePowerRate: 50,
     tokenAttackTokenCount: 3,
     effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
+    destructionRateByEnemy: { 0: 125, 1: 175 },
     chargeEffects: [{ statusType: 'Charge', power: 30, skillName: 'チャージ' }],
     damageBreakdown: {
       targetBreakdowns: [
@@ -89,12 +91,141 @@ test('buildDamageCalculationInput preserves stat lane and builds target-indexed 
   assert.equal(input.defender.enemyName, 'ボス');
   assert.equal(input.defender.paramBorder, 800);
   assert.equal(input.defender.affinityRate, 1.5);
+  assert.equal(input.defender.destructionRate, 1.75);
   assert.equal(input.defender.resistances.Slash, 1.5);
   assert.equal(input.targetEnemyIndex, 1);
   assert.equal(input.activeZone, 'FireZone');
   assert.equal(input.attacker.statusEffects.find((effect) => effect.statusType === 'AttackUp')?.power, 50);
   assert.equal(input.attacker.statusEffects.some((effect) => effect.statusType === 'Charge'), false);
   assert.equal(input.defender.isHpTarget, true);
+});
+
+test('buildDamageCalculationInput converts context destructionRate percent to calculateDamage rate', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 200 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const hpInput = buildDamageCalculationInput(damageContext, {}, { targetEnemyIndex: 0, isHpTarget: true });
+  const dpInput = buildDamageCalculationInput(damageContext, {}, { targetEnemyIndex: 0, isHpTarget: false });
+
+  assert.equal(hpInput.defender.destructionRate, 2);
+  assert.equal(dpInput.defender.destructionRate, 2);
+
+  const data = loadDamageCalculationData();
+  const hpResult = calculateDamage(hpInput, data);
+  const dpResult = calculateDamage(dpInput, data);
+  assert.notEqual(hpResult.critical.expected, dpResult.critical.expected);
+  assert.ok(hpResult.critical.expected > dpResult.critical.expected);
+});
+
+test('buildDamageCalculationInput applies enemy all ability down as absolute param border reduction', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 100 },
+    enemyAllAbilityDownByEnemy: { 0: 50 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const attackerStats = { role: 'Attacker', str: 820, dex: 820, wis: 820, spr: 820, luk: 820, con: 820 };
+  const enemyAdapter = { targetEnemyIndex: 0, paramBorder: 800, isHpTarget: false };
+  const input = buildDamageCalculationInput(damageContext, attackerStats, enemyAdapter);
+  const baselineInput = buildDamageCalculationInput(
+    { ...damageContext, enemyAllAbilityDownByEnemy: {} },
+    attackerStats,
+    enemyAdapter
+  );
+
+  assert.equal(input.defender.paramBorder, 750);
+  assert.equal(input.defender.statusEffects.some((effect) => effect.statusType === 'DefenseDown'), false);
+
+  const data = loadDamageCalculationData();
+  const result = calculateDamage(input, data);
+  const baselineResult = calculateDamage(baselineInput, data);
+  assert.ok(result.critical.expected > baselineResult.critical.expected);
+});
+
+test('buildDamageCalculationInput applies FightingSpirit as flat attacker stat bonus', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    fightingSpiritBonusValue: 2,
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 100 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const attackerStats = { role: 'Attacker', str: 820, dex: 810, wis: 800, spr: 790, luk: 780, con: 770 };
+  const enemyAdapter = { targetEnemyIndex: 0, paramBorder: 800, isHpTarget: false };
+  const input = buildDamageCalculationInput(damageContext, attackerStats, enemyAdapter);
+  const baselineInput = buildDamageCalculationInput(
+    { ...damageContext, fightingSpiritBonusValue: 0 },
+    attackerStats,
+    enemyAdapter
+  );
+  const viewModel = buildDamageStatDeltaViewModel(damageContext, attackerStats, enemyAdapter);
+
+  assert.deepEqual(input.attacker.stats, {
+    str: 822,
+    dex: 812,
+    wis: 802,
+    spr: 792,
+    luk: 782,
+    con: 772,
+  });
+  assert.deepEqual(viewModel.attacker.str, {
+    base: 820,
+    buffDelta: 2,
+    debuffDelta: 0,
+    resolved: 822,
+    sources: [
+      {
+        id: 'fightingSpirit',
+        label: '闘志',
+        delta: 2,
+        statKeys: ['str', 'dex', 'wis', 'spr', 'luk', 'con'],
+      },
+    ],
+  });
+
+  const data = loadDamageCalculationData();
+  const result = calculateDamage(input, data);
+  const baselineResult = calculateDamage(baselineInput, data);
+  assert.ok(result.critical.expected > baselineResult.critical.expected);
+});
+
+test('buildDamageCalculationInput falls back per stat when actual stats are missing or zero', () => {
+  const input = buildDamageCalculationInput(
+    {},
+    {
+      role: 'Attacker',
+      limitBreakCount: 1,
+      str: 777,
+      dex: 0,
+      wis: null,
+      spr: undefined,
+      luk: 'bad',
+      con: 888,
+    }
+  );
+
+  assert.equal(input.attacker.stats.str, 777);
+  assert.equal(input.attacker.stats.dex, 670);
+  assert.equal(input.attacker.stats.wis, 620);
+  assert.equal(input.attacker.stats.spr, 620);
+  assert.equal(input.attacker.stats.luk, 620);
+  assert.equal(input.attacker.stats.con, 888);
 });
 
 test('buildDamageCalculationInput preserves resolved breakdown multipliers without splitting charge', () => {
@@ -139,6 +270,26 @@ test('buildDamageCalculationInput preserves resolved breakdown multipliers witho
   assert.ok(Math.abs(result.breakdown.affinityMultiplier - 1.5) < 1e-9);
 });
 
+test('buildDamageCalculationInput forwards multiplicative token-passive breakdown as token ratio', () => {
+  const damageBreakdown = buildDamageBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    tokenAttackTotalRate: 0.2,
+    damageRateUpPerTokenRate: 0.1,
+    attackByOwnDpRateResolvedMultiplier: 1.8,
+  });
+  const input = buildDamageCalculationInput({
+    actorStyleId: 1000101,
+    skillId: 46001102,
+    skillName: 'クロス斬り',
+    damageBreakdown,
+  });
+
+  assert.ok(Math.abs(input.attacker.tokenRatio - 1.34) < 1e-9);
+
+  const result = calculateDamage(input, loadDamageCalculationData());
+  assert.ok(Math.abs(result.breakdown.tokenMultiplier - 2.34) < 1e-9);
+});
+
 test('buildDamageCalculationInput marks normal attacks and keeps MindEye out of synthetic normal handling', () => {
   const input = buildDamageCalculationInput({
     actorStyleId: 1001,
@@ -157,9 +308,9 @@ test('buildDamageCalculationInput marks normal attacks and keeps MindEye out of 
 
 test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes without mutating input stats', () => {
   const viewModel = buildDamageStatDeltaViewModel(
-    {},
+    { enemyAllAbilityDownByEnemy: { 0: 40 } },
     { role: 'Debuffer', limitBreakCount: 1, luk: 777 },
-    { paramBorder: 810 }
+    { targetEnemyIndex: 0, paramBorder: 810 }
   );
 
   assert.deepEqual(viewModel.attacker.luk, {
@@ -167,11 +318,12 @@ test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes witho
     buffDelta: 0,
     debuffDelta: 0,
     resolved: 777,
+    sources: [],
   });
   assert.deepEqual(viewModel.enemy.str, {
     base: 810,
     buffDelta: 0,
-    debuffDelta: 0,
-    resolved: 810,
+    debuffDelta: 40,
+    resolved: 770,
   });
 });
