@@ -43,7 +43,7 @@ function withDom(run) {
   }
 }
 
-function createStyle(id, chara, tier = 'SS') {
+function createStyle(id, chara, tier = 'SS', base_param = null) {
   return {
     id,
     name: `${chara} style`,
@@ -52,7 +52,7 @@ function createStyle(id, chara, tier = 'SS') {
     image: '',
     tier,
     role: id === 1001 ? 'Attacker' : 'Buffer',
-    base_param: { str: 0, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
+    base_param: base_param || { str: 0, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
     ability_tree: [],
     limit_break: { stat_up_per_level: 2.5, bonus_per_level: [] },
     passives: [],
@@ -129,6 +129,28 @@ function createStoreStub() {
   };
 }
 
+function createStoreStubWithBaseStats() {
+  const store = createStoreStub();
+  const stats = { str: 10, dex: 20, wis: 30, spr: 40, luk: 50, con: 60 };
+  store.characters = [
+    {
+      label: 'C1001',
+      base_param: Object.fromEntries(
+        Object.entries(stats).map(([key, value]) => [key, [1, value]])
+      ),
+    },
+    {
+      label: 'C1002',
+      base_param: Object.fromEntries(
+        Object.entries(stats).map(([key, value]) => [key, [1, value + 100]])
+      ),
+    },
+  ];
+  store.styles[0].base_param = { str: 1, dex: 2, wis: 3, spr: 4, luk: 5, con: 6 };
+  store.styles[1].base_param = { str: 7, dex: 8, wis: 9, spr: 10, luk: 11, con: 12 };
+  return store;
+}
+
 test('PartySetupController defaults all SP equip selectors to SP +3', () =>
   withDom(({ root, pickerOverlay }) => {
     const controller = new PartySetupController({
@@ -172,6 +194,14 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     const panel = win.document.querySelector('#stats-settings-panel');
     assert.equal(panel.style.display, 'block');
     assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
+    assert.deepEqual(
+      [...panel.querySelectorAll('[data-stat]')].map((input) => input.dataset.stat),
+      ['str', 'dex', 'con', 'spr', 'wis', 'luk']
+    );
+    assert.deepEqual(
+      [...panel.querySelectorAll('.party-stats-panel__grid span')].map((label) => label.textContent),
+      ['力', '器用さ', '体力', '精神', '知性', '運']
+    );
     panel.querySelector('[data-stat="str"]').value = '700';
     panel.querySelector('[data-action="apply-stats"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
@@ -189,7 +219,7 @@ test('PartySetupController edits, snapshots, restores, and swaps slot stats', ()
     assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
   }));
 
-test('PartySetupController prefills unsaved main stats with support 10%', () =>
+test('PartySetupController fills missing snapshot main stats with fallback defaults', () =>
   withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
@@ -216,6 +246,42 @@ test('PartySetupController prefills unsaved main stats with support 10%', () =>
     assert.equal(panel.querySelector('[data-stat="str"]').value, '710');
     assert.equal(panel.querySelector('[data-stat="wis"]').value, '667');
     assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats, undefined);
+  }));
+
+test('PartySetupController fills missing snapshot stats from character and style base_param', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStubWithBaseStats(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [1002, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {},
+    });
+
+    const snapshot = controller.getSnapshot();
+
+    assert.deepEqual(snapshot.statsByPartyIndex['0'].stats, {
+      str: 11,
+      dex: 22,
+      wis: 33,
+      spr: 44,
+      luk: 55,
+      con: 66,
+    });
+    assert.deepEqual(snapshot.statsByPartyIndex['0'].supportStats, {
+      str: 117,
+      dex: 128,
+      wis: 139,
+      spr: 150,
+      luk: 161,
+      con: 172,
+    });
   }));
 
 test('PartySetupController keeps automatic stats unsaved, follows LB, and reset clears manual input', () =>

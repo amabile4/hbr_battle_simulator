@@ -13,6 +13,7 @@ import { parseCondition } from '../engine/cond-parser.js';
 import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-assembler.js';
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
+import { calculateDestruction } from '../domain/destruction-calculator.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   cloneEnemyEShieldState,
@@ -132,6 +133,11 @@ const DAMAGE_AFFINITY_REFERENCE_ICON_TYPES = Object.freeze({
   Thunder: 'Thunder',
   Light: 'Light',
   Dark: 'Dark',
+});
+const DESTRUCTION_CALCULATION_DATA_FALLBACK = Object.freeze({
+  styles: Object.freeze([]),
+  enemies: Object.freeze([]),
+  skills: Object.freeze([]),
 });
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_STRONG_BREAK = ENEMY_STATUS_SUPER_BREAK;
@@ -2018,6 +2024,7 @@ export function getEnemyState(turnState) {
       damageTakenByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
+      destructionMultiplierByEnemy: {},
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
@@ -2025,6 +2032,7 @@ export function getEnemyState(turnState) {
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
+      enemyDpByEnemy: {},
       zoneConfigByEnemy: {},
       talismanState: structuredClone(TALISMAN_STATE_DEFAULT),
       disasterState: structuredClone(DISASTER_STATE_DEFAULT),
@@ -2051,6 +2059,10 @@ export function getEnemyState(turnState) {
     destructionRateCapByEnemy:
       state.destructionRateCapByEnemy && typeof state.destructionRateCapByEnemy === 'object'
         ? state.destructionRateCapByEnemy
+        : {},
+    destructionMultiplierByEnemy:
+      state.destructionMultiplierByEnemy && typeof state.destructionMultiplierByEnemy === 'object'
+        ? state.destructionMultiplierByEnemy
         : {},
     absorbElementsByEnemy:
       state.absorbElementsByEnemy && typeof state.absorbElementsByEnemy === 'object'
@@ -2080,6 +2092,8 @@ export function getEnemyState(turnState) {
       state.enemyNamesByEnemy && typeof state.enemyNamesByEnemy === 'object' ? state.enemyNamesByEnemy : {},
     paramBorderByEnemy:
       state.paramBorderByEnemy && typeof state.paramBorderByEnemy === 'object' ? state.paramBorderByEnemy : {},
+    enemyDpByEnemy:
+      state.enemyDpByEnemy && typeof state.enemyDpByEnemy === 'object' ? state.enemyDpByEnemy : {},
     zoneConfigByEnemy:
       state.zoneConfigByEnemy && typeof state.zoneConfigByEnemy === 'object' ? state.zoneConfigByEnemy : {},
     talismanState:
@@ -2109,9 +2123,11 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyCount: enemyState.enemyCount,
     enemyNames: structuredClone(enemyState.enemyNamesByEnemy),
     enemyParamBorders: structuredClone(enemyState.paramBorderByEnemy),
+    enemyDps: structuredClone(enemyState.enemyDpByEnemy),
     enemyDamageRates: structuredClone(enemyState.damageRatesByEnemy),
     enemyDestructionRates: structuredClone(enemyState.destructionRateByEnemy),
     enemyDestructionRateCaps: structuredClone(enemyState.destructionRateCapByEnemy),
+    enemyDestructionMultipliers: structuredClone(enemyState.destructionMultiplierByEnemy),
     enemyOdRates: structuredClone(enemyState.odRateByEnemy),
     enemyEShields: structuredClone(enemyState.eShieldStateByEnemy),
     enemyExtraHpGauges: structuredClone(enemyState.extraHpGaugeStateByEnemy),
@@ -2145,6 +2161,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     paramBorderByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyParamBorders')
       ? cloneEnemySlotObjectMap(snapshot.enemyParamBorders)
       : structuredClone(current.paramBorderByEnemy),
+    enemyDpByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDps')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDps)
+      : structuredClone(current.enemyDpByEnemy),
     damageRatesByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDamageRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
@@ -2154,6 +2173,9 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}) {
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
       : structuredClone(current.destructionRateCapByEnemy),
+    destructionMultiplierByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionMultipliers')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionMultipliers)
+      : structuredClone(current.destructionMultiplierByEnemy),
     odRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyOdRates')
       ? cloneEnemySlotObjectMap(snapshot.enemyOdRates)
       : structuredClone(current.odRateByEnemy),
@@ -4052,6 +4074,99 @@ function applyDpEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+function buildDestructionHitsForAction(hitCount, isSameActionBreak) {
+  const normalizedHitCount = Math.max(1, Number(hitCount ?? 0));
+  return Array.from({ length: normalizedHitCount }, (_, index) => ({
+    damage: 0,
+    isBreakHit: Boolean(isSameActionBreak && index === 0),
+  }));
+}
+
+function applyDestructionRateFromActions(state, previewRecord, options = {}) {
+  const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
+  const enemyCount = clampEnemyCount(
+    state?.turnState?.enemyState?.enemyCount ?? previewRecord?.enemyCount ?? DEFAULT_ENEMY_COUNT
+  );
+
+  for (const actionEntry of previewRecord.actions ?? []) {
+    const actor = findMemberByCharacterId(state, actionEntry.characterId);
+    if (!actor) {
+      continue;
+    }
+    const skill =
+      actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
+        ? structuredClone(actionEntry._effectiveSkillSnapshot)
+        : actor.getSkill(actionEntry.skillId);
+    if (!skill) {
+      continue;
+    }
+
+    const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
+    if (!hasDamagePartInParts(effectiveParts)) {
+      continue;
+    }
+
+    const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
+    if (targetEnemyIndexes.length === 0) {
+      continue;
+    }
+
+    const hitCount = Math.max(1, resolveActionEShieldHitCount(actionEntry, skill));
+    const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
+    const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
+    const sameActionBreakEnemyIndexes = new Set([...manualBreakEnemyIndexes, ...autoBreakEnemyIndexes]);
+
+    for (const targetIndex of targetEnemyIndexes) {
+      const preActionEShieldState = getEnemyEShieldStateByTarget(preActionTurnState, targetIndex);
+      if (isEnemyEShieldActive(preActionEShieldState)) {
+        continue;
+      }
+
+      const wasBroken = hasEnemyStatus(preActionTurnState, targetIndex, ENEMY_STATUS_BREAK);
+      const isSameActionBreak =
+        sameActionBreakEnemyIndexes.has(Number(targetIndex)) ||
+        (!wasBroken && hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK));
+      if (!wasBroken && !isSameActionBreak) {
+        continue;
+      }
+
+      const currentRatePercent = getEnemyDestructionRatePercent(preActionTurnState, targetIndex);
+      const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex);
+      const result = calculateDestruction(
+        {
+          attacker: {
+            styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
+            statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
+            accessoryDestructionRateBonus: 0,
+          },
+          defender: {
+            enemyId: null,
+            destructionRate: currentRatePercent / 100,
+            destructionLimit: capPercent / 100,
+            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 100) / 100,
+            dp: wasBroken ? 0 : 1,
+          },
+          skill: {
+            skillId: Number(skill.skillId ?? skill.id ?? actionEntry?.skillId ?? 0),
+            name: String(skill.name ?? actionEntry?.skillName ?? ''),
+            isNormalAttack: isNormalAttackSkill(skill),
+            isPursuit: isPursuitOnlySkill(skill),
+            spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
+            parts: effectiveParts,
+          },
+          hits: buildDestructionHitsForAction(hitCount, isSameActionBreak),
+          autoBreak: false,
+        },
+        DESTRUCTION_CALCULATION_DATA_FALLBACK
+      );
+      const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100);
+      if (Number.isFinite(nextRatePercent)) {
+        setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
+      }
+    }
+  }
+}
+
 function applyEnemyTurnEndDpEffects(party = []) {
   const events = [];
   const actionContext = buildActionContext('TurnEnd', null, { turnPhase: 'EnemyTurnEnd' });
@@ -5810,6 +5925,7 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     damageTakenByEnemy: enemyState.damageTakenByEnemy,
     destructionRateByEnemy: enemyState.destructionRateByEnemy,
     destructionRateCapByEnemy: enemyState.destructionRateCapByEnemy,
+    destructionMultiplierByEnemy: enemyState.destructionMultiplierByEnemy,
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
     odRateByEnemy: enemyState.odRateByEnemy,
     eShieldStateByEnemy: enemyState.eShieldStateByEnemy,
@@ -7402,6 +7518,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         selectedMindEyeEffects,
         funnelEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,
+        enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
         attackReferencesByEnemy: affinityMaps.attackReferencesByEnemy,
         affinityContributionsByEnemy: affinityMaps.affinityContributionsByEnemy,
         tokenAttackTokenCount: Number(actionEntry?.tokenAttackContext?.tokenCount ?? actionEntry?.startToken ?? 0),
@@ -7446,6 +7563,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         eligibleEnemyIndexes: odEnemyAnalysis?.eligibleEnemyIndexes,
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
         enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
+        enemyDpByEnemy: getEnemyState(state.turnState).enemyDpByEnemy,
+        enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
+        destructionRateByEnemy: getEnemyState(state.turnState).destructionRateByEnemy,
         activeStatusEffects: actionEntry?.activeStatusEffects ?? [],
         chargeEffects,
         enemyStatusEffects: getEnemyState(state.turnState).statuses,
@@ -10550,6 +10670,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
     }
   }
+  applyDestructionRateFromActions(state, singleRecord, { preActionTurnState });
   const breakDownTurnUpResult = applyBreakDownTurnUpFromActions(state, singleRecord);
   const breakDownTurnUpEvents = breakDownTurnUpResult.events;
   const breakDownTurnUpPassiveTriggerEvents = breakDownTurnUpResult.passiveTriggerEvents;

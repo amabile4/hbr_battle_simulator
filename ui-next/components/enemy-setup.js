@@ -74,6 +74,26 @@ function normalizeDestructionRate(value) {
   return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
 }
 
+function resolveEnemyParamBorder(enemy = null) {
+  const direct = Number(enemy?.param_border);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+  const baseParam = Number(enemy?.base_param?.param_border);
+  return Number.isFinite(baseParam) && baseParam > 0
+    ? baseParam
+    : DEFAULT_ENEMY_PARAM_BORDER;
+}
+
+function resolveEnemyDp(enemy = null) {
+  const direct = Number(enemy?.dp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const baseParam = Number(enemy?.base_param?.dp);
+  return Number.isFinite(baseParam) && baseParam >= 0 ? baseParam : 0;
+}
+
 function formatDestructionRatePercent(value) {
   return `${(normalizeDestructionRate(value) * DESTRUCTION_RATE_PERCENT_SCALE).toFixed(2)}%`;
 }
@@ -636,11 +656,8 @@ export class EnemySetupController {
         currentDp: Number(selectedEnemy?.base_param?.dp ?? 0),
         maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
-        param_border:
-          Number.isFinite(Number(selectedEnemy?.base_param?.param_border))
-          && Number(selectedEnemy.base_param.param_border) > 0
-            ? Number(selectedEnemy.base_param.param_border)
-            : DEFAULT_ENEMY_PARAM_BORDER,
+        param_border: resolveEnemyParamBorder(selectedEnemy),
+        dp: resolveEnemyDp(selectedEnemy),
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,

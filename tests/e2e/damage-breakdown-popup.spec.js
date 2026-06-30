@@ -3,6 +3,11 @@ import { test, expect } from '@playwright/test';
 import { gotoUiNext } from './ui-next-helpers.js';
 
 test.describe('Damage breakdown popup tab', () => {
+  function parseDamageText(value) {
+    const numeric = Number(String(value ?? '').replace(/,/g, ''));
+    return Number.isFinite(numeric) ? numeric : 0;
+  }
+
   test('character detail popup renders damage breakdown summary, critical rate and official categories', async ({ page }) => {
     await gotoUiNext(page);
 
@@ -148,6 +153,8 @@ test.describe('Damage breakdown popup tab', () => {
                 isNormalAttack: false,
                 effectiveDamageRatesByEnemy: { 0: 100, 1: 150 },
                 enemyParamBorderByEnemy: { 0: 812, 1: 923 },
+                destructionRateByEnemy: { 0: 120, 1: 150 },
+                enemyAllAbilityDownByEnemy: { 0: 50, 1: 70 },
                 zoneType: 'Fire',
                 zonePowerRate: 50,
                 tokenAttackTokenCount: 0,
@@ -208,14 +215,36 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('700');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ DP');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル DP');
-    await expect(pane.locator('[data-role="damage-calc-result"]')).not.toContainText('HP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('非クリ HP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('クリティカル HP');
+    await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('現在破壊率');
+    await expect(pane.locator('[data-role="damage-calc-normal-hp-expected"]')).not.toHaveText('-');
+    await expect.poll(async () => {
+      const hp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-hp-expected"]').textContent());
+      const dp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-expected"]').textContent());
+      return hp > dp;
+    }).toBe(true);
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00%');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('812');
+    await expect(
+      pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')
+    ).toHaveText('-50');
+    await expect(
+      pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-resolved"][data-stat="str"]')
+    ).toHaveText('762');
 
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
     await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
     await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
     await expect(pane.locator('[data-role="damage-calc-affinity"]')).toHaveText('1.50x');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00%');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
+    await expect(
+      pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')
+    ).toHaveText('-70');
+    await expect(
+      pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-resolved"][data-stat="str"]')
+    ).toHaveText('853');
   });
 
   test('damage calculator pane uses default plus support stats when main stats are absent', async ({ page }) => {

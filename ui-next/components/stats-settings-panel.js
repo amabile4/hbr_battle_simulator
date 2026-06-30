@@ -10,6 +10,7 @@ const STAT_LABELS = Object.freeze({
   wis: '知性',
   luk: '運',
 });
+const STATS_PANEL_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 
 const STAT_DISPLAY_ORDER = Object.freeze(['str', 'dex', 'con', 'spr', 'wis', 'luk']);
 

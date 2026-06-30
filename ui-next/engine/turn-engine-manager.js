@@ -1360,6 +1360,9 @@ export class TurnEngineManager {
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyDestructionRateCaps')
         ? { enemyDestructionRateCaps: scenarioTurn.enemyDestructionRateCaps }
         : {}),
+      ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyDestructionMultipliers')
+        ? { enemyDestructionMultipliers: scenarioTurn.enemyDestructionMultipliers }
+        : {}),
       ...(Object.prototype.hasOwnProperty.call(scenarioTurn, 'enemyOdRates')
         ? { enemyOdRates: scenarioTurn.enemyOdRates }
         : {}),

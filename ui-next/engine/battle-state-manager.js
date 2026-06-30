@@ -233,8 +233,10 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     maxHp: enemySetup?.maxHp,
     currentHp: enemySetup?.currentHp,
     param_border: enemySetup?.param_border,
+    dp: enemySetup?.dp,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
+    d_rate: enemySetup?.d_rate,
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
@@ -259,7 +261,20 @@ function resolveEnemySlots(enemySetup = {}) {
   return Array.from({ length: legacyCount }, () => ({ ...fallbackSlot }));
 }
 
-function buildEnemyStateOverrides(enemySetup = {}) {
+function resolveEnemySlotDp(slot = {}, dataStore = null) {
+  const direct = Number(slot?.dp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = Array.isArray(dataStore?.enemies)
+    ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
+    : null;
+  const baseDp = Number(enemy?.base_param?.dp ?? enemy?.dp);
+  return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
+}
+
+function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
   const resolvedSlots = resolveEnemySlots(enemySetup);
   const enemyCount = normalizeEnemyCount(resolvedSlots.length);
   const slots = resolvedSlots.length > 0
@@ -274,6 +289,9 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
+    const rawDestructionMultiplier = Number.isFinite(Number(slot?.d_rate))
+      ? Number(slot.d_rate)
+      : 100;
     return {
       enemyId: slot?.selectedEnemyId ?? null,
       enemyName,
@@ -286,9 +304,11 @@ function buildEnemyStateOverrides(enemySetup = {}) {
       paramBorder: Number.isFinite(Number(slot?.param_border)) && Number(slot.param_border) > 0
         ? Number(slot.param_border)
         : DEFAULT_ENEMY_PARAM_BORDER,
+      dp: resolveEnemySlotDp(slot, dataStore),
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
+      rawDestructionMultiplier,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
       extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
@@ -309,11 +329,17 @@ function buildEnemyStateOverrides(enemySetup = {}) {
     paramBorderByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.paramBorder])
     ),
+    enemyDpByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.dp])
+    ),
     damageRatesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
     ),
     destructionRateCapByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.maxDestructionRate])
+    ),
+    destructionMultiplierByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.rawDestructionMultiplier])
     ),
     absorbElementsByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), [...slotState.absorbElements]])
@@ -451,7 +477,7 @@ export class BattleStateManager {
     );
 
     const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
-    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup);
+    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#store);
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
@@ -479,9 +505,11 @@ export class BattleStateManager {
       enemyGaugeStateByEnemy: enemyStateOverrides.gaugeStateByEnemy,
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
+      enemyDpByEnemy: enemyStateOverrides.enemyDpByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,
+      destructionMultiplierByEnemy: enemyStateOverrides.destructionMultiplierByEnemy,
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,

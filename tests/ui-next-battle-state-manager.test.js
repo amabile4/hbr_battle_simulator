@@ -56,6 +56,7 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
     selectedEnemyName: '敵テスト',
     param_border: 845,
     max_d_rate: 650,
+    d_rate: 5,
     resistances: {
       element: {
         slash: 150,
@@ -81,6 +82,8 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 5);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['1'], ['fire', 'nonelement']);
 });
@@ -176,6 +179,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         maxHp: 450000,
         currentHp: 450000,
         param_border: 812,
+        dp: 12345,
         od_rate: 8500,
         max_d_rate: 650,
         e_shield: {
@@ -209,6 +213,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         maxHp: 300000,
         currentHp: 290000,
         param_border: 923,
+        dp: 0,
         od_rate: 0,
         max_d_rate: 999,
         resistances: {
@@ -246,6 +251,8 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 812);
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['1'], 923);
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 12345);
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
@@ -262,6 +269,32 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
     damageLimit: 0,
   });
   assert.equal(state.turnState.enemyState.eShieldStateByEnemy['1'], undefined);
+});
+
+test('BattleStateManager resolves missing enemy slot dp from selected enemy master', () => {
+  const store = Object.create(getStore());
+  store.enemies = [
+    {
+      id: 13420081,
+      base_param: {
+        dp: 4550000,
+      },
+    },
+  ];
+  const manager = new BattleStateManager({ store });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 13420081,
+        selectedEnemyName: '異時層 スカルフェザー 最終形態',
+        param_border: 500,
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {

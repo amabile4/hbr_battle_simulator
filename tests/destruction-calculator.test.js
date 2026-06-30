@@ -59,6 +59,40 @@ test('calculateDestruction requires manual break hits unless autoBreak is enable
   assertAlmostEqual(autoBreak.destructionRate, 1.75, 'autoBreak.destructionRate');
 });
 
+test('calculateDestruction treats dp=0 zero-damage hits as post-break destruction hits', () => {
+  const data = {
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [
+      {
+        id: 11,
+        name: 'Already Broken Skill',
+        hit_count: 3,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+      },
+    ],
+  };
+  const result = calculateDestruction(
+    {
+      attacker: { styleId: 1 },
+      defender: {
+        destructionRate: 1,
+        destructionLimit: 9,
+        destructionMultiplier: 1.5,
+        dp: 0,
+      },
+      skill: { skillId: 11, name: 'Already Broken Skill' },
+      hits: [{ damage: 0 }, { damage: 0 }, { damage: 0 }],
+      autoBreak: false,
+    },
+    data
+  );
+
+  assertAlmostEqual(result.destructionRate, 2.5, 'alreadyBrokenZeroDamage.destructionRate');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 1.5, 'alreadyBrokenZeroDamage.finalBaseDestruction');
+});
+
 test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
   const data = {
     styles: [{ id: 2, role: 'Blaster' }],

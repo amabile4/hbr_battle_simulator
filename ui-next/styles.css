@@ -2736,26 +2736,28 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  background: #0b1220;
-  color: #cbd5e1;
-  font-size: 11px;
-  padding: 7px 9px;
+  gap: 4px 8px;
+  border-top: 1px solid #1e293b;
+  border-bottom: 1px solid #1e293b;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 2px;
 }
 
 .char-popup-damage-critical-badge {
-  border: 1px solid rgba(132, 204, 22, 0.35);
-  border-radius: 4px;
+  border: 1px solid rgba(132, 204, 22, 0.4);
+  border-radius: 3px;
   background: rgba(132, 204, 22, 0.12);
   color: #bef264;
+  font-size: 12px;
   font-weight: 700;
-  padding: 1px 5px;
+  padding: 0 5px;
 }
 
 .char-popup-damage-critical-detail {
-  color: #94a3b8;
+  color: #cbd5e1;
+  font-weight: 700;
 }
 
 .char-popup-damage-target {
@@ -2975,6 +2977,13 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .char-popup-damage-calc-section-title {
   font-weight: 800;
 }
@@ -3034,6 +3043,53 @@
   font-size: 11px;
 }
 
+/* 破壊率（暫定）セクション */
+.char-popup-destruction-rate {
+  border-top: 1px solid #334155;
+  padding-top: 6px;
+}
+
+.char-popup-destruction-rate-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.char-popup-destruction-rate-input {
+  width: 72px;
+  padding: 4px 6px;
+  font-size: 14px;
+  font-weight: 700;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #1e293b;
+  color: #f8fafc;
+  text-align: right;
+  line-height: 1.2;
+}
+
+.char-popup-destruction-rate-input:focus {
+  outline: none;
+  border-color: #38bdf8;
+}
+
+.char-popup-destruction-rate-unit {
+  color: #94a3b8;
+  font-size: 11px;
+}
+
+[data-role="destruction-rate-after"] {
+  color: #86efac;
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.char-popup-destruction-rate-message {
+  font-size: 10px;
+  color: #f87171;
+  margin-top: 4px;
+}
+
 @media (max-width: 720px) {
   .char-popup-damage-layout,
   .char-popup-damage-calc-body {
@@ -3046,6 +3102,10 @@
 
   .char-popup-damage-row {
     grid-template-columns: 1fr;
+  }
+
+  .char-popup-destruction-rate-row {
+    flex-wrap: wrap;
   }
 
   .char-popup-damage-group-col {

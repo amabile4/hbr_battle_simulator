@@ -1,8 +1,11 @@
 # 破壊率（destructionRate）実装プラン — 検討 & WBS
 
-> **ステータス**: ✅ 仕様確定・実装完了 | **ブランチ**: `feature/decouple-sp-mapping-and-destruction-mechanics` | **更新日**: 2026-06-06
+> **ステータス**: 🟢 仕様確定・D-1〜D-5部分完了・D-6検証中・D-7未着手 | **ブランチ**: `feature/destruction-rate-popup` | **更新日**: 2026-06-07
 >
-> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。仕様は `hbr_calc` 側で確定され、実装されました。
+> ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の **Phase B** に属する単独タスク。HP ダメージの正確化に必須。
+> エンジン単体（calculateDestruction）は実装済み。2026-06-07 に turn engine から `destructionRateByEnemy` を攻撃ごとに更新する最小接続を追加し、敵 `d_rate` を破壊率上昇倍率として接続。`damageContext` 経由で現在破壊率をダメージ計算へ渡し、HP ダメージ表示を解禁。同日の追検証で DP ダメージから破壊率乗算を除外し、コードダクネス実データの `skillHitCount=9` / `breakHitCount=1` まで確認。新規 EnemySetup snapshot では敵DPを `enemyDpByEnemy` として配線し、多段DP→HP按分の入力を準備。
+> 右クリックポップアップへの破壊率手動入力（暫定）は 2026-06-07 完了。
+> 残タスクの横断サマリーは [damage_calculator_remaining_wbs.md](damage_calculator_remaining_wbs.md) §大分類D を参照。
 
 ## 1. 背景・なぜ単独タスクか
 
@@ -22,7 +25,7 @@
 | break 遷移 | 強制ブレイク(`applyEnemyStrongBreakState`) / 超ダウン(`applyEnemySuperDownState`/`removeEnemySuperDownState`) / HP破壊リセット(`resetEnemyHpBreakPhaseState`) / cap 計算(`computeEnemySpecialBreakCapPercent`) | turn-controller L3576-3705 |
 | 定数 | `DEFAULT_DESTRUCTION_RATE_PERCENT=100` / `DEFAULT_DESTRUCTION_RATE_CAP_PERCENT=300` / `SPECIAL_BREAK_CAP_BONUS_PERCENT=300` | `src/config/battle-defaults.js` L12-14 |
 | snapshot 保持 | override / clone / status tick で destruction 状態を保持 | turn-controller L2526-2585, 6173 |
-| ダメージ式スロット | `calculateDamage` が `defender.destructionRate`(既定1) を全倍率に乗算 | `src/domain/damage-calculator.js` L500, 506, 517 |
+| ダメージ式スロット | `calculateDamage` が `isHpTarget=true` のときだけ `defender.destructionRate`(既定1) を乗算。DP ダメージには破壊率を乗算しない | `src/domain/damage-calculator.js` |
 | 破壊率上昇計算コア | `calculateDestruction` が 1.0 ベースで破壊率を算出し、`spMapping`、`destructionMultiplier`、手動 `isBreakHit` / 任意 `autoBreak` に対応 | `src/domain/damage-calculator.js` |
 | 初期表示 | Enemy Setup の各 enemy slot snapshot に `destructionRate=1` を保持し、セットアップタブで現在破壊率を `%` 表示 | `ui-next/components/enemy-setup.js` |
 
@@ -30,10 +33,10 @@
 
 | # | 不足 | 根拠 |
 |---|---|---|
-| a | **攻撃ごとの破壊率上昇モデルの turn engine 接続**（DP ダメージ／OD 進行で rate が増える動的計算）は WIP/未接続 | `calculateDestruction` は追加済みだが、turnState への接続は今回スコープ外。現状の battle engine は既存 `destructionRateByEnemy` を直接更新しない |
-| b | **破壊率の詳細表示**（威力詳細／計算機ペイン）は未実装。Enemy Setup の初期現在値表示のみ追加済み | `markDestructionRateGainBonusRate` 表示未実装（L104-105）。`damage_breakdown/unimplemented_elements_wbs.md` でも `isDestructionRateGainSkill` を将来対応扱い |
-| c | **ダメージ式への接合** | `damage-calculator-input-builder.js` は `destructionRate: DEFAULT_DESTRUCTION_RATE(=1)` 固定。`damageContext` に per-enemy 破壊率フィールドなし（A-7 の `enemyParamBorderByEnemy` のような配線が未整備） |
-| d | **HP ダメージ表示の解禁** | Phase A で HP 行を非表示にした。破壊率実装後に HP ダメージ（破壊率適用後）を表示する必要 |
+| a | **攻撃ごとの破壊率上昇モデルの turn engine 接続**（DP ダメージ／OD 進行で rate が増える動的計算）は最小接続済み | 2026-06-07: `applyCommittedActionSideEffects` から break 状態反映後に `calculateDestruction` を呼び、`setEnemyDestructionRatePercent` へ反映。攻撃前 E-shield active は対象外。敵 `d_rate` は `destructionMultiplierByEnemy` に保持し、`calculateDestruction` へ rate 化して渡す |
+| b | **破壊率の詳細表示**（威力詳細／計算機ペイン）は現在破壊率表示まで実装済み | `markDestructionRateGainBonusRate` など上昇量内訳表示は未実装。`damage_breakdown/unimplemented_elements_wbs.md` でも `isDestructionRateGainSkill` を将来対応扱い |
+| c | **ダメージ式への接合** | 2026-06-07: `damageContext.destructionRateByEnemy` を追加し、`damage-calculator-input-builder.js` が対象敵の `%` 値を `calculateDamage` 用 rate に変換。enemy adapter 側の `destructionRate` があれば優先 |
+| d | **HP ダメージ表示の解禁** | 2026-06-07: 右クリック威力詳細の計算機ペインで DP/HP の非クリ・クリティカル期待値を同時表示。HP 側は `isHpTarget=true` で破壊率適用後の値を計算 |
 
 ## 3. 確定済みのゲーム仕様
 
@@ -52,11 +55,11 @@
 | ID | 分類 | 内容 | 依存 | 状況 |
 |---|---|---|---|---|
 | D-1 | Spec | 破壊率上昇式・cap・適用条件の正本確定（Q-D1〜D5）。Excel/Python/実機を突き合わせて式を文書化 | — | 部分着手（`bg30 = dr × SP / 100`、`destructionMultiplier`、手動/自動break入力契約をコード化。ブラスタースロープ等の正確性検証は継続） |
-| D-2 | Engine(記録) | 既存 `destructionRateByEnemy` が実戦闘進行を反映するか検証。攻撃進行による破壊率の現在値を「記録」する経路を確認・補完 | D-1 | 未着手 |
-| D-3 | Engine(上昇計算) | D-1 の式を engine に実装（DP ダメージ／OD／break 連動で rate を上昇、cap でクランプ）。snapshot 保持・replay 整合 | D-1, D-2 | 部分着手（単体 `calculateDestruction` 追加。turnState/replay 接続は未着手） |
-| D-4 | Integration(接合) | `damageContext` に per-enemy 破壊率（と cap）を配線（A-7 の `enemyParamBorderByEnemy` と同パターン）。builder が `destructionRate` を渡す。`calculateDamage` が HP ダメージに適用。HP/DP 出し分け | D-2, D-3 | 未着手 |
-| D-5 | UI(表示) | 威力詳細／計算機ペインに破壊率（現在値・cap）と適用後 HP ダメージを表示。Phase A で非表示にした HP 行を解禁 | D-4 | 部分着手（Enemy Setup に初期現在破壊率 100.00% を読み取り専用表示。威力詳細/HP表示は未着手） |
-| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 部分着手（`calculateDestruction` 回帰、`spMapping` loader、manual/auto break、Enemy Setup 初期表示を unit で固定） |
+| D-2 | Engine(記録) | 既存 `destructionRateByEnemy` が実戦闘進行を反映するか検証。攻撃進行による破壊率の現在値を「記録」する経路を確認・補完 | D-1 | ✅ 完了（調査時点では turn-controller から `calculateDestruction` 呼び出しなし。break/reset/superDown 系のみが更新していたため D-3 で補完） |
+| D-3 | Engine(上昇計算) | D-1 の式を engine に実装（DP ダメージ／OD／break 連動で rate を上昇、cap でクランプ）。snapshot 保持・replay 整合 | D-1, D-2 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak で上昇、cap clamp、E-shield active 除外）。敵 `d_rate` 実値を `destructionMultiplierByEnemy` として保持し、破壊率上昇式へ接続。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 |
+| D-4 | Integration(接合) | `damageContext` に per-enemy 破壊率（と cap）を配線（A-7 の `enemyParamBorderByEnemy` と同パターン）。builder が `destructionRate` を渡す。`calculateDamage` が HP ダメージに適用。HP/DP 出し分け | D-2, D-3 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） |
+| D-5 | UI(表示) | 威力詳細／計算機ペインに破壊率（現在値・cap）と適用後 HP ダメージを表示。Phase A で非表示にした HP 行を解禁 | D-4 | ✅ 完了（DP/HP の非クリ・クリティカル期待値と現在破壊率を表示。cap 表示と上昇量内訳は後続） |
+| D-6 | Test | unit（上昇式・cap・接合）／ E2E（破壊率表示・HP ダメージ・敵タブ連動）／ 実データ DP 検証（敵 DP 割れ判定） | D-3, D-4, D-5 | 🔶 部分完了（`calculateDestruction` 回帰、dp=0 + damage=0 post-break 加算、storedRate 100% fallback、context/builder 接合、敵 `d_rate` snapshot、HP表示・破壊率>100%時 HP>DP・敵タブ連動 E2E、DPダメージの破壊率除外、SkillSwitch 子スキルID解決、対象敵名表示、`enemyDpByEnemy` の新規 snapshot 配線を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。威力詳細での多段中 DP→HP 按分表示と既存保存セッションの敵DP補完は残） |
 | D-7 | 受け入れ | HP ダメージの 3点一致（Excel／実機／本シミュレータ）＋実データ DP 検証で OK | D-6 | 未着手 |
 
 ## 5. リスク・留意点

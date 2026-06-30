@@ -76,6 +76,73 @@ test('calculateDamage exposes the resolved skill used by the calculation', () =>
   });
 });
 
+test('calculateDamage resolves SkillSwitch child variants by skill id', () => {
+  const data = loadDamageCalculationData();
+  const input = createOfficialCategoryInput({
+    attacker: {
+      styleId: 1001209,
+      stats: {
+        str: 598,
+        dex: 818,
+        wis: 643,
+        spr: 632,
+        luk: 628,
+        con: 629,
+      },
+    },
+    defender: {
+      paramBorder: 500,
+      isHpTarget: false,
+      resistances: {
+        Stab: 1,
+      },
+    },
+    skill: {
+      skillId: 46001217,
+      name: 'コードダクネス',
+      level: 10,
+    },
+  });
+  const actual = calculateDamage(input, data);
+
+  assert.deepEqual(actual.breakdown.resolvedSkill, {
+    id: 46001217,
+    name: 'コードダクネス',
+    isNormalAttack: false,
+  });
+});
+
+test('calculateDamage applies destructionRate only to HP damage', () => {
+  const data = loadDamageCalculationData();
+  const baseDp = calculateDamage(
+    createOfficialCategoryInput({
+      defender: { isHpTarget: false, destructionRate: 1 },
+    }),
+    data
+  );
+  const boostedDp = calculateDamage(
+    createOfficialCategoryInput({
+      defender: { isHpTarget: false, destructionRate: 2 },
+    }),
+    data
+  );
+  const baseHp = calculateDamage(
+    createOfficialCategoryInput({
+      defender: { isHpTarget: true, destructionRate: 1 },
+    }),
+    data
+  );
+  const boostedHp = calculateDamage(
+    createOfficialCategoryInput({
+      defender: { isHpTarget: true, destructionRate: 2 },
+    }),
+    data
+  );
+
+  assertAlmostEqual(boostedDp.critical.expected, baseDp.critical.expected, 'dp ignores destruction');
+  assertAlmostEqual(boostedHp.critical.expected, baseHp.critical.expected * 2, 'hp applies destruction');
+});
+
 function createOfficialCategoryInput(overrides = {}) {
   return {
     attacker: {

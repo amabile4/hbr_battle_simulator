@@ -41,6 +41,33 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
+    enemyDpByEnemy:
+      input.enemyDpByEnemy && typeof input.enemyDpByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyDpByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
+    enemyNamesByEnemy:
+      input.enemyNamesByEnemy && typeof input.enemyNamesByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.enemyNamesByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              String(value ?? '').trim(),
+            ])
+          )
+        : {},
+    destructionRateByEnemy:
+      input.destructionRateByEnemy && typeof input.destructionRateByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(input.destructionRateByEnemy).map(([targetIndex, value]) => [
+              String(targetIndex),
+              Number(value ?? 0),
+            ])
+          )
+        : {},
     activeStatusEffects: Array.isArray(input.activeStatusEffects)
       ? structuredClone(input.activeStatusEffects)
       : [],

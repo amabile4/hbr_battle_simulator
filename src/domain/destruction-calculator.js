@@ -35,7 +35,9 @@ export function calculateDestruction(input, data) {
   if (skillName) {
     cleanName = skillName.replace('[単独発動]', '').split('[')[0].split('(')[0].split('（')[0].trim();
   }
-  const skill = findSkill(skills, skillId, cleanName);
+  const skill = findSkill(skills, skillId, cleanName) ?? (
+    Array.isArray(skillInput?.parts) ? skillInput : null
+  );
 
   // 3. SP cost and attack type resolution
   let isNormalAttack = false;

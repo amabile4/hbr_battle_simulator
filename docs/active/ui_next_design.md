@@ -194,6 +194,11 @@
 - `Enemy Setup` の `✎ 編集` では preset の Eシールドを `count/max/elements/def_up_rate/dmg_limit` 付きで手動編集できるようにし、未設定状態は `max=0` または属性未選択で表現する
 - manual Eシールド編集結果は `enemy.enemySlots[*].manual.e_shield` と legacy flat `enemy.e_shield` の両方へ乗せ、session save/load でも保持する
 
+### 2026-06-07 追記: 戦闘中 Enemy Setup 変更の反映
+
+- 戦闘開始後に Enemy Setup の preset / 手動値を変更した場合は、保存用 snapshot だけでなく現在の BattleState も自動再計算する
+- 再計算 snapshot には `enemy.enemySlots[*].selectedEnemyName` / `param_border` / 耐性を含め、威力詳細の target label と敵パラメータへ反映する
+
 ## Block 3: Stage Setup
 
 ### 役割

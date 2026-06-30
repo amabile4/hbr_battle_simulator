@@ -319,9 +319,11 @@ export function createInitializedBattleSnapshot({
   enemyGaugeStateByEnemy = {},
   enemyNamesByEnemy = {},
   paramBorderByEnemy = {},
+  enemyDpByEnemy = {},
   damageRatesByEnemy = {},
   destructionRateByEnemy = {},
   destructionRateCapByEnemy = {},
+  destructionMultiplierByEnemy = {},
   absorbElementsByEnemy = {},
   odRateByEnemy = {},
   eShieldStateByEnemy = {},
@@ -386,6 +388,10 @@ export function createInitializedBattleSnapshot({
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
           : {},
+      destructionMultiplierByEnemy:
+        destructionMultiplierByEnemy && typeof destructionMultiplierByEnemy === 'object'
+          ? structuredClone(destructionMultiplierByEnemy)
+          : {},
       absorbElementsByEnemy:
         absorbElementsByEnemy && typeof absorbElementsByEnemy === 'object'
           ? structuredClone(absorbElementsByEnemy)
@@ -406,6 +412,8 @@ export function createInitializedBattleSnapshot({
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:
         paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
+      enemyDpByEnemy:
+        enemyDpByEnemy && typeof enemyDpByEnemy === 'object' ? structuredClone(enemyDpByEnemy) : {},
       zoneConfigByEnemy:
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
@@ -468,6 +476,8 @@ export function createInitializedBattleSnapshot({
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:
         paramBorderByEnemy && typeof paramBorderByEnemy === 'object' ? structuredClone(paramBorderByEnemy) : {},
+      enemyDpByEnemy:
+        enemyDpByEnemy && typeof enemyDpByEnemy === 'object' ? structuredClone(enemyDpByEnemy) : {},
       damageRatesByEnemy:
         damageRatesByEnemy && typeof damageRatesByEnemy === 'object' ? structuredClone(damageRatesByEnemy) : {},
       destructionRateByEnemy:
@@ -477,6 +487,10 @@ export function createInitializedBattleSnapshot({
       destructionRateCapByEnemy:
         destructionRateCapByEnemy && typeof destructionRateCapByEnemy === 'object'
           ? structuredClone(destructionRateCapByEnemy)
+          : {},
+      destructionMultiplierByEnemy:
+        destructionMultiplierByEnemy && typeof destructionMultiplierByEnemy === 'object'
+          ? structuredClone(destructionMultiplierByEnemy)
           : {},
       enemyStatuses: Array.isArray(enemyStatuses)
         ? enemyStatuses
