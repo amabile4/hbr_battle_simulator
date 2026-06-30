@@ -28,6 +28,11 @@ import {
   normalizeEnemyEShieldElements,
 } from '../domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../domain/enemy-extra-hp-gauge.js';
+import {
+  calculateSpecialOperationDamageEvents,
+  isEnemyBrokenForSpecialOperation,
+  resolveSpecialCommandDestructionGainPercent,
+} from '../domain/special-operation-damage.js';
 
 export const TEZUKA_CHARACTER_ID = 'STezuka';
 export const MAKAI_KIHEI_STYLE_ID = 1003108;
@@ -270,6 +275,111 @@ function applyMakaiKiheiEShieldDamage(state, embeddedSkill, actor) {
   };
 }
 
+function resolveAllOutAttackSkill(state) {
+  for (const member of Array.isArray(state?.party) ? state.party : []) {
+    for (const roleAbility of [member?.roleAbility, member?.roleabi]) {
+      if (
+        String(roleAbility?.name ?? '').trim() === ALL_OUT_ATTACK_ROLE_ABILITY_NAME &&
+        roleAbility?.specialSkill &&
+        typeof roleAbility.specialSkill === 'object'
+      ) {
+        return structuredClone(roleAbility.specialSkill);
+      }
+    }
+  }
+  return null;
+}
+
+function applySpecialOperationDamageToState(state, skill, operationType) {
+  if (!skill) return state;
+  const calculatedEvents = calculateSpecialOperationDamageEvents({
+    state,
+    skill,
+    operationType,
+    targetEnemyIndexes: getAliveEnemyIndexes(state?.turnState),
+  });
+  if (calculatedEvents.length === 0) return state;
+
+  const nextState = {
+    ...state,
+    turnState: {
+      ...state.turnState,
+      enemyState: {
+        ...state.turnState.enemyState,
+        damageTakenByEnemy: { ...(state.turnState.enemyState?.damageTakenByEnemy ?? {}) },
+        gaugeStateByEnemy: structuredClone(state.turnState.enemyState?.gaugeStateByEnemy ?? {}),
+      },
+      specialOperationDamageEvents: [
+        ...(Array.isArray(state.turnState.specialOperationDamageEvents)
+          ? state.turnState.specialOperationDamageEvents
+          : []),
+      ],
+    },
+  };
+
+  for (const event of calculatedEvents) {
+    const key = String(event.targetEnemyIndex);
+    const gauge = nextState.turnState.enemyState.gaugeStateByEnemy[key];
+    let appliedDamage = Number(event.damage ?? 0);
+    let appliedDpDamage = 0;
+    let appliedHpDamage = 0;
+    if (gauge && typeof gauge === 'object') {
+      const currentDp = Math.max(0, Number(gauge.currentDp ?? 0));
+      const currentHp = Math.max(0, Number(gauge.currentHp ?? 0));
+      if (currentDp > 0) {
+        appliedDpDamage = Math.min(currentDp, appliedDamage);
+        gauge.currentDp = currentDp - appliedDpDamage;
+        appliedDamage = appliedDpDamage;
+        if (gauge.currentDp === 0) {
+          applyManualEnemyBreak(nextState.turnState, event.targetEnemyIndex);
+        }
+      } else {
+        appliedHpDamage = Math.min(currentHp, appliedDamage);
+        gauge.currentHp = currentHp - appliedHpDamage;
+        appliedDamage = appliedHpDamage;
+      }
+    } else if (event.isHpTarget) {
+      appliedHpDamage = appliedDamage;
+    } else {
+      appliedDpDamage = appliedDamage;
+    }
+    nextState.turnState.enemyState.damageTakenByEnemy[key] =
+      Number(nextState.turnState.enemyState.damageTakenByEnemy[key] ?? 0) + appliedDamage;
+    nextState.turnState.specialOperationDamageEvents.push({
+      ...event,
+      appliedDamage,
+      appliedDpDamage,
+      appliedHpDamage,
+    });
+  }
+  return nextState;
+}
+
+function applyMakaiKiheiDestructionToState(state, embeddedSkill) {
+  const gainPercent = resolveSpecialCommandDestructionGainPercent(embeddedSkill);
+  if (!(gainPercent > 0)) return state;
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const nextRates = { ...(currentSnapshot.enemyDestructionRates ?? {}) };
+  let changed = false;
+  for (const targetEnemyIndex of getAliveEnemyIndexes(state.turnState)) {
+    if (!isEnemyBrokenForSpecialOperation(state.turnState, targetEnemyIndex)) continue;
+    const key = String(targetEnemyIndex);
+    const current = Number(nextRates[key] ?? DEFAULT_DESTRUCTION_RATE_PERCENT);
+    const explicitCap = Number(currentSnapshot.enemyDestructionRateCaps?.[key]);
+    const cap = Number.isFinite(explicitCap)
+      ? explicitCap
+      : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT;
+    nextRates[key] = Math.min(Math.max(cap, current), current + gainPercent);
+    changed = true;
+  }
+  if (!changed) return state;
+  applyEnemyStateOverrideSnapshot(state.turnState, {
+    ...currentSnapshot,
+    enemyDestructionRates: nextRates,
+  });
+  return state;
+}
+
 function applyKishinkaToState(state) {
   const clonedParty = state.party.map((member) => member.clone());
   const tezuka = clonedParty.find((member) => member.characterId === TEZUKA_CHARACTER_ID) ?? null;
@@ -325,13 +435,19 @@ function applyMakaiKiheiToState(state) {
   const currentOdGauge = truncateToTwoDecimals(Number(state?.turnState?.odGauge ?? 0));
   const odGain = computeMakaiKiheiOdGain(state, availability.embeddedSkill);
   const odGaugeAfter = truncateToTwoDecimals(clampOdGauge(currentOdGauge + odGain));
-  const nextState = {
+  let nextState = {
     ...state,
     turnState: {
       ...state.turnState,
       odGauge: odGaugeAfter,
     },
   };
+  nextState = applySpecialOperationDamageToState(
+    nextState,
+    availability.embeddedSkill,
+    REPLAY_OPERATION_TYPES.ACTIVATE_MAKAI_KIHEI
+  );
+  nextState = applyMakaiKiheiDestructionToState(nextState, availability.embeddedSkill);
   return applyMakaiKiheiEShieldDamage(nextState, availability.embeddedSkill, availability.actor);
 }
 
@@ -620,27 +736,40 @@ function applyAllOutAttackToState(state) {
   if (!availability.available) {
     return state;
   }
-  const currentSnapshot = buildEnemyStateOverrideSnapshot(state.turnState);
+  const specialSkill = resolveAllOutAttackSkill(state);
+  const nextState = applySpecialOperationDamageToState(
+    state,
+    specialSkill,
+    REPLAY_OPERATION_TYPES.ACTIVATE_ALL_OUT_ATTACK
+  );
+  const currentSnapshot = buildEnemyStateOverrideSnapshot(nextState.turnState);
   const nextEnemyDestructionRates = { ...(currentSnapshot.enemyDestructionRates ?? {}) };
-  for (const targetEnemyIndex of getAliveEnemyIndexes(state.turnState)) {
+  for (const targetEnemyIndex of getAliveEnemyIndexes(nextState.turnState)) {
     const slotKey = String(targetEnemyIndex);
     const currentRate = Number(
       nextEnemyDestructionRates[slotKey] ?? DEFAULT_DESTRUCTION_RATE_PERCENT
     );
-    nextEnemyDestructionRates[slotKey] = currentRate + ALL_OUT_ATTACK_DESTRUCTION_RATE_GAIN_PERCENT;
+    const explicitCap = Number(currentSnapshot.enemyDestructionRateCaps?.[slotKey]);
+    const cap = Number.isFinite(explicitCap)
+      ? explicitCap
+      : Number.POSITIVE_INFINITY;
+    nextEnemyDestructionRates[slotKey] = Math.min(
+      cap,
+      currentRate + ALL_OUT_ATTACK_DESTRUCTION_RATE_GAIN_PERCENT
+    );
   }
-  applyEnemyStateOverrideSnapshot(state.turnState, {
+  applyEnemyStateOverrideSnapshot(nextState.turnState, {
     ...currentSnapshot,
     enemyDestructionRates: nextEnemyDestructionRates,
   });
-  const currentOdGauge = Number(state.turnState.odGauge ?? 0);
+  const currentOdGauge = Number(nextState.turnState.odGauge ?? 0);
   const odGain = availability.aliveEnemyCount * ALL_OUT_ATTACK_OD_GAIN_PER_ENEMY_PERCENT;
-  state.turnState.odGauge = Math.max(
+  nextState.turnState.odGauge = Math.max(
     OD_GAUGE_MIN_PERCENT,
     Math.min(OD_GAUGE_MAX_PERCENT, truncateToTwoDecimals(currentOdGauge + odGain))
   );
-  state.turnState.holdUpActive = false;
-  return state;
+  nextState.turnState.holdUpActive = false;
+  return nextState;
 }
 
 function applyOperation(state, operation = {}, options = {}) {

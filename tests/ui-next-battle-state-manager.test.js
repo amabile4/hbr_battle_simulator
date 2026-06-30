@@ -173,7 +173,9 @@ test('BattleStateManager forwards compacted main and support stats into party me
 
   assert.equal(state.party[0].stats.str, 650);
   assert.equal(state.party[0].supportStats.str, 50);
-  assert.equal(state.party[1].stats, null);
+  assert.ok(Object.values(state.party[1].stats).every(Number.isInteger));
+  assert.equal(state.party[1].supportStats, null);
+  assert.deepEqual(state.turnPlanBaseSetup.statsByPartyIndex['1'].stats, state.party[1].stats);
 });
 
 test('BattleStateManager ignores support stats without a support style', () => {
@@ -212,6 +214,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 0,
         selectedEnemyId: 7001,
         selectedEnemyName: '魔王ヤマワキ',
+        maxDp: 120000,
+        currentDp: 120000,
+        maxHp: 450000,
+        currentHp: 450000,
         param_border: 812,
         dp: 12345,
         od_rate: 8500,
@@ -243,6 +249,10 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
         slotIndex: 1,
         selectedEnemyId: 7002,
         selectedEnemyName: '使い魔ブンゴ',
+        maxDp: 80000,
+        currentDp: 70000,
+        maxHp: 300000,
+        currentHp: 290000,
         param_border: 923,
         dp: 0,
         od_rate: 0,
@@ -271,6 +281,14 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   });
 
   assert.equal(state.turnState.enemyState.enemyCount, 2);
+  assert.equal(state.turnState.enemyState.enemyIdsByEnemy['0'], 7001);
+  assert.deepEqual(state.turnState.enemyState.gaugeStateByEnemy['0'], {
+    maxDp: 120000,
+    currentDp: 120000,
+    maxHp: 450000,
+    currentHp: 450000,
+  });
+  assert.equal(state.turnState.enemyState.gaugeStateByEnemy['1'].currentDp, 70000);
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['0'], '魔王ヤマワキ');
   assert.equal(state.turnState.enemyState.enemyNamesByEnemy['1'], '使い魔ブンゴ');
   assert.equal(state.turnState.enemyState.paramBorderByEnemy['0'], 812);

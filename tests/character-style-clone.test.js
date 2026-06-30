@@ -77,6 +77,14 @@ test('clone: skillUseCounts の更新が独立している', () => {
   assert.equal(cloned.skillUseCounts.get('スキル1'), 99);
 });
 
+test('clone: skillLastUsedTurns の更新が独立している', () => {
+  const orig = buildMember({ skillLastUsedTurns: { 'スキル1': 3 } });
+  const cloned = orig.clone();
+  cloned.skillLastUsedTurns.set('スキル1', 9);
+  assert.equal(orig.skillLastUsedTurns.get('スキル1'), 3, 'original は変わらない');
+  assert.equal(cloned.skillLastUsedTurns.get('スキル1'), 9);
+});
+
 test('clone: _revision が独立している', () => {
   const orig = buildMember();
   const cloned = orig.clone();

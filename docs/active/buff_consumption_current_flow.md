@@ -1,6 +1,6 @@
 # バフ消費ロジック詳細フロー分析
 
-> **ステータス**: 📚 参照 | 📅 最終更新: 2026-03-30
+> **ステータス**: 📚 参照 | 📅 最終更新: 2026-06-27
 
 ## 概要
 
@@ -159,7 +159,31 @@ consumeDoubleActionExtraSkillEffects(1)
 
 ---
 
-## 5. ターン終了フェーズでのバフデクリメント
+## 5. Sprightly（軽快）消費フロー
+
+### 現在の消費パターン
+
+- **何**: 対象となる正のSP消費スキル1回に、効果量最大の軽快を適用して消費
+- **選択**: `resolveEffectiveSkillForAction()` が `resolveEffectiveStatusEffects('Sprightly')` の先頭1件をaction entryへ記録
+- **消費**: `applyCommittedActionSideEffects()` が `consumeTrigger: "SkillUse"` を `shouldConsume()` で判定し、記録済み`effectId`だけをデクリメント
+- **preview**: cloned projected state上だけで消費し、元stateは変更しない
+
+```text
+resolveEffectiveSkillForAction()
+  → 既存SP補正後のコストを確定
+  → Sprightly付与スキル・SP全消費・SP0・非SP消費を除外
+  → power降順の1件を選択してceil割合軽減
+  → sprightlyCostAdjustmentへeffectIdと計算結果を記録
+      ↓
+applyCommittedActionSideEffects()
+  → commitSkillPreview()でSP差分を適用
+  → SkillUse ActionContextで選択済みeffectIdだけを消費
+  → スキル自身が付与する新しいSprightlyを追加
+```
+
+---
+
+## 6. ターン終了フェーズでのバフデクリメント
 
 ### 現在の消費パターン
 
@@ -190,7 +214,7 @@ consumeDoubleActionExtraSkillEffects(1)
 
 ---
 
-## 6. 各消費メソッドのシグネチャ一覧
+## 7. 各消費メソッドのシグネチャ一覧
 
 | メソッド | 定義位置 | 呼び出し側 | 消費トリガー |
 |---------|--------|---------|----------|
@@ -202,10 +226,11 @@ consumeDoubleActionExtraSkillEffects(1)
 | `removeStatusEffectsWhere(predicate, count)` | character-style.js | turn-controller.js | predicate判定 |
 | `consumeDoubleActionExtraSkillEffects(count)` | character-style.js | turn-controller.js | Count型exitCond |
 | `tickSpecialStatusCountEffects()` | character-style.js | 非直接使用 | specialStatusTypeId |
+| `consumeSelectedCountStatusEffectsWithOrchestrator(...)` | turn-controller.js | Sprightly/Funnel/MindEye | ActionContextとeffectId |
 
 ---
 
-## 7. 消費判定のマトリクス（現状）
+## 8. 消費判定のマトリクス（現状）
 
 | バフ種別 | exitCond | limitType | トリガー | 消費方法 | 呼び出し関数 |
 |-------|---------|----------|------|------|----------|
@@ -215,6 +240,7 @@ consumeDoubleActionExtraSkillEffects(1)
 | アクティブバフ一般 | PlayerTurnEnd | Default | ターン終了 | tickStatusEffectsByExitCond | tickStatusEffectsByExitCond |
 | アクティブバフ一般 | EnemyTurnEnd | Default | ターン終了 | tickStatusEffectsByExitCond | tickStatusEffectsByExitCond |
 | DoubleActionExtraSkill | Count | Only | 追加ターン消費 | tickStatusEffectsWhere | consumeDoubleActionExtraSkillEffects |
+| Sprightly | Count | Once | 対象SPスキル使用 | tickStatusEffectsWhere | consumeSelectedCountStatusEffectsWithOrchestrator |
 | 敵デバフ一般 | Count | - | 明示削除 | removeStatusEffectsWhere | 直接呼び出し |
 
 ---
@@ -227,7 +253,7 @@ consumeDoubleActionExtraSkillEffects(1)
 
 ### 2. **スキーマ非統一**
 - バフメタデータ（exitCond, limitType）の意味が統一されていない
-- `consumeTrigger` という概念がそもそもコードに無い
+- `consumeTrigger` はSprightlyなど一部の状態で明示されるが、既存状態には未設定のものも残る
 
 ### 3. **テストの局所性**
 - 個別ケース（Funnel、MindEye、特殊状態）ごとにテストが分かれている
@@ -243,4 +269,3 @@ consumeDoubleActionExtraSkillEffects(1)
 2. `effect.limitType === 'Only'` の場合、他の候補との競合判定が必要か
 3. `effect.remaining` の消費量は幾つか
 4. 消費後の削除判定（remaining → 0 か、それ以上保持か）
-

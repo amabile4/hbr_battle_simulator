@@ -2,6 +2,7 @@ import { applySpChange, getEventCeiling } from './sp.js';
 import { createDpState, cloneDpState, getDpRate } from './dp-state.js';
 import { normalizeCharacterStats } from './character-stats.js';
 import { resolveShortCharacterName } from './character-name.js';
+import { parseCondition } from '../engine/cond-parser.js';
 import {
   getAlternateFormInfo,
   getCurrentFormInfo,
@@ -64,6 +65,10 @@ function normalizeSkill(skill) {
     desc: String(skill.desc ?? ''),
     targetType: String(skill.target_type ?? skill.targetType ?? ''),
     spCost: Number(skill.sp_cost ?? skill.spCost ?? 0),
+    spCostByUseCount: Array.isArray(skill.sp_cost_by_use_count ?? skill.spCostByUseCount)
+      ? (skill.sp_cost_by_use_count ?? skill.spCostByUseCount).map((value) => Number(value))
+      : null,
+    intervalTurn: Math.max(0, Number(skill.interval_turn ?? skill.intervalTurn ?? 0)),
     sourceType,
     isPassive,
     type: resolveSkillType(skill),
@@ -321,6 +326,27 @@ function normalizePassive(passive) {
   };
 }
 
+// AST ベースの Sp()>=0 検出ヘルパ（Phase 4: hasSpGreaterOrEqualZeroCondition の正規表現廃止）
+// turn-controller.js 側と同じ意味論。CountBC(...) の内側の Sp()>=0 はトップレベル条件と
+// みなさない（regex 版は誤検出のリスクがあったため AST 版で正確化）。
+function isSpGeqZeroCompareNode(node) {
+  return (
+    node?.type === 'compare' &&
+    node.op === '>=' &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'Sp' &&
+    (node.left.args?.length ?? 0) === 0 &&
+    Number(node.right?.value) === 0
+  );
+}
+
+function containsSpGeqZeroClause(ast) {
+  if (!ast) return false;
+  if (ast.type === 'or') return (ast.children ?? []).some(containsSpGeqZeroClause);
+  if (ast.type === 'and') return (ast.children ?? []).some(isSpGeqZeroCompareNode);
+  return isSpGeqZeroCompareNode(ast);
+}
+
 export class CharacterStyle {
   constructor(input) {
     if (!input) {
@@ -447,6 +473,23 @@ export class CharacterStyle {
     this.skillUseCounts = new Map(
       Object.entries(skillUseCountsInput).map(([k, v]) => [String(k), Number(v)])
     );
+    const skillLastUsedTurnsInput =
+      input.skillLastUsedTurns && typeof input.skillLastUsedTurns === 'object'
+        ? input.skillLastUsedTurns
+        : {};
+    this.skillLastUsedTurns = new Map(
+      Object.entries(skillLastUsedTurnsInput).map(([k, v]) => [String(k), Number(v)])
+    );
+    const skillCooldownRemainingInput =
+      input.skillCooldownRemaining && typeof input.skillCooldownRemaining === 'object'
+        ? input.skillCooldownRemaining
+        : {};
+    this.skillCooldownRemaining = new Map(
+      Object.entries(skillCooldownRemainingInput).map(([k, v]) => [String(k), Number(v)])
+    );
+    // スキル使用ターン自体はCT減算対象外。使用ターンのdecrementをスキップするためのフラグ。
+    // clone/snapshotには含まない（ターン内一時フラグ）。
+    this._skillCooldownJustSet = new Set();
 
     this._revision = 0;
   }
@@ -550,7 +593,11 @@ export class CharacterStyle {
     const skillFromRegistry = this.getSkill(skill.skillId);
     const effectiveCond = String(skill.cond ?? skillFromRegistry?.cond ?? '');
     
-    const hasSpGreaterOrEqualZeroCondition = /(^|&&)\s*Sp\(\)\s*>=\s*0(\s*|&&|$)/.test(effectiveCond);
+    const hasSpGreaterOrEqualZeroCondition = (() => {
+      // AST ベース検出: トップレベルの OR/AND 連鎖に Sp()>=0 が含まれるか
+      const parseResult = parseCondition(effectiveCond);
+      return parseResult.ok && containsSpGeqZeroClause(parseResult.ast);
+    })();
     const isSpConsumeSkill =
       consumeType !== 'Ep' &&
       consumeType !== 'Token' &&
@@ -1392,6 +1439,15 @@ export class CharacterStyle {
     return Number(this.skillUseCounts.get(key) ?? 0);
   }
 
+  getSkillLastUsedTurnByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key || !this.skillLastUsedTurns.has(key)) {
+      return null;
+    }
+    const turnIndex = Number(this.skillLastUsedTurns.get(key));
+    return Number.isFinite(turnIndex) ? turnIndex : null;
+  }
+
   incrementSkillUseByLabel(label) {
     const key = String(label ?? '').trim();
     if (!key) {
@@ -1402,13 +1458,53 @@ export class CharacterStyle {
     this._revision += 1;
   }
 
-  incrementSkillUseById(skillId) {
+  incrementSkillUseById(skillId, turnIndex = null) {
     const skill = this.getSkill(skillId);
     const key = String(skill?.label ?? '').trim();
     if (!key) {
       return;
     }
     this.incrementSkillUseByLabel(key);
+    const normalizedTurnIndex = Number(turnIndex);
+    if (Number.isInteger(normalizedTurnIndex) && normalizedTurnIndex >= 0) {
+      this.skillLastUsedTurns.set(key, normalizedTurnIndex);
+    }
+    const intervalTurn = Math.max(0, Number(skill?.intervalTurn ?? 0));
+    if (intervalTurn > 0) {
+      this.skillCooldownRemaining.set(key, intervalTurn);
+      this._skillCooldownJustSet.add(key);
+    }
+  }
+
+  getSkillCooldownRemainingByLabel(label) {
+    const key = String(label ?? '').trim();
+    if (!key) return 0;
+    return Number(this.skillCooldownRemaining.get(key) ?? 0);
+  }
+
+  clearSkillCooldownJustSet() {
+    this._skillCooldownJustSet.clear();
+  }
+
+  decrementSkillCooldowns() {
+    let changed = false;
+    for (const [key, remaining] of this.skillCooldownRemaining) {
+      // スキルを使用したターン自体はCTを減算しない（バフ付与ターンと同じ扱い）
+      if (this._skillCooldownJustSet.has(key)) {
+        continue;
+      }
+      const next = remaining - 1;
+      if (next <= 0) {
+        this.skillCooldownRemaining.delete(key);
+      } else {
+        this.skillCooldownRemaining.set(key, next);
+      }
+      changed = true;
+    }
+    this._skillCooldownJustSet.clear();
+    if (changed) {
+      this._revision += 1;
+    }
   }
 
   /**
@@ -1472,6 +1568,9 @@ export class CharacterStyle {
     c.epRule = this.epRule ? structuredClone(this.epRule) : null;
     c.statusEffects = structuredClone(this.statusEffects);
     c.skillUseCounts = new Map(this.skillUseCounts);
+    c.skillLastUsedTurns = new Map(this.skillLastUsedTurns);
+    c.skillCooldownRemaining = new Map(this.skillCooldownRemaining);
+    c._skillCooldownJustSet = new Set(this._skillCooldownJustSet);
     return c;
   }
 
@@ -1512,6 +1611,8 @@ export class CharacterStyle {
       epRule: this.epRule ? structuredClone(this.epRule) : null,
       statusEffects: structuredClone(this.statusEffects),
       skillUseCounts: Object.fromEntries(this.skillUseCounts.entries()),
+      skillLastUsedTurns: Object.fromEntries(this.skillLastUsedTurns.entries()),
+      skillCooldownRemaining: Object.fromEntries(this.skillCooldownRemaining.entries()),
       revision: this._revision,
     };
   }
@@ -1604,6 +1705,7 @@ export function shouldConsume(effect, actionContext, options = {}) {
 function shouldConsumeCountType(effect, actionContext) {
   const actionType = String(actionContext.actionType ?? '');
   const hasDamage = Boolean(actionContext.hasDamage);
+  const consumeTrigger = String(effect?.metadata?.consumeTrigger ?? '');
 
   // Count型の消費条件: ダメージを与える行動、または Manual
   if (actionType === 'Manual') {
@@ -1612,6 +1714,21 @@ function shouldConsumeCountType(effect, actionContext) {
       shouldConsume: true,
       reason: 'Manual consumption',
       consumeAmount: effect.metadata?.consumeAmount ?? 1,
+    };
+  }
+
+  if (consumeTrigger === 'SkillUse') {
+    if (actionType === 'Skill') {
+      return {
+        shouldConsume: true,
+        reason: 'Count-type matches skill use',
+        consumeAmount: effect.metadata?.consumeAmount ?? 1,
+      };
+    }
+    return {
+      shouldConsume: false,
+      reason: `SkillUse trigger requires Skill action (got ${actionType})`,
+      consumeAmount: 0,
     };
   }
 
@@ -1732,7 +1849,7 @@ export function validateBuffMetadata(effect) {
   }
 
   // limitType のバリデーション
-  const validLimitTypes = ['Default', 'Only', 'Special'];
+  const validLimitTypes = ['Default', 'Only', 'Once', 'Special'];
   if (!validLimitTypes.includes(limitType)) {
     errors.push(`Invalid limitType: ${limitType} (must be one of: ${validLimitTypes.join(', ')})`);
   }
@@ -1744,7 +1861,7 @@ export function validateBuffMetadata(effect) {
 
   // metadata.consumeTrigger のバリデーション
   if (typeof metadata.consumeTrigger !== 'undefined') {
-    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus'];
+    const validTriggers = ['DamageDealt', 'NormalAttack', 'Pursuit', 'TurnEnd', 'Manual', 'SpecialStatus', 'SkillUse'];
     if (!validTriggers.includes(metadata.consumeTrigger)) {
       errors.push(`Invalid consumeTrigger: ${metadata.consumeTrigger}`);
     }

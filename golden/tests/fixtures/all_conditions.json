@@ -1,0 +1,5336 @@
+[
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(RKayamori) == 1 && MotivationLevel() == 5)>0",
+    "sourceId": 46001121
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "0.0<DpRate()",
+    "sourceId": 46001314
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31A)==1)>=3",
+    "sourceId": 46001361
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46001414
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46001415
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0",
+    "sourceId": 46001523
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(KAsakuraSkill51Ev1)>0)==0",
+    "sourceId": 46001561
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46001713
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 46001716
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46002110
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(EAoi) == 1 && MoraleLevel() >= 6)>0",
+    "sourceId": 46002114
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(SMinase) == 1 && SpecialStatusCountByType(122)>0)>0",
+    "sourceId": 46002307
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(SMinaseSkill53)>0)==0",
+    "sourceId": 46002309
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(SMinaseSkill06)>0)==0",
+    "sourceId": 46002311
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 46002361
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46002505
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "MoraleLevel() >= 6",
+    "sourceId": 46002510
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel() >= 6)>0",
+    "sourceId": 46002511
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46002561
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46003109
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46003113
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 46003114
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46003115
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6",
+    "sourceId": 46003116
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 46003210
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(3)>0)>0",
+    "sourceId": 46003307
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(MTenneSkill51Ev1)>0)==0",
+    "sourceId": 46003361
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46003420
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)>=3",
+    "sourceId": 46003421
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)>=3",
+    "sourceId": 46003435
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0",
+    "sourceId": 46003510
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0",
+    "sourceId": 46003512
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(AKanzaki) == 1 && SpecialStatusCountByType(125)>0)>0",
+    "sourceId": 46003513
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 46003514
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(MSatsukiSkill55)>1)>0",
+    "sourceId": 46003619
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20)==0 && CountBC(IsPlayer())>1",
+    "sourceId": 46003626
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46004117
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 46004118
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharacter(YShirakawa)==1&&Token()>3)>0",
+    "sourceId": 46004120
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46004124
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(22)>0)>0",
+    "sourceId": 46004307
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(MKiryu) == 1 && FireMarkLevel()>=4)>=1",
+    "sourceId": 46004311
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 46004407
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46004412
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46004417
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(CSugahara) == 1 && DpRate() >= 1.0) > 0",
+    "sourceId": 46004461
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46004507
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46004514
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(SKuraSkill53)>0)==0",
+    "sourceId": 46004609
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Turn()==1",
+    "sourceId": 46005113
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 46005114
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsZone(Fire)==0&&IsZone(None)==0)>0",
+    "sourceId": 46005222
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(IIshiiSkill51Ev1)>0)==0",
+    "sourceId": 46005261
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "0.0<DpRate()",
+    "sourceId": 46005308
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31D)==1)>=3",
+    "sourceId": 46005461
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(ADate) == 1 && SpecialStatusCountByType(146) < 1) > 0",
+    "sourceId": 46005511
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 46005614
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0 && IsDead()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 46005616
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && IsBroken() == 1)==0",
+    "sourceId": 46005619
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 46006107
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() >= 0",
+    "sourceId": 46006110
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0",
+    "sourceId": 46006208
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharacter(NiOhshima)==1&&SpecialStatusCountByType(164)>0)>0",
+    "sourceId": 46006211
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharacter(NiOhshima)==1&&SpecialStatusCountByType(164)>0)>0",
+    "sourceId": 46006212
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31E)==1)>=3",
+    "sourceId": 46006261
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46006306
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() >= 0",
+    "sourceId": 46006307
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() >= 0",
+    "sourceId": 46006308
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() >= 0",
+    "sourceId": 46006311
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46006404
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46006405
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46006407
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 46006408
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsFront()==0&&IsPlayer())>0",
+    "sourceId": 46006409
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31E)==1)>=3",
+    "sourceId": 46006561
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "IsOverDrive()==0",
+    "sourceId": 46006610
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 46006611
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46007108
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(CMatsuokaSkill04)>0)==0",
+    "sourceId": 46007406
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(CMatsuokaSkill52)>0)==0",
+    "sourceId": 46007407
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(CMatsuoka) == 1 && IsCharging()==1) > 0",
+    "sourceId": 46007411
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(CMatsuokaSkill51Ev1)>0)==0",
+    "sourceId": 46007461
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Sp()>19",
+    "sourceId": 46007513
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Sp()>0",
+    "sourceId": 46007514
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(INatsumeSkill51Ev1)>0)==0",
+    "sourceId": 46007561
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(MKurosawaSkill06)>0)==0",
+    "sourceId": 46007611
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(MKurosawa) == 1 && IsCharging()==1) > 0",
+    "sourceId": 46007612
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Sp()<0",
+    "sourceId": 46008209
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer()&&Sp()<=0)>0",
+    "sourceId": 46008309
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(VBalakrishnan) == 1 && DpRate() >= 1.0) > 0",
+    "sourceId": 46008461
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46008609
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Sp()<0",
+    "sourceId": 46008613
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 46040702
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 46041103
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46041206
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(PlayedSkillCount(EmaDSkill02)>0)==0",
+    "sourceId": 46041303
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46041304
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "Sp()>0",
+    "sourceId": 46041404
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "overwrite_cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(20)>0)>0",
+    "sourceId": 46041501
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46502301
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() >= 0",
+    "sourceId": 46503301
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5 && IsFront()",
+    "sourceId": 46503401
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46506501
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer())>1",
+    "sourceId": 46507101
+  },
+  {
+    "file": "MasterSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsCharacter(CReaper)==1 && IsBroken()==1)>=1",
+    "sourceId": 46508101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47000121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)==1",
+    "sourceId": 47000122
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)==1",
+    "sourceId": 47000123
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47000124
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47000125
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DpRate()>=1.01",
+    "sourceId": 47000130
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharging()==1",
+    "sourceId": 47000131
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47000283
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)==1",
+    "sourceId": 47000284
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)==1",
+    "sourceId": 47000285
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47000286
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47000287
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharging()==1",
+    "sourceId": 47000300
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharging()==1",
+    "sourceId": 47000301
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DpRate()>=1.01",
+    "sourceId": 47000320
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DpRate()>=1.01",
+    "sourceId": 47000321
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Attacker)==1",
+    "sourceId": 47000322
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Blaster)==1",
+    "sourceId": 47000323
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Breaker)==1",
+    "sourceId": 47000324
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Defender)==1",
+    "sourceId": 47000326
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Buffer)==1",
+    "sourceId": 47000327
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Debuffer)==1",
+    "sourceId": 47000328
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Healer)==1",
+    "sourceId": 47000329
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsOverDrive()==1",
+    "sourceId": 47000334
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsOverDrive()==1",
+    "sourceId": 47000336
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Attacker)==1",
+    "sourceId": 47000337
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Blaster)==1",
+    "sourceId": 47000338
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Breaker)==1",
+    "sourceId": 47000339
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Defender)==1",
+    "sourceId": 47000341
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Buffer)==1",
+    "sourceId": 47000342
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Debuffer)==1",
+    "sourceId": 47000343
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Healer)==1",
+    "sourceId": 47000344
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsOverDrive()==1",
+    "sourceId": 47000347
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsOverDrive()==1",
+    "sourceId": 47000348
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47011141
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47011151
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(144) > 0",
+    "sourceId": 47011171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MotivationLevel()>=4",
+    "sourceId": 47011211
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MotivationLevel()==5",
+    "sourceId": 47011221
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MotivationLevel()==3",
+    "sourceId": 47011231
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MotivationLevel()==2",
+    "sourceId": 47011241
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 47011302
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47011311
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47011351
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Dark)==1",
+    "sourceId": 47011383
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31A)==1)>=3",
+    "sourceId": 47011611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47012062
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47012122
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47012123
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47012132
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47012613
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Ice)==1",
+    "sourceId": 47013162
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Thunder)==1",
+    "sourceId": 47013172
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47014112
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47015091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47015121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "TargetBreakDownTurn()>0",
+    "sourceId": 47015171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "TargetBreakDownTurn()>0",
+    "sourceId": 47015181
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "TargetBreakDownTurn()>0",
+    "sourceId": 47015201
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "TargetBreakDownTurn()>0",
+    "sourceId": 47015211
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&SpecialStatusCountByType(172)>0)>0",
+    "sourceId": 47015231
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47017064
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47017113
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47021081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47021092
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MoraleLevel()<=5",
+    "sourceId": 47021141
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MoraleLevel()<=3",
+    "sourceId": 47021151
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MoraleLevel()<=7",
+    "sourceId": 47021161
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MoraleLevel()<=1",
+    "sourceId": 47021171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "MoraleLevel()<=9",
+    "sourceId": 47021181
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)==1",
+    "sourceId": 47021262
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47022103
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 47022611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(SMinaseSkill02)==0",
+    "sourceId": 47023031
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 47023611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47024122
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47024123
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==0",
+    "sourceId": 47024141
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47024142
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && IsCharacter(KHiiragi) == 1 && MoraleLevel()>=6)>0",
+    "sourceId": 47025111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47026071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47026112
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(BIYamawakiSkill53)==0",
+    "sourceId": 47031101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47031142
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47031143
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20) == 0",
+    "sourceId": 47031153
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31C)==1)>=3",
+    "sourceId": 47031611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(SSakurabaSkill54) < 2",
+    "sourceId": 47032111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(SSakurabaSkill54)  == 0",
+    "sourceId": 47032121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(SSakurabaSkill54)  == 2",
+    "sourceId": 47032122
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MTenneSkill54) < 2",
+    "sourceId": 47033101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MTenneSkill54)  == 0",
+    "sourceId": 47033111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MTenneSkill54)  == 2",
+    "sourceId": 47033121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(YBungoSkill52)==0",
+    "sourceId": 47034111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(YBungoSkill53)==0",
+    "sourceId": 47034171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4",
+    "sourceId": 47034211
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=2",
+    "sourceId": 47034221
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1) == 5",
+    "sourceId": 47034231
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=1",
+    "sourceId": 47034241
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=3",
+    "sourceId": 47034251
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=4",
+    "sourceId": 47034351
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=2",
+    "sourceId": 47034361
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1) == 5",
+    "sourceId": 47034371
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=1",
+    "sourceId": 47034381
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() == 1 && SpecialStatusCountByType(155) >= 1)<=3",
+    "sourceId": 47034391
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47035071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47035091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(125) > 0",
+    "sourceId": 47035101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20) == 0",
+    "sourceId": 47035142
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(AKanzakiSkill55) == 0",
+    "sourceId": 47035151
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(AKanzakiSkill55)  == 1",
+    "sourceId": 47035161
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MSatsukiSkill52)==0",
+    "sourceId": 47036081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0",
+    "sourceId": 47036121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(125) > 0",
+    "sourceId": 47036161
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MSatsukiSkill55) < 2",
+    "sourceId": 47036191
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MSatsukiSkill55)  == 0",
+    "sourceId": 47036201
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MSatsukiSkill55)  == 2",
+    "sourceId": 47036202
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsFront()==1",
+    "sourceId": 47036251
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsTeam(31C)==1)>=3",
+    "sourceId": 47036611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47041101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47041141
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47041211
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "SpecialStatusCountByType(20) == 0",
+    "sourceId": 47041221
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47042081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47042111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47043112
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 47044071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47045071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47045112
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==0",
+    "sourceId": 47045152
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47045153
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20) == 0",
+    "sourceId": 47045167
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47045171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47045172
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47046081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47051061
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47051101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47051171
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 47051182
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47051611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1",
+    "sourceId": 47052071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1 || IsZone(Ice)==1",
+    "sourceId": 47052081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1 || IsZone(Nonelement)==1",
+    "sourceId": 47052091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1",
+    "sourceId": 47052101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Thunder)==1",
+    "sourceId": 47052111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1",
+    "sourceId": 47052121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1",
+    "sourceId": 47052131
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1",
+    "sourceId": 47052231
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1 || IsZone(Ice)==1",
+    "sourceId": 47052241
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1 || IsZone(Nonelement)==1",
+    "sourceId": 47052251
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1",
+    "sourceId": 47052261
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Thunder)==1",
+    "sourceId": 47052271
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1",
+    "sourceId": 47052281
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Dark)==1",
+    "sourceId": 47052291
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsZone(Thunder)==1",
+    "sourceId": 47052381
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(IIshiiSkill51Ev1)==0",
+    "sourceId": 47052611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47053041
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(FMikotoSkill04)==0",
+    "sourceId": 47053081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47053611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "RemoveDebuffCount()>0",
+    "sourceId": 47054163
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "RemoveDebuffCount()>0",
+    "sourceId": 47054164
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47055072
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(146) > 0",
+    "sourceId": 47055111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Light)==1",
+    "sourceId": 47055152
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0)==3",
+    "sourceId": 47056071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0)==3",
+    "sourceId": 47056081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0)==2",
+    "sourceId": 47056091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0&&IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 47056161
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(AMizuharaSkill06)==0",
+    "sourceId": 47056191
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 47061071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MiOhshimaSkill05)==0",
+    "sourceId": 47063081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=6)>0",
+    "sourceId": 47063091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=8)>0",
+    "sourceId": 47063092
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()==7)>0",
+    "sourceId": 47063093
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=9)>0",
+    "sourceId": 47063094
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()==9)>0",
+    "sourceId": 47063095
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=4)>0",
+    "sourceId": 47063096
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()==5)>0",
+    "sourceId": 47063097
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()>=2)>0",
+    "sourceId": 47063098
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()==3)>0",
+    "sourceId": 47063099
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && IsCharacter(MiOhshima) && Token()==1)>0",
+    "sourceId": 47063100
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47064073
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsOverDrive()",
+    "sourceId": 47066613
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47072061
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)==0",
+    "sourceId": 47072132
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)==1",
+    "sourceId": 47072133
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47072151
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47072611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47073071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47074072
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 47074073
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47074081
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47075051
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47075091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47075131
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47075611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47076051
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47076101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsCharging()",
+    "sourceId": 47076611
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47081092
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47081093
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "TargetBreakDownTurn()>0",
+    "sourceId": 47081101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47081143
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(LShanhuaSkill54)==0",
+    "sourceId": 47082111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47082153
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsOverDrive()",
+    "sourceId": 47083111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47084093
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47085113
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47086112
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Fire)",
+    "sourceId": 47086132
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsApplyLearning()",
+    "sourceId": 47109957
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsApplyLearning()",
+    "sourceId": 47109958
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120401
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120402
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120451
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120452
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120465
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120466
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120485
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47120486
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "BreakDownTurn()==0",
+    "sourceId": 47122107
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 47123101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 47123111
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 47123151
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 47123712
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 47123802
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 47123810
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47161441
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 47161442
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 47161461
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(124)>0",
+    "sourceId": 47200142
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(124)>0",
+    "sourceId": 47200143
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47200154
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200159
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200160
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200165
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>3",
+    "sourceId": 47200200
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(155) > 0",
+    "sourceId": 47200227
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 47200236
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()>=15",
+    "sourceId": 47200244
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharacter(IIshii)==1",
+    "sourceId": 47200259
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200288
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200289
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200290
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200291
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(MotivationLevel() >= 4) >= 3",
+    "sourceId": 47200298
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(MotivationLevel() >= 4) == 2",
+    "sourceId": 47200299
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "MotivationLevel() == 5",
+    "sourceId": 47200303
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 47200314
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 47200321
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 47200322
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200328
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200329
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 47200330
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(155) > 0",
+    "sourceId": 47200332
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200333
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200334
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200335
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200336
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Fire)==1",
+    "sourceId": 47200337
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Ice)==1",
+    "sourceId": 47200338
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200339
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Thunder)==1",
+    "sourceId": 47200341
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200344
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200345
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200349
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()&&DpRate()==0.0)>=1",
+    "sourceId": 47200352
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200355
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200357
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47200358
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47200359
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47200361
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47200362
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47200364
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200366
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200367
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>=10 && IsNatureElement(Fire)",
+    "sourceId": 47200368
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>=10 && IsNatureElement(Fire)",
+    "sourceId": 47200369
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsWeakElement(Dark)",
+    "sourceId": 47200371
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200372
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200373
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 47200387
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200391
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200392
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200393
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200394
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200398
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200399
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200400
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200401
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200402
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200403
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47200404
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47200407
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47209411
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47209412
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47209413
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47209414
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47209415
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47209421
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47209422
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47209423
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47209424
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47209425
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47209531
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47209532
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47209533
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47209534
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47209535
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47209541
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47209542
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47209543
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47209544
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47209545
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47209571
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47209572
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47209573
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47209574
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47209575
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "IsTargetWeakNatureElement(Fire)==1",
+    "sourceId": 47300021
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "IsTargetWeakNatureElement(Thunder)==1",
+    "sourceId": 47300022
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "IsTargetWeakNatureElement(Dark)==1",
+    "sourceId": 47300023
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "IsTargetWeakNatureElement(Light)==1",
+    "sourceId": 47300024
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "IsTargetWeakNatureElement(Ice)==1",
+    "sourceId": 47300025
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsTeam(31A)==1",
+    "sourceId": 47321302
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharacter(KMaruyama)==1",
+    "sourceId": 47327102
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsTeam(31C)==1",
+    "sourceId": 47333601
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsTeam(31E)==1",
+    "sourceId": 47336101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsTeam(31E)==1",
+    "sourceId": 47336102
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharacter(KMaruyama)==1 || IsCharacter(MTenne)==1 || IsCharacter(YBungo)==1 || IsCharacter(HOgasawara)==1 || IsCharacter(YoOhshima)==1 || IsCharacter(VBalakrishnan)==1",
+    "sourceId": 47337201
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharacter(KMaruyama)==1 || IsCharacter(MTenne)==1 || IsCharacter(YBungo)==1 || IsCharacter(HOgasawara)==1 || IsCharacter(YoOhshima)==1 || IsCharacter(VBalakrishnan)==1",
+    "sourceId": 47337202
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharacter(RKayamori)==1 || IsCharacter(CSkopovskaya)==1",
+    "sourceId": 47338601
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47402072
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsHitWeak()",
+    "sourceId": 47402073
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==0",
+    "sourceId": 47411022
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 47411023
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(EmaCSkill01)==0",
+    "sourceId": 47412021
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "BreakHitCount()>0",
+    "sourceId": 47412062
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20) > 0",
+    "sourceId": 47413041
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsReinforcedMode()",
+    "sourceId": 47414033
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "hit_condition",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 47415012
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 47504301
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsTeam(31E)==1",
+    "sourceId": 47506101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "HasSkill(YoOhshimaSkill53)==1",
+    "sourceId": 47506401
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Thunder)",
+    "sourceId": 47508101
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Dark)",
+    "sourceId": 47508201
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Ice)",
+    "sourceId": 47508401
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Light)",
+    "sourceId": 47508501
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsNatureElement(Fire)",
+    "sourceId": 47508601
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>=1",
+    "sourceId": 47700305
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()==0",
+    "sourceId": 47700306
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsZone(Fire)==1||IsZone(Ice)==1||IsZone(Thunder)==1||IsZone(Light)==1||IsZone(Dark)==1",
+    "sourceId": 47700309
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "BreakDownTurn()<1",
+    "sourceId": 47700315
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusIconCountByType(111)>=1",
+    "sourceId": 47700316
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Attacker)==1",
+    "sourceId": 47700318
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusIconCountByType(25)>=1",
+    "sourceId": 47700322
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "BreakDownTurn()<1",
+    "sourceId": 47700327
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "BreakDownTurn()<1",
+    "sourceId": 47700333
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusIconCountByType(176)>=1",
+    "sourceId": 47700337
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusIconCountByType(1)>=1",
+    "sourceId": 47700338
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsCharging()==0",
+    "sourceId": 47700360
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Breaker)==1",
+    "sourceId": 47721060
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 47721061
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>3",
+    "sourceId": 47721062
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20)==1",
+    "sourceId": 47721063
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Breaker)==1",
+    "sourceId": 47721064
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 47721065
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>3",
+    "sourceId": 47721066
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20)==1",
+    "sourceId": 47721067
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Breaker)==1",
+    "sourceId": 47721068
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 47721069
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Token()>3",
+    "sourceId": 47721070
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(20)==1",
+    "sourceId": 47721071
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsRole(Healer)==1",
+    "sourceId": 47721078
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "Sp() < 0",
+    "sourceId": 47721083
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DpRate() <= 0.5",
+    "sourceId": 47721084
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 47721086
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DpRate() <= 0.5",
+    "sourceId": 47721091
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()>=16",
+    "sourceId": 47721102
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()<=10",
+    "sourceId": 47721107
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsAttackNormal()==0 && DebuffIconCount()>=2",
+    "sourceId": 47721121
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DebuffIconCount()>=1",
+    "sourceId": 47721122
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "DebuffIconCount()>=2",
+    "sourceId": 47721123
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 47721126
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 2050000001
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 2050000002
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "BreakDownTurn()==0",
+    "sourceId": 2050000809
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "BreakDownTurn()==0",
+    "sourceId": 2050000810
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 2050001701
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(132)==1",
+    "sourceId": 2050001702
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsEnemyCharge()==1",
+    "sourceId": 2050001905
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "IsFront()==0",
+    "sourceId": 2050002305
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 2050002602
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 2050002608
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(30)==0",
+    "sourceId": 2050002613
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==1",
+    "sourceId": 2050021601
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==0",
+    "sourceId": 2050021602
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(79)==0",
+    "sourceId": 2050021604
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "cond",
+    "expression": "IsEnemyCharge()==1",
+    "sourceId": 2050023205
+  },
+  {
+    "file": "MasterSkillPart.json",
+    "field": "target_condition",
+    "expression": "SpecialStatusCountByType(157)==1",
+    "sourceId": 2050023910
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57000310
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57000311
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&DpRate()>=1.01)>0",
+    "sourceId": 57000320
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&DpRate()>=1.01)>0",
+    "sourceId": 57000321
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57000331
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57000332
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57000344
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5 && IsFront()",
+    "sourceId": 57001001
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.0 && IsFront()",
+    "sourceId": 57001002
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5 && IsFront()",
+    "sourceId": 57001003
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()==0.0 && IsFront()",
+    "sourceId": 57001004
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Sp()>=10 && IsFront()",
+    "sourceId": 57001005
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Sp()>=15 && IsFront()",
+    "sourceId": 57001006
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001007
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001008
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001009
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001010
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001011
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001012
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001013
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001014
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()==0.0 && IsFront()",
+    "sourceId": 57001015
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001016
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001017
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001018
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001019
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001020
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001021
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001022
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001023
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Sp()<=3 && IsFront()",
+    "sourceId": 57001024
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001025
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001026
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001027
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5 && IsFront()",
+    "sourceId": 57001028
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001029
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001030
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001031
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001032
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001033
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001034
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001035
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001036
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001037
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001038
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001039
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001040
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001041
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001042
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001043
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001044
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Random()<0.3 && IsFront()",
+    "sourceId": 57001045
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001046
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001047
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001048
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001049
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001050
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001051
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001052
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001053
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001054
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001055
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001056
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()",
+    "sourceId": 57001057
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001058
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001059
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001060
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001061
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()==0.0 && IsFront()",
+    "sourceId": 57001062
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001063
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001064
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001065
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001066
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001067
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001068
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001069
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001070
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001071
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001072
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001073
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001074
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001075
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001076
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001077
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001078
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()",
+    "sourceId": 57001079
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.3 && IsFront()",
+    "sourceId": 57001080
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001084
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()&&CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(12)>0)>0||CountBC(IsPlayer()==0&&IsDead()==0&&SpecialStatusCountByType(57)>0)>0",
+    "sourceId": 57001085
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001086
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001087
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001089
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001090
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001092
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001093
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001095
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001096
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001097
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001098
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()",
+    "sourceId": 57001099
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001100
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001102
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()",
+    "sourceId": 57001103
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001105
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "PlayedSkillCount(MAikawaSkill54)>=1",
+    "sourceId": 57001107
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Fire)==1)>=3",
+    "sourceId": 57001108
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Fire)==1)>=3",
+    "sourceId": 57001109
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001110
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001111
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()==0",
+    "sourceId": 57001112
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001113
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.0 && IsFront()",
+    "sourceId": 57001115
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.8 && IsFront()",
+    "sourceId": 57001118
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001119
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(78)>0 && IsFront()",
+    "sourceId": 57001123
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001124
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001125
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001126
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MoraleLevel()>=6 && IsFront()",
+    "sourceId": 57001127
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001128
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.01",
+    "sourceId": 57001131
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 57001132
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 57001133
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 57001134
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.0 && IsFront()",
+    "sourceId": 57001135
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5 && IsFront()",
+    "sourceId": 57001136
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001137
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(124)>0)>0",
+    "sourceId": 57001138
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && CountBC(IsPlayer() && SpecialStatusCountByType(124)>0)>0",
+    "sourceId": 57001139
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(78)>0 && IsFront()",
+    "sourceId": 57001143
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(79)>0)>0",
+    "sourceId": 57001148
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.0 && IsFront()",
+    "sourceId": 57001150
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1",
+    "sourceId": 57001158
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5",
+    "sourceId": 57001160
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()<=0.5 && IsFront()",
+    "sourceId": 57001161
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(144)>0",
+    "sourceId": 57001165
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(144)>0",
+    "sourceId": 57001166
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001167
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Sp()<=0",
+    "sourceId": 57001168
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0 && IsFront()",
+    "sourceId": 57001176
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001181
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(122)>0 && IsFront()",
+    "sourceId": 57001184
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "ConquestBikeLevel()>=80",
+    "sourceId": 57001185
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && Token()>3)>0",
+    "sourceId": 57001187
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Sp()<=0",
+    "sourceId": 57001190
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0 && BreakDownTurn()>0)>0 && IsFront()",
+    "sourceId": 57001194
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57001195
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0",
+    "sourceId": 57001199
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57001200
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(20)==0",
+    "sourceId": 57001202
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 100",
+    "sourceId": 57001205
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(155) > 0)>0",
+    "sourceId": 57001207
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>1.495",
+    "sourceId": 57001208
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001210
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6",
+    "sourceId": 57001212
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 57001215
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsAttackNormal()==0 && ConsumeSp()<=8)>0",
+    "sourceId": 57001216
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "ConsumeSp()<=8",
+    "sourceId": 57001218
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 57001220
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsAttackNormal()==0 && ConsumeSp()>=15)>0",
+    "sourceId": 57001224
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0 && IsDead()==0 && IsBroken() == 1)>0",
+    "sourceId": 57001225
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001226
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTerritory(ReviveTerritory)==1",
+    "sourceId": 57001227
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTerritory(ReviveTerritory)==1",
+    "sourceId": 57001228
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MoraleLevel()>=6",
+    "sourceId": 57001229
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MoraleLevel()>=6",
+    "sourceId": 57001230
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "FireMarkLevel()>=6",
+    "sourceId": 57001231
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 57001232
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Fire)==1)>=3",
+    "sourceId": 57001234
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsBroken()==0",
+    "sourceId": 57001237
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(164)>0 && IsFront()",
+    "sourceId": 57001238
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsAttackNormal()==0 && ConsumeSp()<=8",
+    "sourceId": 57001251
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 57001252
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57001253
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Ep()>=10",
+    "sourceId": 57001254
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Light)==1)>=3",
+    "sourceId": 57001255
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==0&&IsDead()==0&&IsBroken()==1&&DamageRate()>=200.0)>0",
+    "sourceId": 57001256
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 57001261
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 57001262
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MotivationLevel() == 5",
+    "sourceId": 57001265
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MotivationLevel() > 3",
+    "sourceId": 57001266
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(MotivationLevel() >= 4) > 0",
+    "sourceId": 57001267
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MotivationLevel() >= 4",
+    "sourceId": 57001273
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "MotivationLevel() == 5",
+    "sourceId": 57001274
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Ice)==1)>=4",
+    "sourceId": 57001276
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() == 0",
+    "sourceId": 57001282
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57001283
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(155) >= 1)>=6",
+    "sourceId": 57001286
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsAttackNormal()==0 && ConsumeSp()<=8)>0",
+    "sourceId": 57001287
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(155) > 0)>0",
+    "sourceId": 57001288
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() && SpecialStatusCountByType(25) > 0)>0",
+    "sourceId": 57001289
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "SpecialStatusCountByType(25)>0",
+    "sourceId": 57001290
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001292
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001293
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IceMarkLevel()>=6",
+    "sourceId": 57001304
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsReinforcedMode()",
+    "sourceId": 57001312
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && CountBC(IsPlayer() &&IsNatureElement(Thunder))>=4",
+    "sourceId": 57001318
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001319
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001323
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Ice)==1)>=4",
+    "sourceId": 57001325
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001326
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer() &&IsNatureElement(Fire)==1)>=4",
+    "sourceId": 57001327
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001328
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=1.0",
+    "sourceId": 57001339
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001340
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsAttackNormal()==0",
+    "sourceId": 57001343
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001353
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && CountBC(IsPlayer() &&IsNatureElement(Dark))>=4",
+    "sourceId": 57001357
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001358
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57001359
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0 && BreakDownTurn()>0)>0",
+    "sourceId": 57001361
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003001
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003002
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003003
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003004
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003005
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003101
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003102
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003103
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003104
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003105
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003201
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003202
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003203
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003204
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003205
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003301
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003302
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003303
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003304
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003305
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003401
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003402
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003403
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003404
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57003405
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005001
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005002
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005003
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005101
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005102
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005103
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005201
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005202
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005203
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005301
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005302
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005303
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005401
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005402
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57005403
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Turn()<=3",
+    "sourceId": 57009051
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Turn()<=3",
+    "sourceId": 57009052
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Turn()<=3",
+    "sourceId": 57009053
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Turn()<=3",
+    "sourceId": 57009054
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "Turn()<=3",
+    "sourceId": 57009055
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009151
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009152
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009153
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009154
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009155
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009201
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009202
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009203
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009204
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009205
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009251
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009252
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009253
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009254
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009255
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009461
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009462
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009463
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009464
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57009465
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009471
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009472
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009473
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009474
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009475
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009511
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009512
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009513
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009514
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009515
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009551
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009552
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009553
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009554
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()>=0.5",
+    "sourceId": 57009555
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065236
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065248
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsAttackNormal()==0 && ConsumeSp()>=16)>0",
+    "sourceId": 57065249
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsAttackNormal()==0 && ConsumeSp()<=10)>0",
+    "sourceId": 57065252
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && Sp()<=13) >= 6",
+    "sourceId": 57065253
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && IsBroken()==1) >= 1",
+    "sourceId": 57065254
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && IsBroken()==1) >= 1",
+    "sourceId": 57065255
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && IsBroken()==1) >= 1",
+    "sourceId": 57065256
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065258
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1 && DebuffIconCount()>=3)>=1",
+    "sourceId": 57065266
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065267
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065268
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "OverDriveGauge() < 0",
+    "sourceId": 57065269
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsWeaponElement(Slash)==1",
+    "sourceId": 57070111
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsWeaponElement(Stab)==1",
+    "sourceId": 57070112
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsWeaponElement(Strike)==1",
+    "sourceId": 57070113
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsNatureElement(Fire)==1",
+    "sourceId": 57070114
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsNatureElement(Ice)==1",
+    "sourceId": 57070115
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsNatureElement(Thunder)==1",
+    "sourceId": 57070116
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsNatureElement(Light)==1",
+    "sourceId": 57070117
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsNatureElement(Dark)==1",
+    "sourceId": 57070118
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31A)",
+    "sourceId": 57070121
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31B)",
+    "sourceId": 57070122
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31C)",
+    "sourceId": 57070123
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(30G)",
+    "sourceId": 57070124
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31D)",
+    "sourceId": 57070125
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31E)",
+    "sourceId": 57070126
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31F)",
+    "sourceId": 57070127
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(31X)",
+    "sourceId": 57070128
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsTeam(Alice)",
+    "sourceId": 57070129
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsRole(Debuffer)==1",
+    "sourceId": 57070131
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==1",
+    "sourceId": 57080003
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57080004
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57080005
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==1",
+    "sourceId": 57080006
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==0",
+    "sourceId": 57080007
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()==1",
+    "sourceId": 57090020
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&DpRate()==0.0)>-0",
+    "sourceId": 57099191
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&DpRate()>=1.01)>0",
+    "sourceId": 57099264
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharging()==1)>0",
+    "sourceId": 57099265
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&DpRate()==0.0)>-0",
+    "sourceId": 57099278
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharging()==1)>0",
+    "sourceId": 57099300
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsPlayer()==1&&IsCharging()==1)>0",
+    "sourceId": 57099301
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57101101
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57101401
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57106301
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "CountBC(IsDead()==0 && IsPlayer()==0&&BreakDownTurn()>0)>0",
+    "sourceId": 57201501
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "DpRate()==0.0 && IsFront()",
+    "sourceId": 57202201
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront() && SpecialStatusCountByType(125)>0",
+    "sourceId": 57203501
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsFront()",
+    "sourceId": 57204601
+  },
+  {
+    "file": "MasterPassiveSkill.json",
+    "field": "cond",
+    "expression": "IsZone(Fire)==1 || IsZone(Ice)==1 || IsZone(Thunder)==1 || IsZone(Light)==1 || IsZone(Dark)==1",
+    "sourceId": 57205201
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42600902
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42600903
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42600904
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42600905
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42600906
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42600907
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42600908
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42601002
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42601003
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42601004
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42601005
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42601006
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42601007
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42601008
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42601102
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42601103
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42601104
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42601105
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42601106
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42601107
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42601108
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42601202
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42601203
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42601204
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42601205
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42601206
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42601207
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42601208
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42601302
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42601303
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42601304
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42601305
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42601306
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42601307
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42601308
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsAttacker()",
+    "sourceId": 42601402
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBreaker()",
+    "sourceId": 42601403
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDebuffer()",
+    "sourceId": 42601404
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBuffer()",
+    "sourceId": 42601405
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsBlaster()",
+    "sourceId": 42601406
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsHealer()",
+    "sourceId": 42601407
+  },
+  {
+    "file": "MasterAbilityEffect.json",
+    "field": "cond",
+    "expression": "IsDefender()",
+    "sourceId": 42601408
+  }
+]

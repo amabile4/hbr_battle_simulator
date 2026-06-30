@@ -161,7 +161,10 @@ export function createInitialTurnState() {
     enemyState: {
       enemyCount: DEFAULT_ENEMY_COUNT,
       statuses: [],
+      enemyIdsByEnemy: {},
       damageRatesByEnemy: {},
+      damageTakenByEnemy: {},
+      gaugeStateByEnemy: {},
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: {},
       destructionMultiplierByEnemy: {},
@@ -184,6 +187,7 @@ export function createInitialTurnState() {
     transcendence: null,
     extraTurnState: null,
     passiveEventsLastApplied: [],
+    specialOperationDamageEvents: [],
     passiveUsageCounts: {},
     passiveTurnFiredKeys: [],
   });
@@ -210,6 +214,9 @@ export function cloneTurnState(turnState) {
                   ])
                 )
               : {},
+          enemyIdsByEnemy: structuredClone(turnState.enemyState.enemyIdsByEnemy ?? {}),
+          gaugeStateByEnemy: structuredClone(turnState.enemyState.gaugeStateByEnemy ?? {}),
+          damageTakenByEnemy: structuredClone(turnState.enemyState.damageTakenByEnemy ?? {}),
           destructionRateByEnemy:
             turnState.enemyState.destructionRateByEnemy &&
             typeof turnState.enemyState.destructionRateByEnemy === 'object'
@@ -502,6 +509,7 @@ export function cloneTurnState(turnState) {
     passiveEventsLastApplied: Array.isArray(turnState?.passiveEventsLastApplied)
       ? turnState.passiveEventsLastApplied.map((event) => ({ ...event }))
       : [],
+    specialOperationDamageEvents: structuredClone(turnState?.specialOperationDamageEvents ?? []),
     passiveUsageCounts:
       turnState?.passiveUsageCounts && typeof turnState.passiveUsageCounts === 'object'
         ? Object.fromEntries(
@@ -517,7 +525,7 @@ export function cloneTurnState(turnState) {
   };
 }
 
-export function createBattleState(partyMembers, turnState = createInitialTurnState()) {
+export function createBattleState(partyMembers, turnState = createInitialTurnState(), gameConfig = null) {
   if (!Array.isArray(partyMembers) || partyMembers.length < MIN_PARTY_SIZE || partyMembers.length > MAX_PARTY_SIZE) {
     throw new Error(`createBattleState requires ${MIN_PARTY_SIZE}~${MAX_PARTY_SIZE} party members.`);
   }
@@ -529,5 +537,6 @@ export function createBattleState(partyMembers, turnState = createInitialTurnSta
     turnState: cloneTurnState(turnState),
     positionMap: buildPositionMap(partyMembers),
     initialParty,
+    gameConfig: gameConfig && typeof gameConfig === 'object' ? { ...gameConfig } : null,
   };
 }

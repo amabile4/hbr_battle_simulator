@@ -1,9 +1,7 @@
 import {
   CHARACTER_STAT_KEYS,
   normalizeCharacterStats,
-  resolveStatsWithSupport,
 } from '../../src/domain/character-stats.js';
-import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 
 const STAT_LABELS = Object.freeze({
   str: '力',
@@ -22,10 +20,12 @@ export class StatsSettingsPanel {
   #currentAnchorEl = null;
   #outsideClickHandler = null;
   #resolveSlot = null;
+  #resolveDefaults = null;
   #onChange = null;
 
-  constructor({ resolveSlot = null, onChange = null } = {}) {
+  constructor({ resolveSlot = null, resolveDefaultStats: resolveDefaults = null, onChange = null } = {}) {
     this.#resolveSlot = resolveSlot;
+    this.#resolveDefaults = resolveDefaults;
     this.#onChange = onChange;
   }
 
@@ -66,6 +66,11 @@ export class StatsSettingsPanel {
   }
 
   #resolveDefaultStats() {
+    if (this.#resolveDefaults) {
+      return normalizeCharacterStats(
+        this.#resolveDefaults(this.#currentSlotIndex, this.#currentMode)
+      );
+    }
     const slot = this.#getCurrentSlot();
     const isSupport = this.#currentMode === 'support';
     const style = isSupport ? slot?.supportStyle : slot?.style;
@@ -92,6 +97,10 @@ export class StatsSettingsPanel {
       return;
     }
     const stats = this.#resolveCurrentStats();
+    if (!stats) {
+      this.close();
+      return;
+    }
     panel.innerHTML = `
       <div class="party-stats-panel__header">
         <div>
@@ -115,10 +124,8 @@ export class StatsSettingsPanel {
     `;
     panel.querySelector('[data-action="close-stats"]')?.addEventListener('click', () => this.close());
     panel.querySelector('[data-action="reset-stats"]')?.addEventListener('click', () => {
-      const defaults = this.#resolveDefaultStats();
-      panel.querySelectorAll('[data-stat]').forEach((input) => {
-        input.value = String(defaults[input.dataset.stat]);
-      });
+      this.#onChange?.(this.#currentSlotIndex, this.#currentMode, null);
+      this.close();
     });
     panel.querySelector('[data-action="apply-stats"]')?.addEventListener('click', () => {
       const value = Object.fromEntries(

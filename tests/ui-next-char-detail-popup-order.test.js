@@ -3,9 +3,15 @@ import assert from 'node:assert/strict';
 
 import {
   resolveDamageCalculatorStoredDestructionRatePercent,
+  getStatusLabel,
   resolveSkillTypeIconUrl,
   sortStatusEffectsForStatusTab,
 } from '../ui-next/utils/char-detail-popup.js';
+
+test('Sprightly uses the 軽快 label and skill type icon', () => {
+  assert.equal(getStatusLabel('Sprightly'), '軽快');
+  assert.match(resolveSkillTypeIconUrl('Sprightly'), /assets\/skill_type\/Sprightly\.webp$/);
+});
 
 test('sortStatusEffectsForStatusTab keeps special statuses first', () => {
   const sorted = sortStatusEffectsForStatusTab([

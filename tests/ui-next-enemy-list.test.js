@@ -122,6 +122,63 @@ test('buildEnemyList spans the year boundary for the recent three months window'
   );
 });
 
+test('buildEnemyList keeps forceVisibleEnemyIds selectable even outside the recent three months window', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({ id: 301, name: '直近ボス', in_date: '2026-06-05' }),
+    makeEnemy({ id: 302, name: '古いボス', in_date: '2026-02-05' }),
+    makeEnemy({ id: 303, name: 'もっと古いボス', in_date: '2025-12-05' }),
+  ];
+
+  // 2026-06 時点では 302(2月), 303(12月) は3ヶ月ウィンドウ外。
+  const result = buildEnemyList(enemies, new Date('2026-06-30T00:00:00+09:00'), {
+    forceVisibleEnemyIds: [302, 303],
+  });
+
+  assert.deepEqual(
+    result.map((enemy) => enemy.id),
+    [PINNED_INITIAL_SETUP_ENEMY.id, 301, 302, 303],
+  );
+});
+
+test('buildEnemyList ignores forceVisibleEnemyIds for non-boss enemies', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({ id: 401, name: '古い雑魚', in_date: '2025-12-05', is_boss: false }),
+  ];
+
+  // is_boss=false の敵は forceVisibleEnemyIds に指定しても出現しない。
+  const result = buildEnemyList(enemies, new Date('2026-06-30T00:00:00+09:00'), {
+    forceVisibleEnemyIds: [401],
+  });
+
+  assert.deepEqual(
+    result.map((enemy) => enemy.id),
+    [PINNED_INITIAL_SETUP_ENEMY.id],
+  );
+});
+
+test('buildEnemyList disables the recent three months filter entirely via disableRecentMonthsFilter', () => {
+  const enemies = [
+    makeEnemy({ id: PINNED_INITIAL_SETUP_ENEMY.id, name: PINNED_INITIAL_SETUP_ENEMY.name, in_date: '2023-06-24' }),
+    makeEnemy({ id: 501, name: '直近ボス', in_date: '2026-06-05' }),
+    makeEnemy({ id: 502, name: '古いボス1', in_date: '2026-02-05' }),
+    makeEnemy({ id: 503, name: 'もっと古いボス', in_date: '2025-12-05' }),
+    makeEnemy({ id: 504, name: '古い雑魚', in_date: '2025-12-05', is_boss: false }),
+  ];
+
+  // disableRecentMonthsFilter により、時期に関わらず全ボスが選択可能になる。
+  // E2E テストの実行時期依存問題を恒久解決するための注入経路。
+  const result = buildEnemyList(enemies, new Date('2026-06-30T00:00:00+09:00'), {
+    disableRecentMonthsFilter: true,
+  });
+
+  assert.deepEqual(
+    result.map((enemy) => enemy.id),
+    [PINNED_INITIAL_SETUP_ENEMY.id, 501, 502, 503],
+  );
+});
+
 test('buildEnemyList keeps the summon sample enemies pinned when they are present', () => {
   const enemies = [
     makeEnemy({

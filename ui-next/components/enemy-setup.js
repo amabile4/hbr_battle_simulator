@@ -690,6 +690,10 @@ export class EnemySetupController {
         // snapshot 直書きの dp/hp（手動敵）を優先し、なければ選択敵から導出
         dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy),
         ...(gaugeOverride?.hp != null ? { hp: gaugeOverride.hp } : {}),
+        maxDp: Number(selectedEnemy?.base_param?.dp ?? 0),
+        currentDp: Number(selectedEnemy?.base_param?.dp ?? 0),
+        maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
+        currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,

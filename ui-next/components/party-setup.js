@@ -9,7 +9,12 @@ import {
   isRequiredSkillSetting,
   SkillSettingsPanel,
 } from './skill-filter-panel.js';
-import { CHARACTER_STAT_KEYS, normalizeCharacterStats } from '../../src/domain/character-stats.js';
+import {
+  CHARACTER_STAT_KEYS,
+  normalizeCharacterStats,
+  resolveStatsWithSupport,
+  resolveTemplateCharacterStats,
+} from '../../src/domain/character-stats.js';
 import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
 import { StatsSettingsPanel } from './stats-settings-panel.js';
 
@@ -149,14 +154,6 @@ function dedupeNumericIds(ids = []) {
   )];
 }
 
-function statsEqual(left, right) {
-  const normalizedLeft = normalizeCharacterStats(left);
-  const normalizedRight = normalizeCharacterStats(right);
-  return normalizedLeft && normalizedRight
-    ? Object.keys(normalizedLeft).every((key) => normalizedLeft[key] === normalizedRight[key])
-    : false;
-}
-
 function makeLbOptions(style) {
   if (!style) return [{ value: 0, label: '限突 0' }];
   const max = LB_MAX[style.tier] ?? 0;
@@ -294,6 +291,7 @@ export class PartySetupController {
     this.#skillSettingsPanel.mount(document.body);
     this.#statsSettingsPanel = new StatsSettingsPanel({
       resolveSlot: (slotIndex) => this.#slots[slotIndex] ?? null,
+      resolveDefaultStats: (slotIndex, mode) => this.#resolveAutomaticStats(slotIndex, mode),
       onChange: (slotIndex, mode, stats) => {
         const slot = this.#slots[slotIndex];
         if (!slot) return;
@@ -452,6 +450,46 @@ export class PartySetupController {
           .filter(Boolean)
       ),
     };
+  }
+
+  #resolveAutomaticStats(slotIndex, mode = 'main') {
+    const slot = this.#slots[slotIndex];
+    const isSupport = mode === 'support';
+    const style = isSupport ? slot?.supportStyle : slot?.style;
+    const limitBreakLevel = isSupport ? slot?.supportLb : slot?.lb;
+    if (!style) {
+      return null;
+    }
+    const character = this.#store.getCharacterByLabel?.(style.chara_label) ??
+      this.#store.characters?.find(
+        (candidate) => String(candidate?.label ?? '') === String(style.chara_label ?? '')
+      ) ??
+      null;
+    const limitBreakLevelsByStyleId = {};
+    for (const currentSlot of this.#slots) {
+      if (currentSlot.styleId != null) {
+        limitBreakLevelsByStyleId[Number(currentSlot.styleId)] = Number(currentSlot.lb ?? 0);
+      }
+      if (currentSlot.supportStyleId != null) {
+        limitBreakLevelsByStyleId[Number(currentSlot.supportStyleId)] = Number(currentSlot.supportLb ?? 0);
+      }
+    }
+    const automaticStats = resolveTemplateCharacterStats({
+      character,
+      style,
+      styles: this.#store.styles,
+      limitBreakLevel,
+      limitBreakLevelsByStyleId,
+    });
+    if (!automaticStats) {
+      return null;
+    }
+    if (isSupport) {
+      return automaticStats;
+    }
+    const supportStats = normalizeCharacterStats(slot.supportStats) ??
+      (slot.supportStyle ? this.#resolveAutomaticStats(slotIndex, 'support') : null);
+    return resolveStatsWithSupport(automaticStats, supportStats);
   }
 
   disbandParty() {

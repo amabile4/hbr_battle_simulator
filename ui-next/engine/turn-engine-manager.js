@@ -1665,6 +1665,9 @@ export class TurnEngineManager {
       this.#replayScript.setup,
       baseSetup.normalAttackElementsByPartyIndex ?? {}
     );
+    if (baseSetup.statsByPartyIndex && typeof baseSetup.statsByPartyIndex === 'object') {
+      this.#replayScript.setup.statsByPartyIndex = structuredClone(baseSetup.statsByPartyIndex);
+    }
   }
 
   #buildScenarioEnemyOverrideSnapshot(scenarioTurn = {}) {

@@ -76,10 +76,16 @@ async function collectStartupDiagnostics(page, phase, error) {
   };
 }
 
-export async function gotoUiNext(page) {
+export async function gotoUiNext(page, options = {}) {
   await page.addInitScript(() => {
     window.localStorage.clear();
+    // E2E テスト共通設定: 敵選択の直近3ヶ月フィルタを無効化し、
+    // 実行時期に関わらず全てのボス敵を選択可能にする。
+    // これにより「時期が変わって特定月の敵が選べなくなりテストが落ちる」問題を恒久解決する。
+    // 任意の敵を ID で個別指定する forceVisibleEnemyIds は不要となる。
+    window.__HBR_TEST_DISABLE_RECENT_MONTHS_FILTER__ = true;
   });
+
   await page.goto(PAGE_URL);
   await page.waitForLoadState('domcontentloaded');
 
@@ -216,20 +222,19 @@ export async function selectEnemyPresetForActiveSlot(page, enemyId) {
     options.map((option) => option.value)
   );
 
+  // 敵カテゴリ変更時のレンダリングは同期的なので、カテゴリ選択直後に
+  // option の有無を即時評価する（各カテゴリ2秒のポーリングは累積タイムアウトの原因となる）。
   for (const categoryValue of categoryValues) {
     await categorySelect.selectOption(categoryValue);
-    const hasTargetOption = await page
-      .waitForFunction(
-        ({ selector, value }) =>
-          Boolean(document.querySelector(`${selector} option[value="${value}"]`)),
-        {
-          selector: '#enemy-setup-root [data-action="select-enemy"]',
-          value: targetEnemyId,
-        },
-        { timeout: 2000 }
-      )
-      .then(() => true, () => false);
-    if (hasTargetOption) {
+    const optionCount = await page.evaluate(
+      ({ selector, value }) =>
+        document.querySelectorAll(`${selector} option[value="${value}"]`).length,
+      {
+        selector: '#enemy-setup-root [data-action="select-enemy"]',
+        value: targetEnemyId,
+      }
+    );
+    if (optionCount > 0) {
       await presetSelect.selectOption(targetEnemyId);
       return;
     }

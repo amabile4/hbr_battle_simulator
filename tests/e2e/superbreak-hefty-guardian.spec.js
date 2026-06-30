@@ -199,6 +199,8 @@ async function setupHeftyGuardianBattle(page) {
 
 async function setupHeftyGuardianBattleWithConfig(page, { enemyIds, styleIds }) {
   await page.setViewportSize(DESKTOP_VIEWPORT);
+  // 敵選択の直近3ヶ月フィルタは gotoUiNext の共通設定で無効化済みのため、
+  // 任意の時期のボス敵（Hefty Guardian 含む）を時期にかかわらず選択できる。
   await gotoUiNext(page);
   await configureEnemyPresetSlots(page, enemyIds);
   await fillPartySetupSlotsWithStyleIds(page, styleIds);

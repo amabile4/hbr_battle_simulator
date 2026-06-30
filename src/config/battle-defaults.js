@@ -114,3 +114,58 @@ export function clampEnemyCount(value) {
   }
   return Math.max(MIN_ENEMY_COUNT, Math.min(MAX_ENEMY_COUNT, n));
 }
+
+// ─── define_values.json からの派生定数ビルダー ───────────────────────────────
+// MasterDefineValue.json のスケール変換:
+//   /10000 → 3000 → 0.3 (rate 系 × basis-point 型)
+//   /100   → 30 → 0.3   (CRITICAL_RATE_UP は percent 型)
+//   raw    → 整数をそのまま使用
+
+export function buildMarkEffectsFromDefineValues(dv) {
+  const get10k = (key, fallback) => (dv?.[key] != null ? Number(dv[key]) / 10000 : fallback);
+  const get100 = (key, fallback) => (dv?.[key] != null ? Number(dv[key]) / 100 : fallback);
+  const getRaw = (key, fallback) => (dv?.[key] != null ? Number(dv[key]) : fallback);
+
+  const base = INTRINSIC_MARK_EFFECTS_BY_ELEMENT.Fire;
+  const sharedConfig = Object.freeze({
+    skillDamageUpRateAtLevel1: get10k('FIRE_MARK_ATTACK_UP', base.skillDamageUpRateAtLevel1),
+    damageTakenDownRateAtLevel2: get10k('FIRE_MARK_DAMAGE_RATE_UP', base.damageTakenDownRateAtLevel2),
+    destructionRateGainBonusRateAtLevel3: get10k('FIRE_MARK_DEFENCE_UP', base.destructionRateGainBonusRateAtLevel3),
+    criticalRateUpAtLevel4: get100('FIRE_MARK_CRITICAL_RATE_UP', base.criticalRateUpAtLevel4),
+    criticalDamageUpAtLevel5: get10k('FIRE_MARK_CRITICAL_DAMAGE_UP', base.criticalDamageUpAtLevel5),
+    extraFrontSpAtTurnStartAtLevel6: getRaw('FIRE_MARK_HEAL_SP', base.extraFrontSpAtTurnStartAtLevel6),
+  });
+
+  // Light Mark は MasterSpecialStatus 未収録 → LIGHT_MARK_* が追加されれば自動反映、なければ FIRE_MARK_* にフォールバック
+  const lightBase = INTRINSIC_MARK_EFFECTS_BY_ELEMENT.Light;
+  const lightConfig = Object.freeze({
+    skillDamageUpRateAtLevel1: get10k('LIGHT_MARK_ATTACK_UP', sharedConfig.skillDamageUpRateAtLevel1) || get10k('FIRE_MARK_ATTACK_UP', lightBase.skillDamageUpRateAtLevel1),
+    damageTakenDownRateAtLevel2: get10k('LIGHT_MARK_DAMAGE_RATE_UP', sharedConfig.damageTakenDownRateAtLevel2) || get10k('FIRE_MARK_DAMAGE_RATE_UP', lightBase.damageTakenDownRateAtLevel2),
+    destructionRateGainBonusRateAtLevel3: get10k('LIGHT_MARK_DEFENCE_UP', sharedConfig.destructionRateGainBonusRateAtLevel3) || get10k('FIRE_MARK_DEFENCE_UP', lightBase.destructionRateGainBonusRateAtLevel3),
+    criticalRateUpAtLevel4: get100('LIGHT_MARK_CRITICAL_RATE_UP', sharedConfig.criticalRateUpAtLevel4) || get100('FIRE_MARK_CRITICAL_RATE_UP', lightBase.criticalRateUpAtLevel4),
+    criticalDamageUpAtLevel5: get10k('LIGHT_MARK_CRITICAL_DAMAGE_UP', sharedConfig.criticalDamageUpAtLevel5) || get10k('FIRE_MARK_CRITICAL_DAMAGE_UP', lightBase.criticalDamageUpAtLevel5),
+    extraFrontSpAtTurnStartAtLevel6: getRaw('LIGHT_MARK_HEAL_SP', sharedConfig.extraFrontSpAtTurnStartAtLevel6) || getRaw('FIRE_MARK_HEAL_SP', lightBase.extraFrontSpAtTurnStartAtLevel6),
+  });
+
+  return Object.freeze({
+    Fire: sharedConfig,
+    Ice: sharedConfig,
+    Thunder: sharedConfig,
+    Dark: sharedConfig,
+    Light: lightConfig,
+  });
+}
+
+export function buildHighBoostDefaultsFromDefineValues(dv) {
+  const get10k = (key, fallback) => (dv?.[key] != null ? Number(dv[key]) / 10000 : fallback);
+  const getRaw = (key, fallback) => (dv?.[key] != null ? Number(dv[key]) : fallback);
+
+  return Object.freeze({
+    spCostIncrease: getRaw('HIGH_BOOST_INCREASE_SP', 2),
+    attackBuffMultiplier: 1.0 + get10k('HIGH_BOOST_GIVE_ATTACK_BUFF_UP', 0.2),
+    debuffMultiplier: 1.0 + get10k('HIGH_BOOST_GIVE_DEBUFF_UP', 0.2),
+    dpHealMultiplier: 1.0 + get10k('HIGH_BOOST_GIVE_HEAL_UP', 0.5),
+    // skillAtkRate は MasterSkillPart.json の effect.power 経由でデータ駆動済みのため固定値
+    skillAtkRate: 1.8,
+  });
+}

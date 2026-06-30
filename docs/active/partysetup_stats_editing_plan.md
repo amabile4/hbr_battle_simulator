@@ -1,6 +1,6 @@
 # PartySetup ステータス編集機能 — 検討 & WBS
 
-> **ステータス**: ✅ 完了（P-0〜P-8） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-07
+> **ステータス**: ✅ 完了（P-0〜P-8） | **ブランチ**: `feature/partysetup-stats-editing` | **作成日**: 2026-06-04 | **最終更新**: 2026-06-29
 >
 > ダメージ計算機統合（[damage_calculator_integration_plan.md](damage_calculator_integration_plan.md)）の後続。攻撃者ステータスの正本を PartySetup に持たせ、計算機へ供給する。
 > 2026-06-07: `characters.json` の `base_param.<stat>[1]` と `styles.json` の `base_param.<stat>` から初期実 stats を生成し、旧 snapshot / preset の stats 欠落時にも PartySetup snapshot へ補完するよう更新。`0/null` stats は欠落扱いで既存 fallback を維持。
@@ -34,10 +34,10 @@
 
 ## 3. 設計方針
 
-- **データ保持（スロット単位）**: `createEmptySlotState` に `stats`（6値の override オブジェクト・メイン枠）と `supportStats`（サポート枠）を追加。`lb` と同様にスロットフィールドとして move/swap/clear。各値 null/未入力なら `resolveDefaultStats(role, lb)` へ fallback。
+- **データ保持（スロット単位）**: `createEmptySlotState` に `stats`（6値の override オブジェクト・メイン枠）と `supportStats`（サポート枠）を追加。`lb` と同様にスロットフィールドとして move/swap/clear。各値 null/未入力ならテンプレート①（Lv200・転生5回・能力ボード最大・装備なし）を `characters.json` / `styles.json` から算出する。
 - **永続化**: ステータスは戦闘中不変の正本 → **session save/load に必ず含める**（Phase A の textarea のような非永続枠とは異なる）。snapshot は **`statsByPartyIndex`**（lb と同パターン）。後方互換: 欠落時は role 標準（サポート stats があれば各値10%加算）fallback。
-- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。メイン未入力時は role 標準 + サポート各値10%、サポート未入力時は role 標準をプリフィルし自由入力。表示は日本語ラベル、並びは `力/器用さ`, `体力/精神`, `知性/運`。スロットのキャラ変更で stats はリセット→再プリフィル。
-- **計算機接合**: char-detail-popup attackerInput は スロットの **手入力 `stats` が有ればそのまま使用（最優先・support 10% を上乗せしない）**、無ければ `resolveStatsWithSupport(resolveDefaultStats(role, lb), supportStats)`（= role 標準 + サポート 10%）に fallback。Phase A の DP ダメージが実 stats で再計算される。
+- **UI（別パネル）**: スロット詳細に詰めず、style-picker のような **overlay/別ウィンドウ**で 6 ステータスを編集。メイン未入力時はテンプレート① + サポート各値10%（各能力を切り上げ）、サポート未入力時はサポートスタイルのテンプレート①をプリフィルし自由入力。自動値は保存せず `null` を維持し、LB変更へ追従する。「デフォルトに戻す」は手入力を消去する。
+- **計算機接合**: `HbrDataStore` が戦闘開始時に未入力値を具体化する。メインの **手入力 `stats` が有ればそのまま使用（最優先・support 10% を上乗せしない）**。未入力時のみテンプレート①へサポート10%を加算し、解決値を `turnPlanBaseSetup.statsByPartyIndex` に固定保存する。
   - **サポート 10% の位置づけ（ユーザー確定 2026-06-04）**: 手入力6値は「装備・強化等を全部足した最終ステータス」なので、手入力があるときは **手入力が勝ち、サポート 10% は上乗せしない**。サポート 10%（G-18・係数0.10）は **default/プリフィル値としてのみ採用**（処理は残すが手入力に負ける）。
 - **stat delta レーンとの関係**: 本機能は **base（元値）の正本化**。バフ適用後の delta（「STR 650 (+25)」）は別タスク（実効ステータス算出経路）。本機能後は base=実値・delta=0・resolved=base になる。
 
@@ -47,8 +47,7 @@
   - 背景: stats は「最終的な6数値の手入力」だけを意図し、宝珠強化・転生・称号ボーナス等のシミュレータ非対応補正は入力しない。キャラ/スタイル/ロールを跨ぐ複雑な永続管理は不要、というユーザー意図。
   - 含意: snapshot キーは **`statsByPartyIndex`（lb と同パターン）**。スロットのキャラ（styleId）を入れ替えたら stats はリセットし、パネル表示時にデフォルト値を再プリフィルする。
 - **Q-P2 → 別パネル**: スロット詳細に詰め込まず、**別パネル/別ウィンドウ**（キャラスロット選択（style-picker）のような overlay）で stats を編集する。
-- **Q-P3 → デフォルトプリフィル**: メインパネルは `resolveStatsWithSupport(resolveDefaultStats(role, lb), supportStats)`、サポートパネルは `resolveDefaultStats(role, lb)` をプリフィルし、そこから編集可能にする。
-  - 注: styles.json の `base_param`（str:5 等）は成長方向/初期値であり最終ステータス（実数600〜700）ではないため、プリフィル源には使わない。role 標準値を採用。
+- **Q-P3 → デフォルトプリフィル（2026-06-29更新）**: メインパネルはテンプレート① + サポート10%、サポートパネルは選択サポートのテンプレート①をプリフィルし、そこから編集可能にする。算出はキャラLv200基礎値、転生5回、選択スタイルの `base_param` / 専用能力、同キャラ全スタイルの共有能力、選択LB、他スタイル完凸時の `ParamAllOtherCard` を合成する。
 - **Q-P4 → サポート枠も対応（ただしプリフィル専用）**: サポート枠の stats も保持する。サポート 10% 加算（G-18・`03_spec_gap_resolution.md`・係数0.10）は **default/プリフィル値としてのみ採用**し、**手入力6値があるときは手入力が勝つ（10% を上乗せしない）**。手入力は「装備・強化等を全部足した最終値」のため。処理自体は捨てない。
 - **Q-P5 → 完全自由入力（v1）**: まずは **数値の完全自由入力**。装備・レベル・ロール連動は v1 では作らない（装備枠/UI を作るのは過大）。将来、選択による role/レベル/装備連動は否定しないが別スコープ。
 
@@ -66,12 +65,12 @@
 | P-5 | Persistence | session save/load schema と lightweight replay に `statsByPartyIndex`。後方互換（欠落時デフォルト値）・replay/snapshot 整合・回帰 | P-1 | ✅ 完了 |
 | P-6 | Test | unit（snapshot round-trip・fallback・slot move/clear・サポート10%）／ E2E（stats 入力→計算反映→保存復元・計算機表示）／ lint | P-2〜P-5 | ✅ 完了 |
 | P-7 | Fix | **サポート 10% を「手入力に負ける」挙動へ修正**（claude レビュー指摘・ユーザー確定 2026-06-04）。計算機は 手入力 stats をそのまま使用（10% 上乗せ無し）、無い時のみ role 標準 + 10%。パネル main プリフィルも default+10% に揃える。テスト/doc 更新 | P-4 | ✅ 完了 |
-| P-8 | Integration | **JSON 実 stats 初期化**。`characters.base_param.<stat>[1] + styles.base_param.<stat>` を PartySetup の main/support default stats として snapshot / preset / style 選択に補完。フィールド欠落・`0/null` は無効値として role 標準 fallback。`buildDamageCalculationInput` も `0/null` stats を fallback する | P-1〜P-5 | ✅ 完了 |
+| P-8 | Follow-up | **テンプレート①の実データ自動算出**。role固定値を廃止し、Lv200・転生5回・全能力ボード最大・未選択同キャラスタイル完凸・装備なしで算出。選択中メイン/サポートのLBを共有計算にも反映し、10%加算は能力ごとに切り上げる。未入力はnull維持、戦闘開始時に具体化、replayへ解決値を保存 | P-7 | ✅ 完了 |
 
 ## 6. 完了時検証
 
-- unit: PartySetup / session / BattleStateManager / replay / CharacterStyle clone / stats helper / damage calculator input の対象テスト通過
-- E2E: Party stats 編集から計算反映・session 保存復元、威力詳細で手入力優先と未入力時サポート10%加算を確認
+- unit: PartySetup / session / BattleStateManager / replay / CharacterStyle clone / stats helper / damage calculator input を含む `npm test` 1352件通過
+- E2E: テンプレート①のLB追従、手入力保持、reset、戦闘開始後replay保存を確認。全体は95件通過、既知の時刻依存 `superbreak-hefty-guardian.spec.js` 4件のみ敵プリセット `13490231` 未検出で失敗
 - lint / `git diff --check`: 通過
 
 ## 7. リスク・留意点
@@ -83,6 +82,6 @@
 
 ## 8. スコープ境界
 
-- **本機能**: 攻撃者 base ステータスの PartySetup 正本化＋計算機供給＋永続化（P-0〜P-6）。
+- **本機能**: 攻撃者 base ステータスの PartySetup 正本化＋テンプレート①自動算出＋計算機供給＋永続化（P-0〜P-8）。
 - **別タスク**: stat delta 実値（バフ適用後の実効ステータス表示）、破壊率、AttackBySp SP-scaling。
 - **前提（完了済み）**: Phase A（DP ダメージ MVP・member role/凸 read-only・実敵 param_border）。

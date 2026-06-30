@@ -3,7 +3,13 @@ import { resolve } from 'node:path';
 import { CharacterStyle } from '../domain/character-style.js';
 import { resolveShortCharacterName } from '../domain/character-name.js';
 import { buildStyleFormChange } from '../domain/form-change.js';
+import { ALL_OUT_ATTACK_SKILL_ID } from '../domain/special-operation-damage.js';
 import { Party, MIN_PARTY_SIZE, MAX_PARTY_SIZE } from '../domain/party.js';
+import {
+  normalizeCharacterStats,
+  resolveStatsWithSupport,
+  resolveTemplateCharacterStats,
+} from '../domain/character-stats.js';
 import {
   isAdmiralCommandSkill as isAdmiralCommandSkillClassifier,
   isNormalAttackSkill as isNormalAttackSkillClassifier,
@@ -13,11 +19,17 @@ import {
   ANCIENT_CHAIN_FLAT_DESTRUCTION_RATE_BONUS,
   ANCIENT_CHAIN_SKILL_ATTACK_UP_RATE,
   DEFAULT_INITIAL_SP,
+  buildMarkEffectsFromDefineValues,
+  buildHighBoostDefaultsFromDefineValues,
 } from '../config/battle-defaults.js';
 import {
   resolveSupportPassiveEntry,
   buildSupportPassive,
 } from '../domain/support-skills-resolver.js';
+import {
+  parseCondition,
+  extractFunctionNames,
+} from '../engine/cond-parser.js';
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'));
@@ -168,17 +180,73 @@ const LIMIT_BREAK_MAX_BY_TIER = Object.freeze({
   SSR: 4,
 });
 
-const EXTRA_TURN_BLOCK_PATTERN = /SpecialStatusCountByType\(20\)\s*==\s*0/;
-const OVERDRIVE_PATTERN = /IsOverDrive\(\)/;
-const REINFORCED_PATTERN = /IsReinforcedMode\(\)/;
+// SpecialStatusCountByType(N) の typeId のうち、追加ターン除外を意味するもの。
+// 既存 regex /SpecialStatusCountByType\(20\)\s*==\s*0/ のハードコードから抽出した定数。
+const EXTRA_TURN_BLOCK_TYPE_ID = 20;
 
 function parseConditionFlags(expression) {
   const text = String(expression ?? '');
+  if (!text) {
+    return { excludesExtraTurn: false, requiresOverDrive: false, requiresReinforcedMode: false };
+  }
+
+  const parseResult = parseCondition(text);
+  if (!parseResult.ok) {
+    // パース失敗時は正規表現フォールバックで安全側に倒す
+    return {
+      excludesExtraTurn: /SpecialStatusCountByType\(20\)\s*==\s*0/.test(text),
+      requiresOverDrive: /IsOverDrive\(\)/.test(text),
+      requiresReinforcedMode: /IsReinforcedMode\(\)/.test(text),
+    };
+  }
+
+  const names = extractFunctionNames(parseResult.ast);
   return {
-    excludesExtraTurn: EXTRA_TURN_BLOCK_PATTERN.test(text),
-    requiresOverDrive: OVERDRIVE_PATTERN.test(text),
-    requiresReinforcedMode: REINFORCED_PATTERN.test(text),
+    requiresOverDrive: names.has('IsOverDrive'),
+    requiresReinforcedMode: names.has('IsReinforcedMode'),
+    excludesExtraTurn: containsSpecialStatusCountEqZero(parseResult.ast, EXTRA_TURN_BLOCK_TYPE_ID),
   };
+}
+
+// AST ノードを再帰的に走査し、SpecialStatusCountByType(typeId) == 0 を意味的に検出する。
+// cond-parser.js の walkAst と同等の分岐で or/and/compare/call/countBc 全ノードを辿る。
+function containsSpecialStatusCountEqZero(node, typeId) {
+  if (!node || typeof node !== 'object') {
+    return false;
+  }
+  if (
+    node.type === 'compare' &&
+    node.op === '==' &&
+    Number(node.right?.value) === 0 &&
+    node.left?.type === 'call' &&
+    node.left?.name === 'SpecialStatusCountByType' &&
+    Number(node.left?.args?.[0]?.value) === typeId
+  ) {
+    return true;
+  }
+  // or / and: children 配列
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      if (containsSpecialStatusCountEqZero(child, typeId)) {
+        return true;
+      }
+    }
+  }
+  // compare: left, right
+  if (containsSpecialStatusCountEqZero(node.left, typeId)) {
+    return true;
+  }
+  if (containsSpecialStatusCountEqZero(node.right, typeId)) {
+    return true;
+  }
+  // countBc: inner, rhs
+  if (containsSpecialStatusCountEqZero(node.inner, typeId)) {
+    return true;
+  }
+  if (containsSpecialStatusCountEqZero(node.rhs, typeId)) {
+    return true;
+  }
+  return false;
 }
 
 function mergeConditionFlags(...flagsList) {
@@ -414,6 +482,12 @@ export class HbrDataStore {
     this.supportSkillsByLabel = new Map(
       this.supportSkills.map((g) => [String(g.label ?? ''), g])
     );
+
+    this.defineValues = payload.defineValues && typeof payload.defineValues === 'object'
+      ? payload.defineValues
+      : {};
+    this.markEffectsConfig = buildMarkEffectsFromDefineValues(this.defineValues);
+    this.highBoostDefaults = buildHighBoostDefaultsFromDefineValues(this.defineValues);
   }
 
   buildCharacterSortMetaByLabel(characters) {
@@ -484,6 +558,7 @@ export class HbrDataStore {
       transcendenceRuleOverrides: readJson(resolve(dir, 'transcendence_rule_overrides.json')),
       enemyEShieldOverrides: readJsonOrFallback(resolve(dir, 'enemy_eshield_overrides.json'), []),
       supportSkills: readJsonOrFallback(resolve(dir, 'support_skills.json'), []),
+      defineValues: readJsonOrFallback(resolve(dir, 'define_values.json'), {}),
     });
   }
 
@@ -506,6 +581,7 @@ export class HbrDataStore {
       enemyEShieldOverrides: payload.enemyEShieldOverrides ?? [],
       skillAvailability: payload.skillAvailability ?? {},
       supportSkills: payload.supportSkills ?? [],
+      defineValues: payload.defineValues ?? {},
     });
   }
 
@@ -1204,12 +1280,9 @@ export class HbrDataStore {
     const partConditionFlags = additionalTurnEntries.map((entry) => entry.conditionFlags);
     const aggregatePartFlags = mergeConditionFlags(...partConditionFlags);
 
-    const defaultSkillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
-    const defaultAdditionalTurnGrantInExtraTurn =
-      defaultSkillUsableInExtraTurn && !aggregatePartFlags.excludesExtraTurn;
-    const overrideRules = skill.extra_turn_rules ?? {};
-    const hasGrantOverride = overrideRules.additional_turn_grant_in_extra_turn !== undefined;
-    const hasUsableOverride = overrideRules.skill_usable_in_extra_turn !== undefined;
+    const skillUsableInExtraTurn = !skillConditionFlags.excludesExtraTurn;
+    const additionalTurnGrantInExtraTurn =
+      skillUsableInExtraTurn && !aggregatePartFlags.excludesExtraTurn;
     const additionalTurnTargets = additionalTurnParts.map((part) => ({
       targetType: String(part.target_type ?? ''),
       targetCondition: String(part.target_condition ?? ''),
@@ -1218,10 +1291,8 @@ export class HbrDataStore {
 
     return {
       skillId: Number(skill.id),
-      skillUsableInExtraTurn:
-        overrideRules.skill_usable_in_extra_turn ?? defaultSkillUsableInExtraTurn,
-      additionalTurnGrantInExtraTurn:
-        overrideRules.additional_turn_grant_in_extra_turn ?? defaultAdditionalTurnGrantInExtraTurn,
+      skillUsableInExtraTurn,
+      additionalTurnGrantInExtraTurn,
       conditions: {
         requiresOverDrive:
           skillConditionFlags.requiresOverDrive || aggregatePartFlags.requiresOverDrive,
@@ -1232,7 +1303,7 @@ export class HbrDataStore {
       },
       additionalTurnTargets,
       additionalTurnTargetTypes,
-      source: hasGrantOverride || hasUsableOverride ? 'override' : 'derived',
+      source: 'derived',
     };
   }
 
@@ -1507,6 +1578,7 @@ export class HbrDataStore {
     supportStyleLimitBreakLevel = 0,
     stats = null,
     supportStats = null,
+    templateLimitBreakLevelsByStyleId = null,
   }) {
     const style = this.getStyleById(styleId);
     if (!style) {
@@ -1550,10 +1622,41 @@ export class HbrDataStore {
     const normalizedLimitBreak = Number.isFinite(Number(limitBreakLevel))
       ? Math.max(0, Math.min(maxLimitBreak, Number(limitBreakLevel)))
       : maxLimitBreak;
+    const supportStyle = supportStyleId != null ? this.getStyleById(Number(supportStyleId)) : null;
+    const supportMaxLimitBreak = supportStyle ? this.getStyleLimitBreakMax(supportStyle) : 0;
+    const normalizedSupportLimitBreak = Number.isFinite(Number(supportStyleLimitBreakLevel))
+      ? Math.max(0, Math.min(supportMaxLimitBreak, Number(supportStyleLimitBreakLevel)))
+      : 0;
+    const effectiveLimitBreakLevelsByStyleId = {
+      ...(templateLimitBreakLevelsByStyleId && typeof templateLimitBreakLevelsByStyleId === 'object'
+        ? templateLimitBreakLevelsByStyleId
+        : {}),
+      [Number(style.id)]: normalizedLimitBreak,
+      ...(supportStyle ? { [Number(supportStyle.id)]: normalizedSupportLimitBreak } : {}),
+    };
+    const resolvedSupportStats = supportStyle
+      ? normalizeCharacterStats(supportStats) ?? resolveTemplateCharacterStats({
+          character: this.charactersByLabel.get(String(supportStyle.chara_label ?? '')) ?? null,
+          style: supportStyle,
+          styles: this.styles,
+          limitBreakLevel: normalizedSupportLimitBreak,
+          limitBreakLevelsByStyleId: effectiveLimitBreakLevelsByStyleId,
+        })
+      : null;
+    const resolvedStats = normalizeCharacterStats(stats) ?? resolveStatsWithSupport(
+      resolveTemplateCharacterStats({
+        character,
+        style,
+        styles: this.styles,
+        limitBreakLevel: normalizedLimitBreak,
+        limitBreakLevelsByStyleId: effectiveLimitBreakLevelsByStyleId,
+      }),
+      resolvedSupportStats
+    );
     const mainPassives = this.listPassivesByStyleId(style.id, { limitBreakLevel: normalizedLimitBreak });
     const supportPassive =
       supportStyleId != null && String(style.tier ?? '').toUpperCase() === 'SSR'
-        ? this.resolveSupportSkillPassive(Number(supportStyleId), Number(supportStyleLimitBreakLevel))
+        ? this.resolveSupportSkillPassive(Number(supportStyleId), normalizedSupportLimitBreak)
         : null;
     const passives = supportPassive ? [...mainPassives, supportPassive] : mainPassives;
     const epRule = this.getEpRuleForStyle(style, character);
@@ -1578,7 +1681,14 @@ export class HbrDataStore {
       styleName: String(style.name),
       team: String(style.team ?? ''),
       role: String(style.role ?? ''),
-      roleAbility: style.roleabi && typeof style.roleabi === 'object' ? structuredClone(style.roleabi) : null,
+      roleAbility: style.roleabi && typeof style.roleabi === 'object'
+        ? {
+            ...structuredClone(style.roleabi),
+            ...(String(style.roleabi.name ?? '').trim() === '総攻撃'
+              ? { specialSkill: structuredClone(this.getSkillById(ALL_OUT_ATTACK_SKILL_ID)) }
+              : {}),
+          }
+        : null,
       elements: Array.isArray(style.elements) ? [...style.elements] : [],
       weaponType: String(style.type ?? ''),
       transcendenceRule: this.getTranscendenceRuleByStyleId(style.id),
@@ -1607,9 +1717,9 @@ export class HbrDataStore {
       epRule,
       limitBreakLevel: normalizedLimitBreak,
       supportStyleId: supportStyleId != null ? Number(supportStyleId) : null,
-      supportStyleLimitBreakLevel: Number(supportStyleLimitBreakLevel ?? 0),
-      stats,
-      supportStats: supportStyleId != null ? supportStats : null,
+      supportStyleLimitBreakLevel: normalizedSupportLimitBreak,
+      stats: resolvedStats,
+      supportStats: resolvedSupportStats,
       formChange: buildStyleFormChange(style),
       skills: styleSkills,
       triggeredSkills,
@@ -1637,6 +1747,20 @@ export class HbrDataStore {
     const supportStyleIdsByPartyIndex = options.supportStyleIdsByPartyIndex ?? {};
     const supportLimitBreakLevelsByPartyIndex = options.supportLimitBreakLevelsByPartyIndex ?? {};
     const statsByPartyIndex = options.statsByPartyIndex ?? {};
+    const templateLimitBreakLevelsByStyleId = {};
+
+    for (const [index, styleId] of styleIds.entries()) {
+      const style = this.getStyleById(styleId);
+      const rawLimitBreak = limitBreakLevelsByPartyIndex[index];
+      templateLimitBreakLevelsByStyleId[Number(styleId)] = Number.isFinite(Number(rawLimitBreak))
+        ? Number(rawLimitBreak)
+        : this.getStyleLimitBreakMax(style);
+      const supportStyleId = supportStyleIdsByPartyIndex[index];
+      if (supportStyleId != null) {
+        const rawSupportLimitBreak = supportLimitBreakLevelsByPartyIndex[index] ?? 0;
+        templateLimitBreakLevelsByStyleId[Number(supportStyleId)] = Number(rawSupportLimitBreak);
+      }
+    }
 
     const resolvePierceForIndex = (index) => {
       const entry = pierceByPartyIndex[index] ?? pierceByPartyIndex[String(index)] ?? null;
@@ -1691,6 +1815,7 @@ export class HbrDataStore {
         supportStyleLimitBreakLevel: Number(supportLimitBreakLevelsByPartyIndex[index] ?? 0),
         stats: statsByPartyIndex[index]?.stats ?? null,
         supportStats: statsByPartyIndex[index]?.supportStats ?? null,
+        templateLimitBreakLevelsByStyleId,
       })
     );
 

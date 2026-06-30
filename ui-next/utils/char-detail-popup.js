@@ -126,6 +126,7 @@ const STATUS_LABELS = {
   Undermine:                 '蝕',
   Shredding:                 '速弾き',
   HighBoost:                 'ハイブースト',
+  Sprightly:                 '軽快',
   Mocktail:                  'モクテル',
   Babied:                    'オギャり',
   GiveAttackBuffUp:          'スキル攻撃力上昇の効果アップ',

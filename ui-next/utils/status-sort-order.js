@@ -120,6 +120,7 @@ export const UNIFIED_STATUS_TYPE_ID_MAP = Object.freeze({
   Mocktail:             313,   // char only
   Steak:                330,   // char only
   Gelato:               331,   // char only
+  Sprightly:            334,   // char only
 
   // --- バリア ---
   Barrier:              321,   // enemy only

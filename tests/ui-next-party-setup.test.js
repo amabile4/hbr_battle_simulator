@@ -53,7 +53,9 @@ function createStyle(id, chara, tier = 'SS', base_param = null) {
     image: '',
     tier,
     role: id === 1001 ? 'Attacker' : 'Buffer',
-    ...(base_param ? { base_param } : {}),
+    base_param: base_param ?? { str: 0, dex: 0, wis: 0, spr: 0, luk: 0, con: 0 },
+    ability_tree: [],
+    limit_break: { stat_up_per_level: 2.5, bonus_per_level: [] },
     passives: [],
     skills: [],
   };
@@ -78,6 +80,23 @@ function createStoreStub() {
     createStyle(1003, '逢川 めぐみ'),
   ];
   const styleById = new Map(styles.map((style) => [style.id, style]));
+  const defaultStatsByStyleId = new Map([
+    [1001, { str: 650, dex: 650, wis: 600, spr: 600, luk: 600, con: 600 }],
+    [1002, { str: 600, dex: 600, wis: 670, spr: 620, luk: 600, con: 600 }],
+    [1003, { str: 600, dex: 600, wis: 670, spr: 620, luk: 600, con: 600 }],
+  ]);
+  const characters = styles.map((style) => {
+    const stats = defaultStatsByStyleId.get(style.id);
+    return {
+      label: style.chara_label,
+      base_param: {
+        level: [1, 200],
+        ...Object.fromEntries(
+          Object.entries(stats).map(([key, value]) => [key, [1, value - 5]])
+        ),
+      },
+    };
+  });
   const equipableSkillsByStyleId = new Map([
     [1001, [
       createSkill(46000001, '通常攻撃'),
@@ -95,6 +114,10 @@ function createStoreStub() {
   ]);
   return {
     styles,
+    characters,
+    getCharacterByLabel(label) {
+      return characters.find((character) => character.label === label) ?? null;
+    },
     getStyleById(styleId) {
       return styleById.get(Number(styleId)) ?? null;
     },
@@ -260,6 +283,50 @@ test('PartySetupController fills missing snapshot stats from character and style
       luk: 161,
       con: 172,
     });
+  }));
+
+test('PartySetupController keeps automatic stats unsaved, follows LB, and reset clears manual input', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+    });
+
+    const openStats = () => {
+      root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+        .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+      return win.document.querySelector('#stats-settings-panel');
+    };
+    let panel = openStats();
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
+    panel.querySelector('[data-action="close-stats"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+
+    const limitBreakSelect = root.querySelector('select[data-field="lb"][data-slot-index="0"]');
+    limitBreakSelect.value = '4';
+    limitBreakSelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+    panel = openStats();
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '715');
+    assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
+
+    panel.querySelector('[data-stat="str"]').value = '800';
+    panel.querySelector('[data-action="apply-stats"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats.str, 800);
+
+    panel = openStats();
+    panel.querySelector('[data-action="reset-stats"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
+    panel = openStats();
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '715');
   }));
 
 test('PartySetupController exports belt selection as normalAttackElementsByPartyIndex', () =>

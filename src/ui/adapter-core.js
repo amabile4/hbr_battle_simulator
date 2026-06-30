@@ -8,6 +8,7 @@ import { createBattleRecordStore, RecordEditor, CsvExporter, JsonExporter } from
 import { createInitialTurnState } from '../contracts/interfaces.js';
 import { DEFAULT_MARK_LEVEL_MAX, MARK_STATE_ELEMENTS } from '../config/battle-defaults.js';
 import { normalizeStatusEffect, SPECIAL_STATUS_TYPE_NAMES } from '../domain/character-style.js';
+import { normalizeCharacterStats } from '../domain/character-stats.js';
 
 const DEFAULT_STATE_MIN = 0;
 const DEFAULT_TOKEN_STATE_MAX = 10;
@@ -32,6 +33,21 @@ function getPartyMembers(party) {
     return party;
   }
   return Array.isArray(party?.members) ? party.members : [];
+}
+
+function resolveStatsByPartyIndexFromParty(party, fallback = {}) {
+  const resolved = fallback && typeof fallback === 'object' ? structuredClone(fallback) : {};
+  for (const member of getPartyMembers(party)) {
+    const stats = normalizeCharacterStats(member?.stats);
+    const supportStats = normalizeCharacterStats(member?.supportStats);
+    if (stats || supportStats) {
+      resolved[String(member.partyIndex)] = {
+        ...(stats ? { stats } : {}),
+        ...(supportStats ? { supportStats } : {}),
+      };
+    }
+  }
+  return resolved;
 }
 
 function normalizeBoundedState(rawState, fallbackState, fallbackMax) {
@@ -301,6 +317,8 @@ export function createInitializedBattleSnapshot({
   statsByPartyIndex = {},
   initialOdGauge,
   enemyCount,
+  enemyIdsByEnemy = {},
+  enemyGaugeStateByEnemy = {},
   enemyNamesByEnemy = {},
   paramBorderByEnemy = {},
   enemyDpByEnemy = {},
@@ -344,6 +362,7 @@ export function createInitializedBattleSnapshot({
     supportLimitBreakLevelsByPartyIndex,
     statsByPartyIndex,
   });
+  const resolvedStatsByPartyIndex = resolveStatsByPartyIndexFromParty(party, statsByPartyIndex);
   applyInitialPartyStateOverrides(party, {
     tokenStateByPartyIndex,
     moraleStateByPartyIndex,
@@ -357,6 +376,9 @@ export function createInitializedBattleSnapshot({
     odGauge: Number(initialOdGauge),
     enemyState: {
       enemyCount: Number(enemyCount),
+      enemyIdsByEnemy: structuredClone(enemyIdsByEnemy),
+      gaugeStateByEnemy: structuredClone(enemyGaugeStateByEnemy),
+      damageTakenByEnemy: {},
       statuses: Array.isArray(enemyStatuses)
         ? enemyStatuses
             .map((status) => normalizeEnemyStatusForSnapshot(status, enemyCount))
@@ -409,18 +431,33 @@ export function createInitializedBattleSnapshot({
         enemyZoneConfigByEnemy && typeof enemyZoneConfigByEnemy === 'object'
           ? structuredClone(enemyZoneConfigByEnemy)
           : {},
-      talismanState: structuredClone(
-        baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 }
-      ),
-      disasterState: structuredClone(
-        baseTurnState.enemyState?.disasterState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }
-      ),
+      talismanState: {
+        ...structuredClone(
+          baseTurnState.enemyState?.talismanState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 10 }
+        ),
+        penaltyPerLevel:
+          dataStore?.defineValues?.TALISMAN_REF_PARAM_DOWN ??
+          baseTurnState.enemyState?.talismanState?.penaltyPerLevel ??
+          10,
+      },
+      disasterState: {
+        ...structuredClone(
+          baseTurnState.enemyState?.disasterState ?? { active: false, level: 0, maxLevel: 10, penaltyPerLevel: 7 }
+        ),
+        penaltyPerLevel:
+          dataStore?.defineValues?.SPECIAL_STATUS_DISASTER_REF_PARAM_DOWN ??
+          baseTurnState.enemyState?.disasterState?.penaltyPerLevel ??
+          7,
+      },
     },
     zoneState: zoneState && typeof zoneState === 'object' ? structuredClone(zoneState) : null,
     territoryState: territoryState && typeof territoryState === 'object' ? structuredClone(territoryState) : null,
   };
 
-  const state = createBattleStateFromParty(party, initialTurnState);
+  const state = createBattleStateFromParty(party, initialTurnState, {
+    markEffectsConfig: dataStore?.markEffectsConfig ?? null,
+    highBoostDefaults: dataStore?.highBoostDefaults ?? null,
+  });
   applyInitialPassiveState(state);
 
   return {
@@ -430,7 +467,7 @@ export function createInitializedBattleSnapshot({
       styleIds: [...styleIds].map((id) => Number(id)),
       supportStyleIdsByPartyIndex: structuredClone(supportStyleIdsByPartyIndex),
       supportLimitBreakLevelsByPartyIndex: structuredClone(supportLimitBreakLevelsByPartyIndex),
-      statsByPartyIndex: structuredClone(statsByPartyIndex),
+      statsByPartyIndex: resolvedStatsByPartyIndex,
       skillSetsByPartyIndex: structuredClone(skillSetsByPartyIndex),
       limitBreakLevelsByPartyIndex: structuredClone(limitBreakLevelsByPartyIndex),
       drivePierceByPartyIndex: structuredClone(drivePierceByPartyIndex),
@@ -448,6 +485,8 @@ export function createInitializedBattleSnapshot({
       statusEffectsByPartyIndex: structuredClone(normalizeStatusEffectsByPartyIndex(statusEffectsByPartyIndex)),
       initialOdGauge: Number(initialOdGauge),
       enemyCount: Number(enemyCount),
+      enemyIdsByEnemy: structuredClone(enemyIdsByEnemy),
+      enemyGaugeStateByEnemy: structuredClone(enemyGaugeStateByEnemy),
       enemyNamesByEnemy:
         enemyNamesByEnemy && typeof enemyNamesByEnemy === 'object' ? structuredClone(enemyNamesByEnemy) : {},
       paramBorderByEnemy:

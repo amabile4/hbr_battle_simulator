@@ -106,3 +106,10 @@ scripts/run_gemini_api.sh
 __pycache__/
 *.pyc
 .venv/
+__pycache__calc/test_cases_destruction*.json
+
+# golden/ は閲覧専用（hbr_analysis 出力の参照コピー）。リポジトリ管理外
+golden/
+
+# .github/hooks/ はローカルの agmsg スキル設定（ホームパスを含む）。リポジトリ管理外
+.github/hooks/
