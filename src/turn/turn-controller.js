@@ -149,6 +149,8 @@ const DESTRUCTION_CALCULATION_DATA_FALLBACK = Object.freeze({
   enemies: Object.freeze([]),
   skills: Object.freeze([]),
 });
+// destructionMultiplierByEnemy 未設定時の raw d_rate 既定値（標準敵）。
+const DEFAULT_ENEMY_D_RATE_RAW = 5;
 const ENEMY_STATUS_DOWN_TURN = 'DownTurn';
 const ENEMY_STATUS_STRONG_BREAK = ENEMY_STATUS_SUPER_BREAK;
 const ENEMY_STATUS_SUPER_DOWN = ENEMY_STATUS_SUPER_BREAK_DOWN;
@@ -1343,6 +1345,34 @@ function resolveEffectPowerRatioFromPart(part, options = {}) {
   return Number.isFinite(ratio) ? ratio : (Number.isFinite(fallbackRatio) ? fallbackRatio : 0);
 }
 
+function resolveFunnelHitBonusFromPart(part, providerMember) {
+  const rawPower = part?.power;
+  if (!Array.isArray(rawPower)) {
+    const hitBonus = Number(rawPower ?? 0);
+    return Number.isFinite(hitBonus) && hitBonus > 0 ? hitBonus : 0;
+  }
+  const minHitBonus = Number(rawPower[0] ?? 0);
+  const maxHitBonus = Number(rawPower[1] ?? minHitBonus);
+  if (!Number.isFinite(minHitBonus) || minHitBonus <= 0) {
+    return 0;
+  }
+  if (!shouldResolveEffectPowerFromStats(part) || !Number.isFinite(maxHitBonus) || maxHitBonus <= minHitBonus) {
+    return minHitBonus;
+  }
+
+  const resolved = resolveEffectPowerFromPart(part, {
+    providerStats: getMemberEffectProviderStats(providerMember),
+    statusType: 'Funnel',
+    isEnemyDebuff: false,
+    ...getEffectPowerLevelOptions(part),
+  });
+  const hitBonus = Math.floor(Number(resolved?.power ?? 0) * EFFECT_POWER_PERCENT_TO_RATIO);
+  if (!Number.isFinite(hitBonus)) {
+    return minHitBonus;
+  }
+  return Math.max(minHitBonus, Math.min(maxHitBonus, hitBonus));
+}
+
 function resolveEnemyBorderForEffectPower(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const direct = Number(enemyState?.paramBorderByEnemy?.[String(targetIndex)]);
@@ -1998,7 +2028,7 @@ function normalizeRuntimeNonDamagePart(part) {
     };
   }
 
-  if (isDamageLikeSkillType(skillType)) {
+  if (isDamageLikeSkillType(skillType) || skillType === 'Funnel') {
     return {
       ...structuredClone(part),
       ...(Array.isArray(part?.strval) ? { strval: nestedVariants } : {}),
@@ -2410,30 +2440,65 @@ function getEnemyStatusTargetTypeKey(status) {
   return `${Number(normalized.targetIndex ?? 0)}|${String(normalized.statusType ?? '')}`;
 }
 
+/**
+ * enemy status の power が「再計算で再導出されるべき効果値」かを判定する。
+ *
+ * 再計算(replay)時、turn-start enemyStatuses override は snapshot(commit 時の凍結値)で
+ * carry-forward 値を置換するが、stat 差分・効果量アップ・HighBoost で付与時解決される
+ * デバフ効果値は、上流(caster stat・敵 border 等)を編集して再計算した時に再導出される
+ * べきもの。これらを snapshot 凍結値で上書きすると陳腐化する
+ * （docs/active/debuff_resolved_power_propagation_investigation.md）。
+ *
+ * recomputable = HighBoostEnemyDebuff 影響下（= stat 解決対象を内包する上位集合）の
+ *   action 由来デバフで、power が duration(ターン数)ではなく numeric な効果値であるもの。
+ * - duration 型(Provoke/Attention/Misfortune/Cover)は power=ターン数なので除外。
+ * - lifecycle 系(Break/SuperBreak/SuperBreakDown/DownTurn/Dead)は HighBoost 集合に
+ *   含まれないため自動的に除外（凍結維持＝preserve）。
+ * - unknown/非 numeric power は false（安全側 preserve）。
+ * 注意: runtime statusType は ResistDown / ResistDownOverwrite（damage 計算側の
+ *   ElementResistDown ではない）。HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES は runtime 名で定義。
+ */
+export function isRecomputableEnemyStatusPower(status) {
+  const statusType = normalizeEnemyStatusType(status?.statusType);
+  if (!statusType) {
+    return false;
+  }
+  if (!HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES.has(statusType)) {
+    return false;
+  }
+  if (ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(statusType)) {
+    return false;
+  }
+  return getEnemyStatusPowerValue(status) !== null;
+}
+
 function buildOverrideEnemyStatuses(currentStatuses, snapshotStatuses, enemyCount, options = {}) {
   const normalizedSnapshotStatuses = (Array.isArray(snapshotStatuses) ? snapshotStatuses : [])
     .map((status) => normalizeEnemyStatus(status, enemyCount))
     .filter(Boolean);
-  const preserveCurrentStatusPredicate =
+  const extraPreservePredicate =
     typeof options.preserveCurrentStatusPredicate === 'function'
       ? options.preserveCurrentStatusPredicate
       : null;
-  if (!preserveCurrentStatusPredicate) {
-    return normalizedSnapshotStatuses;
-  }
+  // recomputable な効果値 power は常に carry-forward(現在値=再導出済み)を正本とし、
+  // snapshot(凍結値)を採用しない。比較再計算の preserve predicate とは OR 合成する。
+  const shouldPreserveCurrent = (status) =>
+    isRecomputableEnemyStatusPower(status) ||
+    (extraPreservePredicate ? extraPreservePredicate(status) : false);
+
   const preservedStatuses = (Array.isArray(currentStatuses) ? currentStatuses : [])
     .map((status) => normalizeEnemyStatus(status, enemyCount))
-    .filter((status) => status && preserveCurrentStatusPredicate(status));
-  if (preservedStatuses.length === 0) {
-    return normalizedSnapshotStatuses;
-  }
+    .filter((status) => status && shouldPreserveCurrent(status));
   const preservedKeys = new Set(
     preservedStatuses.map((status) => getEnemyStatusTargetTypeKey(status)).filter(Boolean)
   );
-  return [
-    ...preservedStatuses,
-    ...normalizedSnapshotStatuses.filter((status) => !preservedKeys.has(getEnemyStatusTargetTypeKey(status))),
-  ];
+  // snapshot からは「recomputable な凍結値」と「現在値で preserve 済みのキー」を除外する。
+  const snapshotContribution = normalizedSnapshotStatuses.filter(
+    (status) =>
+      !isRecomputableEnemyStatusPower(status) &&
+      !preservedKeys.has(getEnemyStatusTargetTypeKey(status))
+  );
+  return [...preservedStatuses, ...snapshotContribution];
 }
 
 export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, options = {}) {
@@ -4506,6 +4571,208 @@ export function buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpD
   }));
 }
 
+function resolveMainHitRatiosForDestruction(skill, baseHitCount) {
+  const mainHits = Array.isArray(skill?.hits)
+    ? skill.hits.filter((hit) => String(hit?.type ?? 'Main') === 'Main')
+    : [];
+  const ratios = mainHits
+    .map((hit) => Number(hit?.power_ratio ?? hit?.hitRatio ?? 0))
+    .filter((ratio) => Number.isFinite(ratio) && ratio > 0);
+  if (ratios.length > 0) {
+    return ratios;
+  }
+  const fallbackHitCount = Math.max(1, Math.floor(Number(baseHitCount ?? 1)));
+  const ratio = 1 / fallbackHitCount;
+  return Array.from({ length: fallbackHitCount }, () => ratio);
+}
+
+function buildBaseHitDestructionTiming({ hitCount = 1, totalDpDamage = 0, defenderDp = 0, wasBroken = false } = {}) {
+  const normalizedHitCount = Math.max(1, Math.floor(Number(hitCount ?? 1)));
+  if (wasBroken) {
+    return {
+      breakHitIndex: 0,
+      breakHitNumber: 1,
+      destructionStartIndex: 0,
+      destructionHitCount: normalizedHitCount,
+      preBreakHitCount: 0,
+    };
+  }
+
+  const totalDp = Math.max(0, Number(totalDpDamage ?? 0));
+  const dpInit = Math.max(0, Number(defenderDp ?? 0));
+  if (dpInit <= 0) {
+    return {
+      breakHitIndex: 0,
+      breakHitNumber: 1,
+      destructionStartIndex: 0,
+      destructionHitCount: normalizedHitCount,
+      preBreakHitCount: 0,
+    };
+  }
+  if (totalDp <= 0) {
+    return {
+      breakHitIndex: -1,
+      breakHitNumber: null,
+      destructionStartIndex: normalizedHitCount,
+      destructionHitCount: 0,
+      preBreakHitCount: normalizedHitCount,
+    };
+  }
+
+  const baseDpPerHit = totalDp / normalizedHitCount;
+  let dpAllocatedAccum = 0;
+  let dpConsumedAccum = 0;
+  let breakHitIndex = -1;
+  let destructionStartIndex = normalizedHitCount;
+  for (let index = 0; index < normalizedHitCount; index += 1) {
+    const dpAllocated =
+      index === normalizedHitCount - 1
+        ? Math.max(0, totalDp - dpAllocatedAccum)
+        : baseDpPerHit;
+    dpAllocatedAccum += dpAllocated;
+    const dpRemainingBeforeHit = Math.max(0, dpInit - dpConsumedAccum);
+    const dpConsumed = Math.min(dpRemainingBeforeHit, dpAllocated);
+    dpConsumedAccum += dpConsumed;
+    if (breakHitIndex < 0 && dpAllocated > 0 && dpConsumedAccum >= dpInit) {
+      breakHitIndex = index;
+      const overkillDp = Math.max(0, dpAllocated - dpConsumed);
+      destructionStartIndex = overkillDp > 0 ? index : index + 1;
+      break;
+    }
+  }
+
+  return {
+    breakHitIndex,
+    breakHitNumber: breakHitIndex >= 0 ? breakHitIndex + 1 : null,
+    destructionStartIndex,
+    destructionHitCount: Math.max(0, normalizedHitCount - destructionStartIndex),
+    preBreakHitCount: Math.max(0, Math.min(normalizedHitCount, destructionStartIndex)),
+  };
+}
+
+function buildRatioDestructionHits({
+  ratios = [],
+  totalDpDamage = 0,
+  defenderDp = 0,
+  wasBroken = false,
+  funnelHitCount = 0,
+  funnelRate = 0,
+} = {}) {
+  const baseRatios = ratios.length > 0 ? ratios : [1];
+  const normalizedFunnelHitCount = Math.max(0, Math.floor(Number(funnelHitCount ?? 0)));
+  const normalizedFunnelRate = Math.max(0, Number(funnelRate ?? 0));
+  const normalizedRatios = [
+    ...baseRatios.map((ratio) => ({ ratio, source: 'base' })),
+    ...Array.from({ length: normalizedFunnelHitCount }, () => ({
+      ratio: normalizedFunnelRate,
+      source: 'funnel',
+    })),
+  ].filter((entry) => Number.isFinite(Number(entry.ratio)) && Number(entry.ratio) > 0);
+  if (normalizedRatios.length === 0) {
+    normalizedRatios.push({ ratio: 1, source: 'base' });
+  }
+  const totalDp = Math.max(0, Number(totalDpDamage ?? 0));
+  const dpInit = Math.max(0, Number(defenderDp ?? 0));
+  const hitCount = normalizedRatios.length;
+  const totalWeight = normalizedRatios.reduce((sum, entry) => sum + Math.max(0, Number(entry.ratio ?? 0)), 0);
+  let dpAllocatedAccum = 0;
+  let dpConsumedAccum = 0;
+  let breakHitIndex = wasBroken ? 0 : -1;
+  let destructionStartIndex = wasBroken ? 0 : hitCount;
+  const details = normalizedRatios.map((entry, index) => {
+    const normalizedRatio = Math.max(0, Number(entry?.ratio ?? 0));
+    const dpAllocated =
+      index === hitCount - 1
+        ? Math.max(0, totalDp - dpAllocatedAccum)
+        : Math.max(0, totalWeight > 0 ? totalDp * (normalizedRatio / totalWeight) : 0);
+    dpAllocatedAccum += dpAllocated;
+
+    let dpConsumed = 0;
+    let hpAppliedRatio = wasBroken ? normalizedRatio : 0;
+    if (!wasBroken) {
+      const dpRemainingBeforeHit = Math.max(0, dpInit - dpConsumedAccum);
+      dpConsumed = Math.min(dpRemainingBeforeHit, dpAllocated);
+      dpConsumedAccum += dpConsumed;
+      if (breakHitIndex < 0 && dpAllocated > 0 && dpConsumedAccum >= dpInit) {
+        breakHitIndex = index;
+        destructionStartIndex = dpAllocated > dpConsumed ? index : index + 1;
+      }
+      if (breakHitIndex >= 0 && index >= breakHitIndex) {
+        const overkillDp = Math.max(0, dpAllocated - dpConsumed);
+        hpAppliedRatio = index === breakHitIndex && dpAllocated > 0
+          ? normalizedRatio * (overkillDp / dpAllocated)
+          : normalizedRatio;
+      }
+    }
+
+    const countsForDestruction = index >= destructionStartIndex;
+    return {
+      hitNumber: index + 1,
+      ratio: normalizedRatio,
+      source: String(entry?.source ?? 'base'),
+      dpAllocated,
+      dpConsumed,
+      hpAppliedRatio,
+      countsForDestruction,
+      destructionWeight: countsForDestruction ? normalizedRatio : 0,
+      isBreakHit: breakHitIndex === index,
+      damageBreakHit: breakHitIndex === index,
+    };
+  });
+  const destructionHitCount = details.filter((detail) => detail.countsForDestruction).length;
+  const appliedWeight = details.reduce(
+    (sum, detail) => sum + (detail.countsForDestruction ? Math.max(0, Number(detail.ratio ?? 0)) : 0),
+    0
+  );
+
+  return {
+    hits: details.map((detail) => ({
+      damage: detail.dpAllocated,
+      isMultiHit: true,
+      hitRatio: detail.hpAppliedRatio,
+      countsForDestruction: detail.countsForDestruction,
+      isBreakHit: detail.isBreakHit,
+      destructionWeight: detail.destructionWeight,
+    })),
+    details,
+    breakHitIndex,
+    breakHitNumber: breakHitIndex >= 0 ? breakHitIndex + 1 : null,
+    damageBreakHitIndex: breakHitIndex,
+    damageBreakHitNumber: breakHitIndex >= 0 ? breakHitIndex + 1 : null,
+    destructionStartIndex,
+    destructionStartHitNumber:
+      destructionStartIndex < hitCount ? destructionStartIndex + 1 : null,
+    destructionHitCount,
+    preBreakHitCount: Math.max(0, Math.min(hitCount, destructionStartIndex)),
+    appliedRatio: totalWeight > 0 ? appliedWeight / totalWeight : 0,
+    appliedWeight,
+    totalWeight,
+  };
+}
+
+function analyzeAutoBreakDestructionHits({ hits = [], defenderDp = 0, simulatedGain = 0 } = {}) {
+  const dpInit = Number(defenderDp ?? 0);
+  let damageAccum = 0;
+  let breakHitIndex = -1;
+  for (const [index, hit] of hits.entries()) {
+    damageAccum += Number(hit?.damage ?? 0);
+    if (breakHitIndex < 0 && damageAccum >= dpInit) {
+      breakHitIndex = index;
+    }
+  }
+  const normalizedHitCount = Math.max(1, hits.length);
+  const destructionHitCount = breakHitIndex >= 0 ? normalizedHitCount - breakHitIndex : 0;
+  const perHitSimulatedGain = Math.max(0, Number(simulatedGain ?? 0));
+  return {
+    breakHitIndex,
+    breakHitNumber: breakHitIndex >= 0 ? breakHitIndex + 1 : null,
+    destructionHitCount,
+    preBreakHitCount: breakHitIndex >= 0 ? breakHitIndex : normalizedHitCount,
+    simulatedGain,
+    appliedGain: perHitSimulatedGain,
+  };
+}
+
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
@@ -4561,6 +4828,21 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     }
 
     const hitCount = Math.max(1, resolveActionEShieldHitCount(actionEntry, skill));
+    const baseHitCount = Math.max(1, Number(actionEntry?.skillBaseHitCount ?? resolveSkillHitCount(skill) ?? hitCount));
+    const destructionHitRatios = resolveMainHitRatiosForDestruction(skill, baseHitCount);
+    const destructionActionType = resolveActionContextTypeForSkill(skill);
+    const destructionActionContext = buildActionContext(destructionActionType, skill, {
+      hasDamage: true,
+      turnPhase: 'PlayerTurn',
+      isNormalAttack: destructionActionType === 'NormalAttack',
+      isPursuit: destructionActionType === 'Pursuit',
+      actorCharacterId: actor.characterId,
+    });
+    const funnelDestructionRateBonus = resolveFunnelDestructionRateBonusForAction(
+      actor,
+      actionEntry,
+      destructionActionContext
+    );
     const manualBreakEnemyIndexes = normalizeManualBreakEnemyIndexes(actionEntry, enemyCount);
     const autoBreakEnemyIndexes = normalizeAutoBreakEnemyIndexes(actionEntry, enemyCount);
     const sameActionBreakEnemyIndexes = new Set([...manualBreakEnemyIndexes, ...autoBreakEnemyIndexes]);
@@ -4579,6 +4861,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       const targetKey = String(targetIndex);
       const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[targetKey] ?? 0);
       const totalDpDamage = Number(actionEntry?.totalDpDamageByEnemy?.[targetKey] ?? NaN);
+      const perHitHpDamage = Number(actionEntry?.perHitHpDamageByEnemy?.[targetKey] ?? 0);
+      const totalHpDamage = Number(actionEntry?.totalHpDamageByEnemy?.[targetKey] ?? NaN);
       const dpBeforeThisAction = runningDp[targetKey] ?? 0;
 
       // Step 1: perHitDpDamageByEnemy によるDP消費をアクションごとに更新する。
@@ -4634,23 +4918,51 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       // perHitDpDamageByEnemy が設定されている場合は dpBeforeThisAction（このアクション開始時点の残DP）を
       // defenderDp として autoBreak モードで正確なブレイクヒット位置を特定する。
       // 手動ブレイク指定がある場合はユーザー指定を優先し、従来どおり index 0 をブレイクヒットとする。
-      let destructionHits, useAutoBreak, defenderDp;
+      let destructionHits, useAutoBreak, defenderDp, ratioHitAnalysis = null;
       if (wasBroken) {
-        // アクション前からブレイク済み: dp=0 → isBroken=true → 全ヒットが DR 加算対象
-        destructionHits = buildDestructionHitsForAction(hitCount, -1);
+        // アクション前からブレイク済み: 基礎hit配列すべてが DR 加算対象
+        ratioHitAnalysis = buildRatioDestructionHits({
+          ratios: destructionHitRatios,
+          totalDpDamage: totalDpDamage > 0 && Number.isFinite(totalDpDamage)
+            ? totalDpDamage
+            : hitCount * perHitDpDamage,
+          defenderDp: 0,
+          wasBroken: true,
+          funnelHitCount: funnelDestructionRateBonus.funnelHitCount,
+          funnelRate: funnelDestructionRateBonus.funnelRate,
+        });
+        destructionHits = ratioHitAnalysis.hits;
         defenderDp = 0;
         useAutoBreak = false;
       } else if (hasDpGauge && !isManualBreakTarget && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
-        // per-hit DP ダメージが提供されている: dpBeforeThisAction を起点に autoBreak でブレイクヒットを特定
-        destructionHits = buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpDamage);
+        // DP/破壊率は連撃込みhit数ではなく、スキル本体の hit ratio 配列で按分する。
+        ratioHitAnalysis = buildRatioDestructionHits({
+          ratios: destructionHitRatios,
+          totalDpDamage: totalDpDamage > 0 && Number.isFinite(totalDpDamage)
+            ? totalDpDamage
+            : hitCount * perHitDpDamage,
+          defenderDp: dpBeforeThisAction > 0 ? dpBeforeThisAction : 0,
+          wasBroken: false,
+          funnelHitCount: funnelDestructionRateBonus.funnelHitCount,
+          funnelRate: funnelDestructionRateBonus.funnelRate,
+        });
+        destructionHits = ratioHitAnalysis.hits;
         defenderDp = dpBeforeThisAction > 0 ? dpBeforeThisAction : 0;
-        useAutoBreak = true;
+        useAutoBreak = false;
       } else {
         // per-hit データなし or 手動ブレイク指定: index 0 をブレイクヒットとして全ヒット加算
-        destructionHits = buildDestructionHitsForAction(hitCount, 0);
+        destructionHits = buildDestructionHitsForAction(baseHitCount, 0);
         defenderDp = 1;
         useAutoBreak = false;
       }
+
+      const rawDestructionMultiplier = Number(
+        state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? DEFAULT_ENEMY_D_RATE_RAW
+      );
+      const effectiveDestructionFunnelHitCount = Math.max(
+        0,
+        Number(funnelDestructionRateBonus.funnelHitCount ?? 0)
+      );
 
       const result = calculateDestruction(
         {
@@ -4658,13 +4970,16 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
             statusEffects: normalizeDestructionUpStatusEffectsForCalculation(actor.statusEffects),
             // ブラストピアスは raw ratio を渡し、calculateDestruction 内の
-            // ヒット数傾斜（上昇型・仕様式Bと同一）でスケールさせる（二重傾斜防止）
-            accessoryDestructionRateBonus:
-              Number(
-                actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
-              ) + Number(actor?.blastPiercePercent ?? 0) / 100,
+            // 正式な加算グループへ吸収する。
+            accessoryDestructionRateBonus: Number(actor?.blastPiercePercent ?? 0) / 100,
             // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
             flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
+            transcendenceBurstDestructionRateGainBonusRate: Number(
+              actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+            ),
+            markDestructionRateGainBonusRate: Number(
+              actionEntry?.specialPassiveModifiers?.markDestructionRateGainBonusRate ?? 0
+            ),
             resonanceDestructionRateBonus: Number(
               actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
             ),
@@ -4673,7 +4988,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             enemyId: null,
             destructionRate: currentRatePercent / 100,
             destructionLimit: capPercent / 100,
-            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 5),
+            destructionMultiplier: rawDestructionMultiplier,
             dp: defenderDp,
           },
           skill: {
@@ -4682,6 +4997,9 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             isNormalAttack: isNormalAttackSkill(skill),
             isPursuit: isPursuitOnlySkill(skill),
             spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
+            baseHitCount,
+            funnelHitCount: effectiveDestructionFunnelHitCount,
+            funnelRate: funnelDestructionRateBonus.funnelRate,
             parts: effectiveParts,
             attackPart: destructionAttackPart,
             conditionResults: buildDestructionConditionResultsForTarget(
@@ -4697,7 +5015,136 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         },
         DESTRUCTION_CALCULATION_DATA_FALLBACK
       );
-      const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100);
+      const simulatedRateAfterPercent = Math.min(capPercent, Number(result?.destructionRate ?? 1) * 100);
+      const simulatedGainRatio = Math.max(0, (simulatedRateAfterPercent - currentRatePercent) / 100);
+      const finalBaseDestructionRatio = Number(result?.breakdown?.finalBaseDestruction ?? 0);
+      const destructionDistributionHitCount = Math.max(
+        1,
+        Array.isArray(ratioHitAnalysis?.details) ? ratioHitAnalysis.details.length : baseHitCount
+      );
+      let runningDestructionRateForHits = currentRatePercent;
+      const hitBreakdown = Array.isArray(ratioHitAnalysis?.details)
+        ? ratioHitAnalysis.details.map((detail) => {
+            const ratio = Number(detail?.ratio ?? 0);
+            const hpAppliedRatio = Number(detail?.hpAppliedRatio ?? 0);
+            const countsForDestruction = detail?.countsForDestruction === true || hpAppliedRatio > 0;
+            const destructionWeight = countsForDestruction ? Math.max(0, Number(detail?.destructionWeight ?? detail?.ratio ?? 0)) : 0;
+            const destructionAppliedRatio = Number(ratioHitAnalysis?.totalWeight ?? 0) > 0
+              ? destructionWeight / Number(ratioHitAnalysis.totalWeight)
+              : (countsForDestruction ? 1 / destructionDistributionHitCount : 0);
+            const rateBeforeHit = runningDestructionRateForHits;
+            const hpScale = currentRatePercent > 0 ? rateBeforeHit / currentRatePercent : 1;
+            const hpAllocated =
+              totalHpDamage > 0 && Number.isFinite(totalHpDamage)
+                ? totalHpDamage * hpScale * (Number(ratioHitAnalysis?.totalWeight ?? 0) > 0
+                  ? ratio / Number(ratioHitAnalysis.totalWeight)
+                  : ratio)
+                : hitCount * perHitHpDamage * hpScale * ratio;
+            const destructionGainPercent = countsForDestruction
+              ? finalBaseDestructionRatio * destructionWeight * 100
+              : 0;
+            const rateAfterHit = Math.min(capPercent, rateBeforeHit + destructionGainPercent);
+            if (destructionGainPercent > 0) {
+              runningDestructionRateForHits = rateAfterHit;
+            }
+            return {
+              hitNumber: Number(detail?.hitNumber ?? 0),
+              ratio,
+              source: String(detail?.source ?? 'base'),
+              dpAllocated: Number(detail?.dpAllocated ?? 0),
+              dpConsumed: Number(detail?.dpConsumed ?? 0),
+              hpAllocated,
+              hpApplied: hpAppliedRatio > 0 ? hpAllocated * (ratio > 0 ? hpAppliedRatio / ratio : 0) : 0,
+              hpAppliedRatio,
+              destructionWeight,
+              destructionAppliedRatio,
+              countsForDestruction,
+              destructionGainPercent,
+              destructionRateBeforePercent: rateBeforeHit,
+              destructionRateAfterPercent: rateAfterHit,
+              isBreakHit: detail?.isBreakHit === true,
+              isDamageBreakHit: detail?.damageBreakHit === true,
+            };
+          })
+        : null;
+      const ratioAppliedGain = Array.isArray(hitBreakdown)
+        ? hitBreakdown.reduce((sum, detail) => sum + Math.max(0, Number(detail?.destructionGainPercent ?? 0)), 0) / 100
+        : null;
+      const hitAnalysis = ratioHitAnalysis
+        ? {
+            breakHitIndex: ratioHitAnalysis.breakHitIndex,
+            breakHitNumber: ratioHitAnalysis.breakHitNumber,
+            destructionHitCount: ratioHitAnalysis.destructionHitCount,
+            preBreakHitCount: ratioHitAnalysis.preBreakHitCount,
+            simulatedGain: ratioAppliedGain ?? simulatedGainRatio,
+            appliedGain: ratioAppliedGain ?? simulatedGainRatio,
+          }
+        : useAutoBreak
+          ? analyzeAutoBreakDestructionHits({
+              hits: destructionHits,
+              defenderDp,
+              simulatedGain: simulatedGainRatio,
+            })
+        : {
+            breakHitIndex: wasBroken ? 0 : null,
+            breakHitNumber: wasBroken ? 1 : null,
+            destructionHitCount: wasBroken ? baseHitCount : baseHitCount,
+            preBreakHitCount: wasBroken ? 0 : 0,
+            simulatedGain: simulatedGainRatio,
+            appliedGain: simulatedGainRatio,
+          };
+      const appliedDestructionGainRatio = Number(hitAnalysis?.appliedGain ?? simulatedGainRatio);
+      const nextRatePercent = Math.min(
+        capPercent,
+        currentRatePercent + Math.max(0, appliedDestructionGainRatio) * 100
+      );
+      // 計算内訳を actionEntry に保存（verify ツール等からの dump 用）
+      if (!actionEntry.destructionBreakdownByEnemy) {
+        actionEntry.destructionBreakdownByEnemy = {};
+      }
+      actionEntry.destructionBreakdownByEnemy[String(targetIndex)] = {
+        skillName: String(skill.name ?? actionEntry?.skillName ?? ''),
+        characterName: String(actor?.characterName ?? ''),
+        targetIndex: Number(targetIndex),
+        rateBefore: currentRatePercent,
+        rateAfter: nextRatePercent,
+        simulatedRateAfter: simulatedRateAfterPercent,
+        capPercent,
+        rawDestructionMultiplier,
+        hitCount,
+        contactHitCount: hitCount,
+        baseHitCount,
+        calculationHitCount: Array.isArray(ratioHitAnalysis?.details)
+          ? ratioHitAnalysis.details.length
+          : destructionHitRatios.length,
+        hitRatios: Array.isArray(ratioHitAnalysis?.details)
+          ? ratioHitAnalysis.details.map((detail) => Number(detail?.ratio ?? 0))
+          : destructionHitRatios.slice(),
+        baseHitRatios: destructionHitRatios.slice(),
+        totalDestructionWeight: ratioHitAnalysis?.totalWeight ?? null,
+        appliedDestructionWeight: ratioHitAnalysis?.appliedWeight ?? null,
+        funnelHitCount: funnelDestructionRateBonus.funnelHitCount,
+        destructionFunnelHitCount: effectiveDestructionFunnelHitCount,
+        funnelRate: funnelDestructionRateBonus.funnelRate,
+        funnelMultiplier: Number(result?.breakdown?.funnelMultiplier ?? 1),
+        useAutoBreak,
+        dpBeforeThisAction,
+        perHitDpDamage,
+        totalDpDamage,
+        perHitHpDamage,
+        totalHpDamage,
+        breakHitIndex: hitAnalysis?.breakHitIndex ?? null,
+        breakHitNumber: hitAnalysis?.breakHitNumber ?? null,
+        damageBreakHitIndex: ratioHitAnalysis?.damageBreakHitIndex ?? null,
+        damageBreakHitNumber: ratioHitAnalysis?.damageBreakHitNumber ?? null,
+        destructionStartHitNumber: ratioHitAnalysis?.destructionStartHitNumber ?? null,
+        destructionHitCount: hitAnalysis?.destructionHitCount ?? null,
+        preBreakHitCount: hitAnalysis?.preBreakHitCount ?? null,
+        simulatedGainPercent: Number(hitAnalysis?.simulatedGain ?? 0) * 100,
+        appliedGainPercent: Math.max(0, appliedDestructionGainRatio) * 100,
+        hitBreakdown,
+        breakdown: result?.breakdown ?? null,
+      };
       if (Number.isFinite(nextRatePercent)) {
         setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
       }
@@ -4796,9 +5243,17 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
         continue;
       }
       const totalHpDamage = Number(actionEntry?.totalHpDamageByEnemy?.[key] ?? NaN);
+      const breakdownHpDamage = Array.isArray(actionEntry?.destructionBreakdownByEnemy?.[key]?.hitBreakdown)
+        ? actionEntry.destructionBreakdownByEnemy[key].hitBreakdown.reduce(
+            (sum, hit) => sum + Math.max(0, Number(hit?.hpApplied ?? 0)),
+            0
+          )
+        : NaN;
       const hpBefore = runningHp[key];
       const hpDamage =
-        totalHpDamage > 0 && Number.isFinite(totalHpDamage)
+        breakdownHpDamage > 0 && Number.isFinite(breakdownHpDamage)
+          ? breakdownHpDamage
+          : totalHpDamage > 0 && Number.isFinite(totalHpDamage)
           ? totalHpDamage
           : hitCount * perHitHpDamage;
       const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hpDamage));
@@ -6758,12 +7213,12 @@ function isBeforeSelfFunnelPart(part) {
   return (part?.hits ?? []).some((hit) => String(hit?.type ?? '') === 'Before');
 }
 
-function resolveImmediateSelfFunnelHitBonus(skill) {
+function resolveImmediateSelfFunnelHitBonus(skill, member = null) {
   return (skill?.parts ?? []).reduce((sum, part) => {
     if (!isBeforeSelfFunnelPart(part)) {
       return sum;
     }
-    const hitBonus = Number(part?.power?.[0] ?? 0);
+    const hitBonus = resolveFunnelHitBonusFromPart(part, member);
     return sum + (Number.isFinite(hitBonus) && hitBonus > 0 ? hitBonus : 0);
   }, 0);
 }
@@ -8126,7 +8581,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       0
     );
     const actionFunnelHitBonus = Number(actionEntry?.skillFunnelHitBonus ?? NaN);
-    const recomputedFunnelHitBonus = resolvedFunnelHitBonus + resolveImmediateSelfFunnelHitBonus(skill);
+    const recomputedFunnelHitBonus = resolvedFunnelHitBonus + resolveImmediateSelfFunnelHitBonus(skill, member);
     const funnelHitBonus = Number.isFinite(actionFunnelHitBonus)
       ? Math.max(0, actionFunnelHitBonus, recomputedFunnelHitBonus)
       : recomputedFunnelHitBonus;
@@ -8773,11 +9228,50 @@ function resolveFunnelHitBonusForMember(member, maxStacks = 2) {
   return effects.reduce((sum, effect) => sum + Math.max(0, Number(effect?.power ?? 0)), 0);
 }
 
+function resolveFunnelEffectHitCount(effect) {
+  const rawPower = effect?.power;
+  const rawHitCount = Array.isArray(rawPower) ? rawPower[0] : rawPower;
+  const hitCount = Number(rawHitCount ?? 0);
+  return Number.isFinite(hitCount) && hitCount > 0 ? hitCount : 0;
+}
+
+function resolveFunnelEffectDestructionRate(effect) {
+  const rate = Number(effect?.metadata?.damageBonus ?? 0);
+  return Number.isFinite(rate) && rate > 0 ? rate : 0;
+}
+
+function resolveFunnelDestructionRateBonusForAction(actor, actionEntry, actionContext = null) {
+  const effects = Array.isArray(actionEntry?.consumedFunnelEffects) && actionEntry.consumedFunnelEffects.length > 0
+    ? actionEntry.consumedFunnelEffects
+    : (Array.isArray(actionEntry?.damageContext?.funnelEffects)
+      ? actionEntry.damageContext.funnelEffects
+      : resolveFunnelCompetitionForAction(actor, actionContext).selectedEffects.slice(0, 2));
+  const effectTotals = effects.reduce(
+    (acc, effect) => {
+      const hitCount = resolveFunnelEffectHitCount(effect);
+      const rate = resolveFunnelEffectDestructionRate(effect);
+      return {
+        hitCount: acc.hitCount + hitCount,
+        weightedRateHits: acc.weightedRateHits + hitCount * rate,
+      };
+    },
+    { hitCount: 0, weightedRateHits: 0 }
+  );
+
+  if (effectTotals.hitCount <= 0) {
+    return { funnelHitCount: 0, funnelRate: 0 };
+  }
+  return {
+    funnelHitCount: effectTotals.hitCount,
+    funnelRate: effectTotals.weightedRateHits / effectTotals.hitCount,
+  };
+}
+
 function resolveEffectivePreviewHitCount(skill, state, member) {
   const baseHitCount = resolveSkillHitCount(skill);
   const effectiveParts = resolveEffectiveSkillParts(skill, state, member);
   const hasDamage = hasDamagePartInParts(effectiveParts);
-  const immediateSelfFunnelHitBonus = resolveImmediateSelfFunnelHitBonus(skill);
+  const immediateSelfFunnelHitBonus = resolveImmediateSelfFunnelHitBonus(skill, member);
   if (!hasDamage) {
     return {
       baseHitCount,
@@ -9066,7 +9560,7 @@ function applyFunnelEffectsFromActions(state, previewRecord) {
       const limitType = String(part?.effect?.limitType ?? 'Default');
       const exitCond = String(part?.effect?.exitCond ?? 'Count');
       const remaining = Number(part?.effect?.exitVal?.[0] ?? 1);
-      const hitBonus = Number(part?.power?.[0] ?? 0);
+      const hitBonus = resolveFunnelHitBonusFromPart(part, actor);
       const damageBonus = Number(part?.value?.[0] ?? 0);
 
       for (const targetCharacterId of targetCharacterIds) {
@@ -12703,7 +13197,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'Funnel') {
-          const hitBonus = Number(part?.power?.[0] ?? 0);
+          const hitBonus = resolveFunnelHitBonusFromPart(part, member);
           const damageBonus = Number(part?.value?.[0] ?? 0);
           if (!Number.isFinite(hitBonus) || hitBonus <= 0) {
             continue;

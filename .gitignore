@@ -109,3 +109,8 @@ golden/
 
 # .github/hooks/ はローカルの agmsg スキル設定（ホームパスを含む）。リポジトリ管理外
 .github/hooks/
+
+# Python caches (reference/calc-python は静的リファレンス。キャッシュ/venv は無視)
+__pycache__/
+*.pyc
+.venv/

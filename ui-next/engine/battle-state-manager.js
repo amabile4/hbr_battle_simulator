@@ -33,6 +33,9 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 });
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
+// destructionMultiplierByEnemy には enemy.json の raw d_rate をそのまま格納する。
+// - スキル破壊率（calc-core）: dr×4×d_rate/100 = dr×(d_rate/25) = dr×DR で正典一致。
+// - 通常攻撃破壊率（calc-core）: 基礎 = d_rate/100（実機実測: d_rate=5→5%, 10→10%）。
 const DEFAULT_D_RATE_RAW = 5;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
@@ -287,6 +290,7 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
 }
 
 function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
+  // raw d_rate をそのまま返す（標準敵=5, スカルフェザー最終=10）。
   const direct = Number(slot?.d_rate);
   if (Number.isFinite(direct)) {
     return direct;

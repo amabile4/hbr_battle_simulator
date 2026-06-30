@@ -4041,6 +4041,100 @@ test('char detail popup damage tab uses damage context destruction cap for manua
     }
   }));
 
+test('char detail popup damage tab previews normal attack destruction from raw d_rate', () =>
+  withDom(async ({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+    const damageContext = {
+      actorCharacterId: 'NNanase',
+      actorStyleId: 1000001,
+      skillId: 999002,
+      skillName: '通常攻撃',
+      isNormalAttack: true,
+      targetEnemyIndex: 0,
+      enemyCount: 1,
+      baseHitCount: 3,
+      effectiveHitCountPerEnemy: 3,
+      destructionRateByEnemy: { 0: 100 },
+      destructionRateCapByEnemy: { 0: 999 },
+      destructionMultiplierByEnemy: { 0: 10 },
+      enemyNamesByEnemy: { 0: 'E1' },
+      effectiveDamageRatesByEnemy: { 0: 100 },
+      transcendenceBurstDestructionRateGainBonusRate: 0,
+      blastPierceDestructionRateBonus: 2,
+      chainDestructionRateBonus: 2,
+      resonanceDestructionRateBonus: 2,
+      damageBreakdown: {
+        version: 1,
+        targetBreakdowns: [
+          {
+            targetEnemyIndex: 0,
+            targetLabel: 'E1',
+            finalMultiplier: 1,
+            increasePercent: 0,
+            formula: '1.00x',
+            groups: [],
+          },
+        ],
+      },
+      criticalRateBreakdown: {
+        criticalRatePercent: 0,
+        isCriticalGuaranteed: false,
+        contributions: [],
+      },
+    };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
+
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '通常攻撃',
+              damageContext,
+            },
+          ],
+        },
+        { x: 200, y: 120, isCommitted: false }
+      );
+
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+
+      const input = popup.querySelector('[data-role="destruction-rate-input"]');
+      const after = popup.querySelector('[data-role="destruction-rate-after"]');
+      assert.ok(input);
+      assert.ok(after);
+      input.value = '100';
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+      for (let attempt = 0; attempt < 20 && after.textContent?.trim() !== '110.00%'; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      assert.equal(after.textContent?.trim(), '110.00%');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  }));
+
 test('char detail popup damage tab shows normal enemy HP current and max', () =>
   withDom(({ win }) => {
     const targetMember = {

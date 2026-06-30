@@ -82,6 +82,7 @@ test('BattleStateManager applies enemy resistance percent, absorb elements, name
   assert.equal(state.turnState.enemyState.damageRatesByEnemy['1'].Slash, 150);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 650);
+  // destructionMultiplierByEnemy は raw d_rate をそのまま格納（d_rate=5 → 5）
   assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
   assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 5);
   assert.deepEqual(state.turnState.enemyState.absorbElementsByEnemy['0'], ['fire', 'nonelement']);
@@ -276,6 +277,7 @@ test('BattleStateManager applies per-slot enemy setup when enemySlots are provid
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['1'], 0);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['0'], 650);
   assert.equal(state.turnState.enemyState.destructionRateCapByEnemy['1'], 999);
+  // raw d_rate をそのまま格納（150, 80）
   assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 150);
   assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['1'], 80);
   assert.equal(state.turnState.enemyState.odRateByEnemy['0'], 8500);
@@ -305,7 +307,7 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
         base_param: {
           dp: 4550000,
           hp: 156000000,
-          d_rate: 175,
+          d_rate: 10,
         },
       },
     ],
@@ -325,7 +327,38 @@ test('BattleStateManager resolves missing enemy slot dp from selected enemy mast
 
   assert.equal(state.turnState.enemyState.enemyDpByEnemy['0'], 4550000);
   assert.equal(state.turnState.enemyState.enemyHpByEnemy['0'], 156000000);
-  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 175);
+  // raw d_rate=10 をそのまま格納
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 10);
+});
+
+test('BattleStateManager defaults missing selected enemy d_rate to raw 5', () => {
+  const store = Object.create(getStore());
+  store.enemies = [];
+  store.enemiesById = new Map([
+    [
+      990001,
+      {
+        id: 990001,
+        base_param: {
+          dp: 1000,
+          hp: 2000,
+        },
+      },
+    ],
+  ]);
+  const manager = new BattleStateManager({ store });
+
+  const state = manager.buildFromSnapshot(createPartySnapshot(), {
+    enemySlots: [
+      {
+        slotIndex: 0,
+        selectedEnemyId: 990001,
+        selectedEnemyName: 'd_rate欠損敵',
+      },
+    ],
+  });
+
+  assert.equal(state.turnState.enemyState.destructionMultiplierByEnemy['0'], 5);
 });
 
 test('BattleStateManager ignores inactive Eシールド definitions in enemy slots', () => {

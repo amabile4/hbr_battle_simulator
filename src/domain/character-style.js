@@ -1256,6 +1256,9 @@ export class CharacterStyle {
         remainingBefore: before,
         remainingAfter: effect.remaining,
         elements: Array.isArray(effect.elements) ? structuredClone(effect.elements) : [],
+        metadata: effect.metadata && typeof effect.metadata === 'object'
+          ? structuredClone(effect.metadata)
+          : null,
       });
       changed = true;
     }

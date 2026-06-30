@@ -199,12 +199,60 @@ test('calculateDestruction - DestructionUp integration with pre-resolved power',
   };
 
   const res = calculateDestruction(input, data);
-  // fTag = 0.25 (since single target and no special desc). spVal = 4.
-  // destMult = 1.0. drVal = 1.0 / 25.0 = 0.04.
-  // bg30 = 0.25 * 4 * 0.04 = 0.04.
+  // フォールバック経路: fTag=0.25(単体), spVal=4, destMult=1.0, drVal=1.0/25=0.04
+  // baseDestRate = fTag * spVal * drVal = 0.25 * 4 * 0.04 = 0.04
   // buffMultiplier = 45.32 / 100 = 0.4532
   // baseDestruction = Math.floor(0.04 * (1 + 0 + 0.4532) * 10000) / 10000
   //                 = Math.floor(0.04 * 1.4532 * 10000) / 10000 = Math.floor(581.28) / 10000 = 0.0581
   assert.ok(isClose(res.breakdown.baseDestruction, 0.0581));
   assert.ok(isClose(res.breakdown.buffMultiplier, 0.4532));
+});
+
+test('calculateDestruction - destructionMultiplier edge cases', () => {
+  // dr=1 のスキル攻撃でブレイクヒット1発のシンプルな設定
+  const makeInput = (destructionMultiplier) => ({
+    attacker: { role: 'Attacker', statusEffects: [] },
+    defender: {
+      destructionRate: 1.0,
+      destructionMultiplier,
+      destructionLimit: 99.0,
+      dp: 0,
+    },
+    skill: {
+      name: 'edge',
+      isNormalAttack: false,
+      attackPart: { skill_type: 'AttackSkill', multipliers: { dr: 1.0 } },
+    },
+    hits: [{ damage: 1, isBreakHit: true }],
+  });
+  const data = { styles: [], enemies: [], skills: [] };
+
+  // d_rate=0: 破壊不可敵 → 破壊率上昇なし・destMultがbreakdownに0で記録される
+  const res0 = calculateDestruction(makeInput(0), data);
+  assert.equal(res0.breakdown.baseDestruction, 0.0);
+  assert.equal(res0.breakdown.destMult, 0);
+  assert.equal(res0.destructionRate, 1.0);
+
+  // destMult は enemy raw d_rate（スキル: dr×4×d_rate/100 = dr×DR）。
+  // d_rate=1 と d_rate=10 で破壊率上昇が10倍になること（比例性）。
+  const res1  = calculateDestruction(makeInput(1),  data);
+  const res10 = calculateDestruction(makeInput(10), data);
+  assert.ok(isClose(res10.breakdown.baseDestRate, res1.breakdown.baseDestRate * 10),
+    'd_rate=10 は d_rate=1 の10倍上昇であること');
+
+  // destMult < 0: ガードされ 0 として扱われる（破壊率低下バグ防止）
+  const resNeg = calculateDestruction(makeInput(-1), data);
+  assert.equal(resNeg.breakdown.destMult, 0);
+  assert.equal(resNeg.breakdown.baseDestruction, 0.0);
+  assert.equal(resNeg.destructionRate, 1.0);
+
+  // destMult = NaN: ガードされ 0 として扱われる
+  const resNaN = calculateDestruction(makeInput(NaN), data);
+  assert.equal(resNaN.breakdown.destMult, 0);
+  assert.equal(resNaN.destructionRate, 1.0);
+
+  // destMult = Infinity: ガードされ 0 として扱われる（安全側に倒す）
+  const resInf = calculateDestruction(makeInput(Infinity), data);
+  assert.equal(resInf.breakdown.destMult, 0);
+  assert.equal(resInf.destructionRate, 1.0);
 });

@@ -116,6 +116,22 @@ export async function gotoUiNext(page, options = {}) {
   }
 }
 
+export async function loadUiNextSession(page, sessionPath) {
+  await gotoUiNext(page);
+  await page.locator('#session-load-input').setInputFiles(sessionPath);
+  await page.waitForFunction(() => window.__UI_NEXT_DAMAGE_DATA_READY__ === true, undefined, {
+    timeout: 15000,
+  });
+  await expect
+    .poll(async () => page.locator('[data-turn-row][data-row-mode="committed"]').count(), {
+      timeout: 15000,
+    })
+    .toBeGreaterThan(0);
+  await expect(page.locator('[data-role="turn-replay-status"]')).toContainText('再計算完了', {
+    timeout: 15000,
+  });
+}
+
 export async function fillPartySetupSlots(page, slotIndexes = [0, 1, 2, 3]) {
   const overlay = page.locator('#style-picker-overlay');
 

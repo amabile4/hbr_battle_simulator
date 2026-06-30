@@ -109,6 +109,45 @@ test('active buff effect power resolves from actor stats and keeps fixed parts u
   assertAlmostEqual(fixedAction.statusEffectsApplied[0].power, 0.1, 'fixed part keeps power[0]');
 });
 
+test('Funnel hit count resolves variable power from actor stats and clamps at max count', () => {
+  const skill = createSkill({
+    id: 9916,
+    name: 'Variable Funnel',
+    parts: [
+      {
+        skill_type: 'Funnel',
+        target_type: 'Self',
+        power: [2, 3],
+        value: [0.25, 0],
+        growth: [0, 0],
+        diff_for_max: 10000,
+        parameters: { wis: 1 },
+        effect: { limitType: 'Default', exitCond: 'Count', exitVal: [1, 0] },
+      },
+    ],
+  });
+
+  const lowState = createBattleStateFromParty(createParty({
+    stats: createStats({ wis: 1 }),
+    skills: [skill],
+  }));
+  const lowCommit = commitTurn(lowState, previewTurn(lowState, {
+    0: { characterId: 'EFF1', skillId: 9916 },
+  }));
+  assert.equal(lowCommit.nextState.party[0].getFunnelEffects({ activeOnly: true })[0]?.power, 2);
+  assert.equal(lowCommit.committedRecord.actions[0].funnelApplied[0]?.hitBonus, 2);
+
+  const highState = createBattleStateFromParty(createParty({
+    stats: createStats({ wis: 12000 }),
+    skills: [skill],
+  }));
+  const highCommit = commitTurn(highState, previewTurn(highState, {
+    0: { characterId: 'EFF1', skillId: 9916 },
+  }));
+  assert.equal(highCommit.nextState.party[0].getFunnelEffects({ activeOnly: true })[0]?.power, 3);
+  assert.equal(highCommit.committedRecord.actions[0].funnelApplied[0]?.hitBonus, 3);
+});
+
 test('HighBoost scales active buff after stat based power resolution', () => {
   const skill = createSkill({
     id: 9912,
@@ -206,7 +245,7 @@ test('DestructionUp stored as ratio is converted to core percent at destruction 
   state.turnState.enemyState.enemyDpByEnemy = { 0: 100 };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 100 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 500 };
-  // d_rate=1 を明示 (旧デフォルト100/100=1.0 と同等のraw値)
+  // d_rate=1 を明示して、DestructionUp の倍率だけを検証対象にする。
   state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {
@@ -219,7 +258,7 @@ test('DestructionUp stored as ratio is converted to core percent at destruction 
   });
   const { nextState } = commitTurn(state, preview);
   const updatedRate = Number(nextState.turnState.enemyState.destructionRateByEnemy?.[0] ?? 0);
-  // SP二重掛け修正後は dr=10 の基礎上昇が 100% ではなく 40%。
-  // DestructionUp 0.2 は core へ 20% として渡され、40% * 1.2 = 48% 加算になる。
-  assertAlmostEqual(updatedRate, 148, 'DestructionUp ratio is passed to core as percent');
+  // 新式: d_rate=1, 1hit, dr=10 の基礎上昇は 10%（hit count 不依存）。
+  // DestructionUp 0.2 は core へ 20% として渡され、10% * 1.2 = 12% 加算になる。
+  assertAlmostEqual(updatedRate, 112.0, 'DestructionUp ratio is passed to core as percent');
 });

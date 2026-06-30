@@ -58,6 +58,7 @@ const DAMAGE_CALC_STAT_LABELS = Object.freeze({
 const DAMAGE_CALC_DEFAULT_ROLE = 'Attacker';
 const DAMAGE_CALC_DEFAULT_ENEMY_BORDER = 770;
 const DEFAULT_DESTRUCTION_RATE_PERCENT = 100;
+const DEFAULT_DESTRUCTION_PREVIEW_DP = 1;
 const damageCalculationActionModels = new Map();
 const damageCalculationInteractionPanels = new WeakSet();
 
@@ -901,6 +902,7 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `</div>` +
     `</div>` +
     `<div class="char-popup-destruction-rate-message" data-role="destruction-rate-message"></div>` +
+    `<div class="char-popup-destruction-rate-message" data-role="destruction-hit-summary"></div>` +
     `<div class="char-popup-damage-calc-result">` +
     `<div>` +
     `<span>現DP（入力）</span>` +
@@ -954,18 +956,211 @@ function updateGaugePreviewDisplay(pane) {
   }
 }
 
+function resolveFiniteNumber(...values) {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return numeric;
+    }
+  }
+  return null;
+}
+
+function resolvePositiveNumber(...values) {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+  }
+  return null;
+}
+
+function getActionDestructionBreakdown(model, enemyKey) {
+  const breakdown = model?.action?.destructionBreakdownByEnemy?.[enemyKey];
+  return breakdown && typeof breakdown === 'object' ? breakdown : null;
+}
+
+function buildAutoBreakPreviewHits(hitCount, perHitDpDamage, totalDpDamage) {
+  const normalizedHitCount = Math.max(1, Math.floor(Number(hitCount ?? 1)));
+  const perHit = Math.max(0, Number(perHitDpDamage ?? 0));
+  const exactTotal = resolvePositiveNumber(totalDpDamage, perHit * normalizedHitCount) ?? 0;
+  return Array.from({ length: normalizedHitCount }, (_, hitIndex) => ({
+    damage:
+      hitIndex === normalizedHitCount - 1
+        ? Math.max(0, exactTotal - perHit * (normalizedHitCount - 1))
+        : perHit,
+  }));
+}
+
+function buildManualBreakPreviewHits(hitCount, breakHitIndex = 0) {
+  const normalizedHitCount = Math.max(1, Math.floor(Number(hitCount ?? 1)));
+  const requestedBreakHitIndex = Math.floor(Number(breakHitIndex ?? -1));
+  const normalizedBreakHitIndex =
+    Number.isFinite(requestedBreakHitIndex) && requestedBreakHitIndex >= 0
+      ? Math.min(normalizedHitCount - 1, requestedBreakHitIndex)
+      : -1;
+  return Array.from({ length: normalizedHitCount }, (_, index) => ({
+    damage: 0,
+    isBreakHit: index === normalizedBreakHitIndex,
+  }));
+}
+
+function resolveDestructionHitCount(model, damageContext, enemyKey) {
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
+  const count = resolvePositiveNumber(
+    breakdown?.hitCount,
+    model?.action?.skillHitCount,
+    damageContext?.effectiveHitCountPerEnemy?.[enemyKey],
+    damageContext?.effectiveHitCountPerEnemy,
+    damageContext?.baseHitCount,
+    model?.action?.skillBaseHitCount
+  );
+  return Math.max(1, Math.floor(count ?? 1));
+}
+
+function resolveFunnelHitCount(model, damageContext, enemyKey) {
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
+  return Math.max(
+    0,
+    Number(
+      resolveFiniteNumber(
+        breakdown?.breakdown?.funnelHitCount,
+        damageContext?.funnelHitCount,
+        model?.action?.skillFunnelHitBonus,
+        0
+      )
+    )
+  );
+}
+
+function resolveFunnelRate(model, damageContext, enemyKey) {
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
+  const breakdownRate = resolveFiniteNumber(breakdown?.breakdown?.funnelRate);
+  if (breakdownRate !== null) {
+    return Math.max(0, breakdownRate);
+  }
+  const contextRate = resolveFiniteNumber(damageContext?.funnelRate);
+  if (contextRate !== null) {
+    return Math.max(0, contextRate);
+  }
+  const effects = Array.isArray(damageContext?.funnelEffects) ? damageContext.funnelEffects : [];
+  let weightedRateHits = 0;
+  let hitTotal = 0;
+  for (const effect of effects) {
+    const hitCount = Math.max(
+      0,
+      Number(effect?.hitCount ?? effect?.hits ?? effect?.metadata?.hitCount ?? effect?.metadata?.funnelHitCount ?? 0)
+    );
+    const rate = Number(effect?.rate ?? effect?.damageBonus ?? effect?.metadata?.rate ?? effect?.metadata?.damageBonus ?? 0);
+    if (!Number.isFinite(hitCount) || hitCount <= 0 || !Number.isFinite(rate) || rate <= 0) {
+      continue;
+    }
+    weightedRateHits += hitCount * rate;
+    hitTotal += hitCount;
+  }
+  return hitTotal > 0 ? weightedRateHits / hitTotal : 0;
+}
+
+function buildDestructionPreviewHitState(model, enemyKey, baseHitCount, contactHitCount = baseHitCount) {
+  const action = model?.action ?? {};
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
+  const normalizedBaseHitCount = Math.max(1, Math.floor(Number(baseHitCount ?? 1)));
+  const normalizedContactHitCount = Math.max(1, Math.floor(Number(contactHitCount ?? normalizedBaseHitCount)));
+  const perHitDpDamage = resolveFiniteNumber(
+    breakdown?.perHitDpDamage,
+    action?.perHitDpDamageByEnemy?.[enemyKey]
+  );
+  const totalDpDamage = resolveFiniteNumber(
+    breakdown?.totalDpDamage,
+    action?.totalDpDamageByEnemy?.[enemyKey],
+    perHitDpDamage !== null ? perHitDpDamage * normalizedContactHitCount : null
+  );
+  const previewPerBaseHitDpDamage =
+    totalDpDamage !== null ? totalDpDamage / normalizedBaseHitCount : perHitDpDamage;
+  const dpBefore = resolveFiniteNumber(
+    breakdown?.dpBeforeThisAction,
+    model?.enemyDestructionState?.before?.remainingDpByEnemy?.[enemyKey],
+    model?.enemyDestructionState?.before?.enemyDpByEnemy?.[enemyKey],
+    model?.enemyDestructionState?.remainingDpByEnemy?.[enemyKey],
+    model?.enemyDestructionState?.enemyDpByEnemy?.[enemyKey]
+  );
+  const sameActionBreak =
+    Boolean(breakdown?.useAutoBreak) ||
+    (Array.isArray(action?.autoBreakEnemyIndexes) && action.autoBreakEnemyIndexes.includes(Number(enemyKey))) ||
+    (Array.isArray(action?.manualBreakEnemyIndexes) && action.manualBreakEnemyIndexes.includes(Number(enemyKey)));
+
+  if (breakdown?.useAutoBreak || (sameActionBreak && perHitDpDamage !== null && perHitDpDamage > 0)) {
+    return {
+      defenderDp: Math.max(0, Number(dpBefore ?? DEFAULT_DESTRUCTION_PREVIEW_DP)),
+      hits: buildAutoBreakPreviewHits(normalizedBaseHitCount, previewPerBaseHitDpDamage, totalDpDamage),
+      autoBreak: true,
+    };
+  }
+
+  if (breakdown) {
+    const wasBrokenBefore = Number(dpBefore ?? 0) <= 0;
+    return {
+      defenderDp: wasBrokenBefore ? 0 : DEFAULT_DESTRUCTION_PREVIEW_DP,
+      hits: buildManualBreakPreviewHits(normalizedBaseHitCount, wasBrokenBefore ? -1 : 0),
+      autoBreak: false,
+    };
+  }
+
+  if (perHitDpDamage !== null && perHitDpDamage > 0) {
+    return {
+      defenderDp: Math.max(0, Number(dpBefore ?? DEFAULT_DESTRUCTION_PREVIEW_DP)),
+      hits: buildAutoBreakPreviewHits(normalizedBaseHitCount, previewPerBaseHitDpDamage, totalDpDamage),
+      autoBreak: true,
+    };
+  }
+
+  if (sameActionBreak) {
+    return {
+      defenderDp: DEFAULT_DESTRUCTION_PREVIEW_DP,
+      hits: buildManualBreakPreviewHits(normalizedBaseHitCount, 0),
+      autoBreak: false,
+    };
+  }
+
+  if (dpBefore === null) {
+    return {
+      defenderDp: 0,
+      hits: buildManualBreakPreviewHits(normalizedBaseHitCount, -1),
+      autoBreak: false,
+    };
+  }
+
+  return {
+    defenderDp: DEFAULT_DESTRUCTION_PREVIEW_DP,
+    hits: buildManualBreakPreviewHits(normalizedBaseHitCount, -1),
+    autoBreak: false,
+  };
+}
+
 function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
   const damageContext = model.damageContext;
   const enemyKey = String(Number(targetEnemyIndex));
+  const action = model?.action ?? {};
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
   const destructionLimit = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) / 100;
   const contextMultiplier = Number(damageContext?.destructionMultiplierByEnemy?.[enemyKey]);
   const storedMultiplier = Number(model?.enemyDestructionState?.destructionMultiplierByEnemy?.[enemyKey]);
   const destructionMultiplierRaw = [contextMultiplier, storedMultiplier]
     .find((value) => Number.isFinite(value) && value > 0);
-  const hitCount = Math.max(
+  const hitCount = resolveDestructionHitCount(model, damageContext, enemyKey);
+  const baseHitCount = Math.max(
     1,
-    Number(damageContext?.effectiveHitCountPerEnemy ?? damageContext?.baseHitCount ?? 1)
+    Math.floor(
+      resolvePositiveNumber(
+        damageContext?.baseHitCount,
+        action?.skillBaseHitCount,
+        hitCount - resolveFunnelHitCount(model, damageContext, enemyKey),
+        hitCount
+      ) ?? 1
+    )
   );
+  const hitState = buildDestructionPreviewHitState(model, enemyKey, baseHitCount, hitCount);
   return {
     attacker: {
       styleId: damageContext?.actorStyleId ?? null,
@@ -978,6 +1173,14 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
         Number(damageContext?.blastPierceDestructionRateBonus ?? 0),
       // エンシェントチェーンの破壊率上昇量+（フラット加算、commit 側と同構成）
       flatDestructionRateBonus: Number(damageContext?.chainDestructionRateBonus ?? 0),
+      transcendenceBurstDestructionRateGainBonusRate: Number(
+        damageContext?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+      ),
+      markDestructionRateGainBonusRate: Number(
+        damageContext?.markDestructionRateGainBonusRate ??
+          action?.specialPassiveModifiers?.markDestructionRateGainBonusRate ??
+          0
+      ),
       resonanceDestructionRateBonus: Number(damageContext?.resonanceDestructionRateBonus ?? 0),
     },
     defender: {
@@ -987,18 +1190,27 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
       destructionMultiplier: destructionMultiplierRaw != null
         ? destructionMultiplierRaw
         : null,
-      dp: 0,
+      dp: hitState.defenderDp,
     },
     skill: {
       skillId: damageContext?.skillId ?? null,
       name: damageContext?.skillName ?? '',
       isNormalAttack: Boolean(damageContext?.isNormalAttack),
       isPursuit: Boolean(damageContext?.isPursuit),
+      spCostOverride: Number(action?.spCost ?? damageContext?.spCost ?? 0),
+      baseHitCount,
+      funnelHitCount: resolveFunnelHitCount(model, damageContext, enemyKey),
+      funnelRate: resolveFunnelRate(model, damageContext, enemyKey),
+      parts: Array.isArray(damageContext?.effectiveParts)
+        ? damageContext.effectiveParts
+        : Array.isArray(damageContext?.parts)
+          ? damageContext.parts
+          : null,
       attackPart: damageContext?.destructionAttackPart ?? null,
       conditionResults: damageContext?.destructionConditionResultsByEnemy?.[enemyKey] ?? {},
     },
-    hits: Array.from({ length: hitCount }, () => ({ damage: 1, isBreakHit: false })),
-    autoBreak: false,
+    hits: hitState.hits,
+    autoBreak: hitState.autoBreak,
   };
 }
 
@@ -1036,12 +1248,27 @@ async function updateDestructionRateDisplay(pane) {
     capNoteEl.textContent = `${capPercent}%`;
   }
 
+  const actionBreakdown = getActionDestructionBreakdown(model, enemyKey);
+  const breakdownBefore = Number(actionBreakdown?.rateBefore);
+  const breakdownAfter = Number(actionBreakdown?.rateAfter);
+  if (
+    Number.isFinite(breakdownBefore) &&
+    Number.isFinite(breakdownAfter) &&
+    breakdownBefore > 0 &&
+    breakdownAfter >= breakdownBefore
+  ) {
+    const afterPercent = Math.min(capPercent, currentRatePercent + (breakdownAfter - breakdownBefore));
+    afterEl.textContent = `${formatDamageCalculatorPercentValue(afterPercent)}%`;
+    if (msgEl) msgEl.textContent = '';
+    return;
+  }
+
   try {
     const destructionInput = buildDestructionInput(model, targetEnemyIndex, currentRatePercent);
     const data = await loadDamageCalculationDataForPopup();
     const result = calculateDestruction(destructionInput, data);
-    const afterPercent = (result.destructionRate * 100).toFixed(2);
-    afterEl.textContent = `${afterPercent}%`;
+    const afterPercent = result.destructionRate * 100;
+    afterEl.textContent = `${formatDamageCalculatorPercentValue(afterPercent)}%`;
     if (msgEl) msgEl.textContent = '';
   } catch (error) {
     afterEl.textContent = '-';
@@ -1094,6 +1321,14 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
 }
 
 export function resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey) {
+  const breakdownRate = Number(getActionDestructionBreakdown(model, enemyKey)?.rateBefore);
+  if (Number.isFinite(breakdownRate) && breakdownRate > 0) {
+    return breakdownRate;
+  }
+  const beforeRate = Number(model?.enemyDestructionState?.before?.destructionRateByEnemy?.[enemyKey]);
+  if (Number.isFinite(beforeRate) && beforeRate > 0) {
+    return beforeRate;
+  }
   const contextRate = Number(model?.damageContext?.destructionRateByEnemy?.[enemyKey]);
   if (Number.isFinite(contextRate) && contextRate > 0) {
     return contextRate;
@@ -1102,6 +1337,90 @@ export function resolveDamageCalculatorStoredDestructionRatePercent(model, enemy
   return Number.isFinite(storedRate) && storedRate > 0
     ? storedRate
     : DEFAULT_DESTRUCTION_RATE_PERCENT;
+}
+
+function formatDamageCalculatorOptionalNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? formatDamageCalculatorNumber(numeric) : '-';
+}
+
+function formatDamageCalculatorOptionalPercent(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? `${formatDamageCalculatorPercentValue(numeric)}%` : '-';
+}
+
+function formatDamageCalculatorPercentValue(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return '-';
+  return (Math.round((numeric + 1e-9) * 100) / 100).toFixed(2);
+}
+
+function formatDamageCalculatorOptionalRatio(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(3).replace(/0+$/, '').replace(/\.$/, '') : '-';
+}
+
+function updateDestructionHitSummary(pane, model, enemyKey) {
+  const summaryEl = pane.querySelector('[data-role="destruction-hit-summary"]');
+  if (!summaryEl) return;
+  const breakdown = getActionDestructionBreakdown(model, enemyKey);
+  if (!breakdown) {
+    summaryEl.replaceChildren();
+    return;
+  }
+  const contactHitCount = Number(breakdown.contactHitCount ?? breakdown.hitCount ?? model?.action?.skillHitCount ?? 0);
+  const calculationHitCount = Number(breakdown.calculationHitCount ?? breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
+  const baseHitCount = Number(breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
+  const funnelHitCount = Number(breakdown.funnelHitCount ?? model?.action?.skillFunnelHitBonus ?? 0);
+  const destructionFunnelHitCount = Number(breakdown.destructionFunnelHitCount ?? funnelHitCount);
+  const funnelMultiplier = Number(breakdown.funnelMultiplier);
+  const breakHitNumber = Number(breakdown.breakHitNumber);
+  const destructionHitCount = Number(breakdown.destructionHitCount);
+  const totalDestructionWeight = Number(breakdown.totalDestructionWeight);
+  const appliedDestructionWeight = Number(breakdown.appliedDestructionWeight);
+  const hitRatios = Array.isArray(breakdown.hitRatios) ? breakdown.hitRatios : [];
+  const parts = [
+    `接触hit ${Number.isFinite(contactHitCount) ? contactHitCount : '-'}`,
+    `計算hit ${Number.isFinite(calculationHitCount) ? calculationHitCount : '-'}`,
+    `base ${Number.isFinite(baseHitCount) ? baseHitCount : '-'}`,
+    `連撃 +${Number.isFinite(funnelHitCount) ? funnelHitCount : '-'}`,
+    `破壊率連撃 +${Number.isFinite(destructionFunnelHitCount) ? destructionFunnelHitCount : '-'}`,
+    `連撃倍率 ${Number.isFinite(funnelMultiplier) ? `x${funnelMultiplier.toFixed(2)}` : '-'}`,
+    `hit ratio [${hitRatios.map((ratio) => formatDamageCalculatorOptionalRatio(ratio)).join(',')}]`,
+    `Break hit ${Number.isFinite(breakHitNumber) ? breakHitNumber : '-'}`,
+    `HP適用 ${Number.isFinite(destructionHitCount) ? destructionHitCount : '-'}hit`,
+    `破壊率weight ${
+      Number.isFinite(appliedDestructionWeight) && Number.isFinite(totalDestructionWeight)
+        ? `${formatDamageCalculatorOptionalRatio(appliedDestructionWeight)}/${formatDamageCalculatorOptionalRatio(totalDestructionWeight)}`
+        : '-'
+    }`,
+    `DP ${formatDamageCalculatorOptionalNumber(breakdown.totalDpDamage)}`,
+    `HP ${formatDamageCalculatorOptionalNumber(breakdown.totalHpDamage)}`,
+    `破壊率 +${formatDamageCalculatorOptionalPercent(breakdown.appliedGainPercent)}`,
+  ];
+  const rows = Array.isArray(breakdown.hitBreakdown) ? breakdown.hitBreakdown : [];
+  const tableHtml = rows.length > 0
+    ? '<table class="char-popup-destruction-hit-table"><thead><tr>' +
+      '<th>hit</th><th>種別</th><th>ratio</th><th>DP按分</th><th>DP消費</th><th>HP按分</th><th>HP適用</th><th>破壊率前</th><th>破壊率</th><th>破壊率後</th><th>Break</th>' +
+      '</tr></thead><tbody>' +
+      rows.map((row) => (
+        '<tr>' +
+        `<td>${esc(String(row.hitNumber ?? '-'))}</td>` +
+        `<td>${esc(String(row.source ?? '-'))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalRatio(row.ratio))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalNumber(row.dpAllocated))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalNumber(row.dpConsumed))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalNumber(row.hpAllocated))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalNumber(row.hpApplied))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalPercent(row.destructionRateBeforePercent))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalPercent(row.destructionGainPercent))}</td>` +
+        `<td>${esc(formatDamageCalculatorOptionalPercent(row.destructionRateAfterPercent))}</td>` +
+        `<td>${row.isBreakHit === true ? 'BREAK' : (row.isDamageBreakHit === true ? 'DMG' : '')}</td>` +
+        '</tr>'
+      )).join('') +
+      '</tbody></table>'
+    : '';
+  summaryEl.innerHTML = `<div>${esc(parts.join(' / '))}</div>${tableHtml}`;
 }
 
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
@@ -1183,6 +1502,7 @@ async function updateDamageCalculatorPane(pane) {
 
   const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
+  updateDestructionHitSummary(pane, model, enemyKey);
 
   // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算。
   // ターン内の一時入力（preview-input-store）があればそれを優先復元する。
@@ -1286,9 +1606,15 @@ function buildDamageActionBreakdownHtml(action, actionIndex, attackerInput, enem
   }
   const skillName = String(damageContext?.skillName ?? action?.skillName ?? '').trim();
   const actionKey = buildDamageActionKey(action, actionIndex);
+  const firstEnemyKey = String(Number(targetBreakdowns[0]?.targetEnemyIndex ?? 0));
+  const destructionBreakdown = action?.destructionBreakdownByEnemy?.[firstEnemyKey] ?? null;
+  const destructionBreakdownAttrs = destructionBreakdown
+    ? ` data-destruction-rate-before="${esc(formatDamageCalculatorPercentValue(destructionBreakdown.rateBefore))}"` +
+      ` data-destruction-rate-after="${esc(formatDamageCalculatorPercentValue(destructionBreakdown.rateAfter))}"`
+    : '';
   damageCalculationActionModels.set(actionKey, { action, damageContext, targetBreakdowns, attackerInput, enemyDestructionState });
   return (
-    `<section class="char-popup-damage-action" data-role="char-popup-damage-action" data-action-key="${esc(actionKey)}">` +
+    `<section class="char-popup-damage-action" data-role="char-popup-damage-action" data-action-key="${esc(actionKey)}"${destructionBreakdownAttrs}>` +
     `<div class="char-popup-damage-action-title">${skillName ? esc(skillName) : 'スキル'}</div>` +
     `<div class="char-popup-damage-layout">` +
     `<div class="char-popup-damage-breakdown-pane">` +

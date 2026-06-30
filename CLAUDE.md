@@ -110,6 +110,15 @@ skillDatabase.json - キャラクター・スキルデータ
 - 主対象 UI は `ui-next/` であり、Playwright も原則 `http://localhost:4173/ui-next/index.html` を起点に組むこと。
 - 旧 `ui/` / `dom_adapter` 系は廃止済みであり、通常の実装判断の主対象にしない。
 
+## Fixture Governance（実測値の扱い）
+
+- fixture は「計算生成 fixture」と「実機確認 fixture」を区別する。
+- 計算生成 fixture（例: `tests/fixtures/test_cases_*.json`）は、式変更で期待値が正しく変わる場合に再生成してよい。ただし、再生成理由・実行コマンド・影響件数を最終報告または commit message に残す。
+- 実機確認 fixture（実測コメント・動画コマ送り・実機スクリーンショット等を正本にした fixture、例: `tests/e2e/fixtures/` の session regression）は regression oracle として扱い、計算結果に合わせて気軽に期待値を書き換えない。
+- 実機確認 fixture の期待値更新は、ユーザーの明示確認または新しい実測根拠がある場合に限る。
+- 実機確認 fixture を変更する場合は、実測ソース（コメント、動画、スクリーンショット、JSON path、観測日時）と、どの値を正本として採用したかを docs かテストコメントに残す。
+- 計算式変更で実機確認 fixture とずれた場合は、fixture を直す前に「実装が誤りか、仮説が古いか、実測データが更新されたか」を切り分ける。
+
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph
 

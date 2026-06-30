@@ -44,9 +44,21 @@ import { loadDamageCalculationData } from './utils/damage-calculation-data.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
+const UI_NEXT_DAMAGE_DATA_READY_FLAG_KEY = '__UI_NEXT_DAMAGE_DATA_READY__';
+let damageCalculationDataPromise = null;
 
 function setUiNextReadyFlag(ready) {
   window[UI_NEXT_READY_FLAG_KEY] = Boolean(ready);
+}
+
+async function ensureDamageCalculationData() {
+  if (!damageCalculationDataPromise) {
+    damageCalculationDataPromise = loadDamageCalculationData().then((data) => {
+      window[UI_NEXT_DAMAGE_DATA_READY_FLAG_KEY] = true;
+      return data;
+    });
+  }
+  return damageCalculationDataPromise;
 }
 
 function createBootProfiler() {
@@ -568,7 +580,7 @@ function saveCurrentSession({ initialSetup, turnEngineManager, store }) {
   downloadTextFile(sessionText, makeSessionFilename());
 }
 
-function loadSessionText({
+async function loadSessionText({
   text,
   initialSetup,
   battleStateManager,
@@ -576,6 +588,8 @@ function loadSessionText({
   turnArea,
 }) {
   const session = normalizeSessionSnapshot(JSON.parse(text));
+  const damageCalculationData = await ensureDamageCalculationData();
+  turnEngineManager?.setDamageCalculationData(damageCalculationData);
   initialSetup.applySetupSnapshot({
     party: session.setup,
     enemy: session.enemy,
@@ -590,7 +604,7 @@ function loadSessionText({
   );
   scheduleDeferredTask(async () => {
     try {
-      const damageCalculationData = await loadDamageCalculationData();
+      const damageCalculationData = await ensureDamageCalculationData();
       turnEngineManager?.setDamageCalculationData(damageCalculationData);
       if (turnEngineManager?.committedTurnCount > 0) {
         turnEngineManager.recalculateFrom(0);
@@ -1050,7 +1064,7 @@ async function main() {
     // 失敗時はガイドなしのまま続行（アプリを止めない）。
     scheduleDeferredTask(async () => {
       try {
-        const damageCalculationData = await loadDamageCalculationData();
+        const damageCalculationData = await ensureDamageCalculationData();
         turnEngineManager.setDamageCalculationData(damageCalculationData);
         // セッションロード直後など既にターンが存在する場合は再計算して DP を反映する。
         // recalculateFrom はエンジン内部状態のみ更新するため、完了後に UI の再描画も行う。
@@ -1131,7 +1145,7 @@ async function main() {
       }
       try {
         const text = await file.text();
-        loadSessionText({
+        await loadSessionText({
           text,
           initialSetup,
           battleStateManager,

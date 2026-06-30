@@ -99,6 +99,10 @@ test('軽快は50%、軽快(小)は20%を切り上げ、previewでは元stateを
       remainingBefore: 1,
       remainingAfter: 0,
       elements: [],
+      metadata: {
+        consumeAmount: 1,
+        consumeTrigger: 'SkillUse',
+      },
     },
   ]);
   assert.deepEqual(

@@ -74,16 +74,27 @@ function summarizeDestructionRates(ctx) {
 // Main
 // ---------------------------------------------------------------------------
 
+function loadDamageCalculationData(jsonDir) {
+  return {
+    styles: JSON.parse(fs.readFileSync(path.join(jsonDir, 'styles.json'), 'utf8')),
+    characters: JSON.parse(fs.readFileSync(path.join(jsonDir, 'characters.json'), 'utf8')),
+    enemies: JSON.parse(fs.readFileSync(path.join(jsonDir, 'enemies.json'), 'utf8')),
+    skills: JSON.parse(fs.readFileSync(path.join(jsonDir, 'skills.json'), 'utf8')),
+  };
+}
+
 function main() {
   const args = process.argv.slice(2);
   const verbose = args.includes('--verbose') || args.includes('-v');
+  const dumpBreakdown = args.includes('--dump-breakdown') || args.includes('--dump');
   const inputPath = args.find((a) => !a.startsWith('-'));
 
   if (!inputPath) {
-    console.error('Usage: node scripts/verify-session-destruction-rate.mjs <session-json-path> [--verbose]');
+    console.error('Usage: node scripts/verify-session-destruction-rate.mjs <session-json-path> [--verbose] [--dump-breakdown]');
     console.error('');
     console.error('Options:');
-    console.error('  --verbose, -v   Show per-action damage rate breakdown');
+    console.error('  --verbose, -v       Show per-action damage rate breakdown');
+    console.error('  --dump-breakdown    Dump calculateDestruction breakdown for each action');
     process.exit(1);
   }
 
@@ -92,13 +103,18 @@ function main() {
   const raw = JSON.parse(text);
   const session = normalizeSessionSnapshot(raw);
 
-  const store = HbrDataStore.fromJsonDirectory('json');
+  const jsonDir = path.resolve('json');
+  const store = HbrDataStore.fromJsonDirectory(jsonDir);
   const battleStateManager = new BattleStateManager({ store });
   const initialState = battleStateManager.buildFromSnapshot(session.setup, session.enemy);
+
+  // DPダメージガイド導出に必要な計算データ（styles/characters/enemies/skills）を準備
+  const damageCalculationData = loadDamageCalculationData(jsonDir);
 
   const manager = new TurnEngineManager();
   manager.loadReplayScript(initialState, session.replayScript, {
     validationPolicy: session.validationPolicy,
+    damageCalculationData,
   });
 
   const turns = manager.computedRecords;
@@ -152,37 +168,80 @@ function main() {
     const note = String(replayTurn.note ?? '').trim();
     const noteLines = extractDestructionNotes(note);
 
-    // ターン開始時の破壊率 = 前ターンの値を引き継ぎ
-    const destructionRateBefore = { ...prevDestructionRateByEnemy };
-
-    // ターン終了時の破壊率 を最後のアクションから取得
-    let destructionRateAfter = { ...destructionRateBefore };
-    for (let ai = (record.actions ?? []).length - 1; ai >= 0; ai--) {
-      const dc = record.actions[ai]?.damageContext;
-      if (dc?.destructionRateByEnemy) {
-        const drates = dc.destructionRateByEnemy;
-        // 空オブジェクトでなければ採用
-        if (Object.keys(drates).length > 0) {
-          destructionRateAfter = { ...destructionRateBefore };
-          for (const [k, v] of Object.entries(drates)) {
-            destructionRateAfter[k] = Number(v);
-          }
-          break;
-        }
-      }
+    // ターン開始時の破壊率 = getStateBefore(i) の enemyState から取得（UI と同じ参照パス）
+    const stateBefore = manager.getStateBefore(i);
+    const enemyStateBefore = stateBefore?.turnState?.enemyState ?? {};
+    const destructionRateBefore = {};
+    for (let ei = 0; ei < enemyCount; ei++) {
+      const key = String(ei);
+      destructionRateBefore[key] = Number(
+        enemyStateBefore.destructionRateByEnemy?.[key]
+        ?? prevDestructionRateByEnemy[key]
+        ?? 0
+      );
     }
+
+    // ターン終了時の破壊率 = computedStates[i] の enemyState から取得（正規の状態ソース）
+    const stateAfter = manager.computedStates?.[i];
+    const enemyStateAfter = stateAfter?.turnState?.enemyState ?? {};
+    const destructionRateAfter = {};
+    for (let ei = 0; ei < enemyCount; ei++) {
+      const key = String(ei);
+      destructionRateAfter[key] = Number(
+        enemyStateAfter.destructionRateByEnemy?.[key]
+        ?? destructionRateBefore[key]
+        ?? 0
+      );
+    }
+
+    // DP/HP 残量
+    const dpBeforeByEnemy = enemyStateBefore.remainingDpByEnemy ?? {};
+    const dpAfterByEnemy = enemyStateAfter.remainingDpByEnemy ?? {};
+    const hpBeforeByEnemy = enemyStateBefore.remainingHpByEnemy ?? {};
+    const hpAfterByEnemy = enemyStateAfter.remainingHpByEnemy ?? {};
+
+    // Break 状態
+    const statusesAfter = enemyStateAfter.statuses ?? [];
+    const breakEnemyIndexes = new Set(
+      statusesAfter
+        .filter(s => String(s?.statusType ?? '') === 'Break' || String(s?.statusType ?? '') === 'DownTurn')
+        .map(s => Number(s?.targetIndex ?? -1))
+    );
+
+    // 手動 override の有無
+    const destrOverride = (replayTurn.overrideEntries ?? [])
+      .filter(e => e.type === 'EnemyDestructionRates')
+      .map(e => JSON.stringify(e.payload));
+    const statusOverride = (replayTurn.overrideEntries ?? [])
+      .filter(e => e.type === 'EnemyStatuses')
+      .map(e => e.payload.some?.(s => s.statusType === 'Break') ?? false);
 
     const turnLabel = record.turnLabel ?? `T${i + 1}`;
     console.log(`=== Turn ${String(i + 1).padStart(2, '0')} (${turnLabel}) ===`);
 
-    // 開始時の各敵の破壊率
+    // 開始時の各敵の破壊率・DP・HP
     for (let ei = 0; ei < enemyCount; ei++) {
       const key = String(ei);
       const rateBefore = Number(destructionRateBefore[key] ?? 0);
       const rateAfter = Number(destructionRateAfter[key] ?? 0);
       const delta = rateAfter - rateBefore;
       const deltaStr = delta !== 0 ? ` (→${fmt(rateAfter)}% Δ${delta >= 0 ? '+' : ''}${fmt(delta)}%)` : '';
-      console.log(`  E${ei + 1}: 破壊率=${fmt(rateBefore)}%${deltaStr}`);
+      const dpBefore = Number(dpBeforeByEnemy[key] ?? 0);
+      const dpAfter = Number(dpAfterByEnemy[key] ?? 0);
+      const hpAfter = Number(hpAfterByEnemy[key] ?? 0);
+      const isBroken = breakEnemyIndexes.has(ei);
+      const brokenStr = isBroken ? ' [BREAK]' : '';
+      const dpStr = dpBefore > 0
+        ? ` DP=${commify(dpBefore)}→${commify(dpAfter)}`
+        : '';
+      console.log(`  E${ei + 1}: 破壊率=${fmt(rateBefore)}%${deltaStr}${dpStr}${brokenStr}`);
+    }
+
+    if (destrOverride.length > 0) {
+      console.log(`  ⚠ 手動Override: EnemyDestructionRates ${destrOverride.join('; ')}`);
+    }
+    if (statusOverride.some(v => v)) {
+      console.log(`  ⚠ 手動Override: EnemyStatuses (Break強制)`);
     }
 
     // 備考欄（note）があれば表示
@@ -266,6 +325,45 @@ function main() {
           }
         }
       }
+
+      // --dump-breakdown: calculateDestruction の内訳を表示
+      if (dumpBreakdown) {
+        const breakdownByEnemy = action?.destructionBreakdownByEnemy;
+        if (breakdownByEnemy) {
+          for (const [enemyKey, info] of Object.entries(breakdownByEnemy)) {
+            const bd = info?.breakdown;
+            if (!bd) continue;
+            const ei = Number(enemyKey);
+            console.log(`    ┌── Breakdown E${ei + 1}: ${info.skillName} (${info.characterName})`);
+            console.log(`    │ rateBefore=${fmt(info.rateBefore)}% → rateAfter=${fmt(info.rateAfter)}% (cap=${fmt(info.capPercent)}%)`);
+            console.log(`    │ dr=${fmt(bd.dr)} destMult(d_rate)=${fmt(bd.destMult)} sp=${fmt(bd.sp)} isNormal=${bd.isNormalAttack} isPursuit=${bd.isPursuit}`);
+            console.log(`    │ hitCount=${bd.hitCount} autoBreak=${info.useAutoBreak}`);
+            const bdr = Number(bd.baseDestRate);
+            console.log(`    │ baseDestRate=${fmt(bdr * 100)}% (= ${fmt(bd.dr)}×${fmt(bd.destMult)}/100${bd.isNormalAttack ? ' [通常攻撃: dr=1扱い]' : ''})`);
+            if (!bd.isNormalAttack) {
+              console.log(`    │   × (1 + sRatio=${fmt(bd.sRatio)} + buffMult=${fmt(bd.buffMultiplier)} + flatBonus=${fmt(bd.flatDestructionBonus)})`);
+              console.log(`    │   blasterCorrection=${fmt(bd.blasterCorrection)} accessory=${fmt(bd.accessoryBonus)}`);
+              console.log(`    │   transcendenceBurstDestructionRateGainBonusRate=${fmt(bd.transcendenceBurstDestructionRateGainBonusRate)}`);
+            }
+            console.log(`    │ baseDestruction=${fmt(bd.baseDestruction * 100)}%`);
+            console.log(`    │   × (1 - destResist=${fmt(bd.destResist)}) × (1 + resonance=${fmt(bd.resonanceBonus)})`);
+            {
+              const fbd = Number(bd.finalBaseDestruction);
+              const showWeighted = bd.usesWeightedDestruction && Number(bd.appliedDestructionWeight) > 0;
+              if (showWeighted) {
+                const appliedW = Number(bd.appliedDestructionWeight);
+                const gainPct = fbd * appliedW * 100;
+                console.log(`    │ finalBaseDestruction=${fmt(fbd * 100)}% × appliedWeight=${fmt(appliedW)} → 破壊率上昇=+${fmt(gainPct)}%`);
+              } else {
+                console.log(`    │ finalBaseDestruction=${fmt(fbd * 100)}% (per-hit: +${fmt(fbd / bd.hitCount * 100)}% × ${bd.hitCount}hits)`);
+              }
+            }
+            console.log(`    │ destLimit=${fmt(bd.destLimit * 100)}% + limitExceedBonus=${fmt(bd.limitExceedBonus * 100)}% → finalDestLimit=${fmt(bd.finalDestLimit * 100)}%`);
+            console.log(`    │ dpBeforeThisAction=${commify(info.dpBeforeThisAction)} perHitDpDamage=${commify(info.perHitDpDamage)} totalDpDamage=${commify(info.totalDpDamage)}`);
+            console.log(`    └── finalDestructionRate=${fmt(bd.destructionRate * 100)}%`);
+          }
+        }
+      }
     }
 
     // ターン終了時の最終破壊率
@@ -297,26 +395,23 @@ function main() {
   // サマリー
   console.log('=== Summary ===');
   if (turns.length > 0) {
-    const lastRecord = turns[turns.length - 1];
-    // 最後のダメージアクションから破壊率を取得
-    let finalDestruction = { ...prevDestructionRateByEnemy };
-    for (let ai = (lastRecord.actions ?? []).length - 1; ai >= 0; ai--) {
-      const dc = lastRecord.actions[ai]?.damageContext;
-      if (dc?.destructionRateByEnemy && Object.keys(dc.destructionRateByEnemy).length > 0) {
-        finalDestruction = {};
-        for (const [k, v] of Object.entries(dc.destructionRateByEnemy)) {
-          finalDestruction[k] = Number(v);
-        }
-        break;
-      }
+    // 最終ターンの computedStates から破壊率を取得（エンジン計算値の正規ソース）
+    const lastState = manager.computedStates?.[turns.length - 1];
+    const lastEnemyState = lastState?.turnState?.enemyState ?? {};
+    const finalDestruction = {};
+    const finalDp = {};
+    for (let ei = 0; ei < enemyCount; ei++) {
+      const key = String(ei);
+      finalDestruction[key] = Number(lastEnemyState.destructionRateByEnemy?.[key] ?? 0);
+      finalDp[key] = Number(lastEnemyState.remainingDpByEnemy?.[key] ?? 0);
     }
     for (let ei = 0; ei < enemyCount; ei++) {
       const key = String(ei);
       const rate = Number(finalDestruction[key] ?? 0);
-      const dp = enemyDpByEnemy[key] ?? 0;
+      const dp = finalDp[key] ?? enemyDpByEnemy[key] ?? 0;
       const hp = enemyHpByEnemy[key] ?? 0;
-      const status = lastRecord.enemyStatusSummary?.[key] ?? 'Unknown';
-      console.log(`  E${ei + 1}: 最終破壊率=${fmt(rate)}%  status=${status}  DP=${commify(dp)}  HP=${commify(hp)}`);
+      const status = Number(finalDp[key]) > 0 ? 'Alive' : 'Broken';
+      console.log(`  E${ei + 1}: 最終破壊率=${fmt(rate)}%  status=${status}  DP残=${commify(dp)}  HP=${commify(hp)}`);
     }
   }
   console.log(`Total turns: ${turns.length}`);

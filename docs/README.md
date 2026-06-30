@@ -68,9 +68,10 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-| [active/damage_calculator_remaining_wbs.md](active/damage_calculator_remaining_wbs.md) | 🟢 進行中 | **計算機完成までの残タスクマスター WBS**。C（バフ・デバフ接続検証）/ S（stats実値化）/ E（全能力ダウン差分計算）/ D（破壊率turn接続・HP表示）/ SP（AttackBySp別タスク）/ V（受け入れ検証）の6大分類と依存グラフ。Hacking固定100の全能力ダウン接続、D-6エッジ検証、S-2現状確認、S-3敵stat delta表示、DP破壊率除外、SkillSwitch子スキル解決、コードダクネス9hit検証、critical summary rate接続、敵DP配線、超越capの威力詳細手入力反映、`resolveEffectPowerFromPart` によるバフ・デバフ効果量解決、DestructionUp ratio→percent入力変換、多段DP→HP按分の残タスクを反映 | 2026-06-13 |
+| [active/damage_calculator_remaining_wbs.md](active/damage_calculator_remaining_wbs.md) | 🟢 進行中 | **計算機完成までの残タスクマスター WBS**。C（バフ・デバフ接続検証）/ S（stats実値化）/ E（全能力ダウン差分計算）/ D（破壊率turn接続・HP表示）/ SP（AttackBySp別タスク）/ V（受け入れ検証）の6大分類と依存グラフ。Hacking固定100の全能力ダウン接続、D-6エッジ検証、S-2現状確認、S-3敵stat delta表示、DP破壊率除外、通常攻撃破壊率 `raw d_rate/100` 統一、SkillSwitch子スキル解決、コードダクネス9hit検証、critical summary rate接続、敵DP配線、超越capの威力詳細手入力反映、`resolveEffectPowerFromPart` によるバフ・デバフ効果量解決、DestructionUp ratio→percent入力変換、破壊率の現行仮説として連撃込み接触hitと `skill.hits[].power_ratio` + Funnel `funnelRate` によるeffective weight按分を反映 | 2026-06-15 |
+| [active/debuff_resolved_power_propagation_investigation.md](active/debuff_resolved_power_propagation_investigation.md) | ✅ 完了 | 敵デバフ解決済み効果値の再計算陳腐化バグの調査・設計・実装記録。turn-start enemyStatuses override が stat/効果量アップ/HighBoost 由来の解決済み power を凍結置換し、上流(stat・敵param)編集→全再計算で後続ターンへ伝播しない問題を、`isRecomputableEnemyStatusPower` predicate と apply側 carry-forward 正本化（新旧 session 両救済）で修正。自バフは元々 override 非対象で安全。Phase0 characterization→codex設計レビュー→Phase2/3 実装・テスト網羅まで完了（commit 46e1a7c / d9d729d、npm test 1434 pass） | 2026-06-13 |
 | [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A（一般スキルDPダメージMVP: A-1〜A-7）完了。2026-06-07 に breakdown → synthetic 効果接続を再検証し、token-passive の DP条件倍率を乗算扱いへ修正。Phase B以降の残タスクは damage_calculator_remaining_wbs.md を参照 | 2026-06-07 |
-| [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）。エンジン単体（calculateDestruction）実装済み、右クリックポップアップ手動入力（暫定）完了。D-3 turnState接続、敵 `d_rate` 上昇倍率接続、EnemySetup手動入力・snapshot往復・`destructionMultiplierByEnemy` 反映、威力詳細手入力計算への倍率反映、D-4 damageContext 接合、D-5 HP ダメージ表示、D-6エッジ検証、DP破壊率除外、コードダクネス9hit検証、新規snapshotの敵DP配線、超越capの威力詳細手入力反映を反映。2026-06-13 に `hbr_calc` 統一式（dr実質SP内包・アクティブdr×4）を同期し、解決済み attackPart と target別 IsHitWeak 条件を turn/威力詳細へ配線。威力詳細での多段中DP→HP按分表示は後続 | 2026-06-13 |
+| [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）。エンジン単体（calculateDestruction）実装済み、右クリックポップアップ手動入力（暫定）完了。D-3 turnState接続、敵 `d_rate` 上昇倍率接続、EnemySetup手動入力・snapshot往復・`destructionMultiplierByEnemy` 反映、威力詳細手入力計算への倍率反映、D-4 damageContext 接合、D-5 HP ダメージ表示、D-6エッジ検証、DP破壊率除外、通常攻撃破壊率 `raw d_rate/100` 統一、コードダクネス9hit検証、新規snapshotの敵DP配線、超越capの威力詳細手入力反映を反映。破壊率式は **現行実装仮説 H-2026-06-15B** と明記し、実測値を正として継続検証する。2026-06-14 に Issue #19 としてスキル破壊率式を修正（当時 `(d_rate/8) × baseHit × dr`）。Issue #20 として Funnel倍率を `metadata.damageBonus` 唯一ソースにし、`power[1]` fallback を削除。2026-06-15 に威力詳細タブの破壊率プレビューを action 前値と `destructionBreakdownByEnemy` 増分へ接続し、同一action内DP→HPまたぎ時のBreak発生hitオーバーキル加算を反映。さらに連撃込みhit数による9等分を廃止し、Eシールド/ODの接触hit、スキル本体 `power_ratio` + Funnel `funnelRate` のeffective weight、破壊率加算開始hitを分離。2026-06-16 に `d_rate` 欠損 fallback を raw `5` に統一。#2ユキは9表示hitの7hit目でBreakし、HP側weight 0.75/総weight 1.75で +32.63%。#1未ブレイク無変化 / #2ユキ100→132.63 / #2美也132.63→717.34（+584.71%）を engine test と E2E で固定、威力詳細へhit別DP/HP/破壊率内訳を表示 | 2026-06-16 |
 | [active/damage_display_status_plan.md](active/damage_display_status_plan.md) | 🟢 進行中 | 威力詳細タブ / 敵詳細ポップアップに「現DP/DP MAX・現HP/HP MAX・現破壊率/破壊率MAX」を追加するための表示実装計画。既存データ供給経路（remainingDpByEnemy / enemyDpByEnemy / destructionRateByEnemy / destructionRateCapByEnemy / extraHpGaugeStateByEnemy）と、extra gauge 非搭載敵の HP 表示方針（N/A）を整理 | 2026-06-10 |
 | [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集とテンプレート①自動算出。Lv200・転生5回テンプレート、選択LB、サポート10%、手入力優先、replay固定に加え、実機58キャラのLv補間・転生・称号累積・所持スタイル共有能力をfixture化し6能力348値の全件一致を確認 | 2026-06-29 |
 
@@ -125,17 +126,35 @@ docs/
 
 ---
 
-## calc/（計算ロジック移植ドキュメント）
+## calc/（計算ロジック移植ドキュメント / hbr_calc 統合）
+
+> **calc-core の正本は本リポジトリ `src/domain/*-calculator*.js`**（2026-06-14 hbr_calc 統合により一本化）。
+> 旧「hbr_calc で実装→同期」運用は廃止。Python版・解析資料の静的リファレンスは `reference/calc-python/`。
+> 統合の経緯・判定は [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) を参照。
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
+| [calc/hbr_calc_integration_record.md](calc/hbr_calc_integration_record.md) | ✅ 完了 | **hbr_calc 統合記録**。calc-core 正本確定（GO）、Python/analysis 静的リファレンス化、JS検証 fixtures 移植、docs 移植、旧運用反転の Phase A〜F。npm test 1435 / test:calc 1007 GREEN。残=hbr_calc GitHubアーカイブ化（ユーザー操作） | 2026-06-14 |
 | [calc/porting_design_guideline.md](calc/porting_design_guideline.md) | ✅ 完了 | Python版コアロジックのTypeScript移植に伴う設計・命名統一ガイドライン | 2026-06-03 |
-| [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート | 2026-06-02 |
+| [calc/damage_calculation_model.md](calc/damage_calculation_model.md) | 📚 参照 | HBR計算機 ダメージ計算仕様・データ構造レポート（限界値超過オプション等のWIP含む） | 2026-06-14 |
+| [calc/destruction_calculation_model.md](calc/destruction_calculation_model.md) | 📚 参照 | 破壊率計算モデル。現行実装仮説 H-2026-06-15B として、通常攻撃式は `raw d_rate/100`、スキル式は `dr × d_rate / 100 × 加算ボーナス × Funnel倍率`、部分HP時はスキル本体 `power_ratio` + Funnel `funnelRate` のeffective weightで加算。`d_rate` 欠損時の既定 raw 値は `5` | 2026-06-16 |
+| [calc/destruction_design_specification.md](calc/destruction_design_specification.md) | 📚 参照 | 破壊率計算の設計仕様 | 2026-06-03 |
+| [calc/advanced_destruction_mechanics_spec.md](calc/advanced_destruction_mechanics_spec.md) | 📚 参照 | 破壊率の高度な仕様（超ブレイク・上限超越等） | 2026-06-03 |
+| [calc/data_mapping_specification.md](calc/data_mapping_specification.md) | 📚 参照 | スプレッドシート→JSON データマッピング仕様 | 2026-06-14 |
+| [calc/spreadsheet_analysis.md](calc/spreadsheet_analysis.md) | 📦 スナップショット | 移行元スプレッドシート解析記録 | 2026-06-14 |
 | [calc/phase2_design_specification.md](calc/phase2_design_specification.md) | 📚 参照 | フェーズ2 設計仕様書: バフ・デバフ動的解決器と公式カテゴリ準拠の重複上限ルール | 2026-06-03 |
 | [calc/phase3_go_decision.md](calc/phase3_go_decision.md) | 📚 参照 | フェーズ3 計算コアロジック移植Go判定レポート | 2026-06-02 |
-| [calc/phase3_wbs.md](calc/phase3_wbs.md) | ✅ 完了 | フェーズ3 実装 WBS。T3.2.1〜T3.2.4 の初期 TypeScript 移植、T3.3.1 固定 fixture node:test (1235件 PASS)、T3.3.2 大規模クロス言語アサーションテスト(2000件 PASS/カバレッジ84.22%)および T3.4.1 category fallback 方針策定（非ブロッカーとして Phase4 フォローアップへ移行）を含めて全タスクを完了 | 2026-06-03 |
-| [calc/phase3_porting_review_findings.md](calc/phase3_porting_review_findings.md) | ✅ 完了 | フェーズ3移植設計レビュー指摘事項（High 6件・Medium 6件・Low 2件）と修正方針。各ドキュメントの矛盾・抜け漏れを整理し修正完了 | 2026-06-02 |
-| [calc/phase3_validation_report.md](calc/phase3_validation_report.md) | ✅ 完了 | フェーズ3 移植ロジック検証レポート。固定境界ケース、Excel格子点回帰テスト、大規模ランダム差分テストの検証結果を記載。実行再現性コマンドや category fallback の非ブロッカー扱いを整理 | 2026-06-03 |
+| [calc/phase3_wbs.md](calc/phase3_wbs.md) | ✅ 完了 | フェーズ3 実装 WBS。固定 fixture / 大規模クロス言語テスト / category fallback 方針を含む全タスク完了 | 2026-06-03 |
+| [calc/phase3_porting_review_findings.md](calc/phase3_porting_review_findings.md) | ✅ 完了 | フェーズ3移植設計レビュー指摘事項と修正方針 | 2026-06-02 |
+| [calc/phase3_validation_report.md](calc/phase3_validation_report.md) | ✅ 完了 | フェーズ3 移植ロジック検証レポート | 2026-06-03 |
+| [calc/phase3_reconciliation_wbs.md](calc/phase3_reconciliation_wbs.md) | 📦 スナップショット | フェーズ3 reconciliation WBS | 2026-06-03 |
+| [calc/phase1_phase2_review_results.md](calc/phase1_phase2_review_results.md) | 📦 スナップショット | フェーズ1/2 レビュー結果 | 2026-06-14 |
+| [calc/integration_research.md](calc/integration_research.md) | 📦 スナップショット | 統合調査記録（移植元解析） | 2026-06-14 |
+| [calc/integration_wbs.md](calc/integration_wbs.md) | 📦 スナップショット | 移植統合 WBS | 2026-06-14 |
+| [calc/review_guide.md](calc/review_guide.md) | 📚 参照 | 移植レビューガイド | 2026-06-14 |
+| [calc/review_wbs.md](calc/review_wbs.md) | 📦 スナップショット | 移植レビュー WBS | 2026-06-14 |
+| [calc/review_followup_verification.md](calc/review_followup_verification.md) | 📦 スナップショット | レビューフォローアップ検証記録 | 2026-06-14 |
+| [calc/review_followup_unresolved.md](calc/review_followup_unresolved.md) | 📦 スナップショット | レビューフォローアップ未解決事項 | 2026-06-14 |
 
 ---
 

@@ -4,6 +4,7 @@ import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gau
 
 const ALWAYS_SHOW_ENEMY_IDS = new Set(ALWAYS_VISIBLE_ENEMY_PRESET_IDS);
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
+const DEFAULT_D_RATE_RAW = 5;
 const RECENT_MONTH_WINDOW_COUNT = 3;
 const ENEMY_PRESET_MONTH_CATEGORY_PREFIX = 'month:';
 export const ENEMY_PRESET_TEMPLATE_CATEGORY_KEY = 'template';
@@ -239,7 +240,7 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
       dp: Number(enemy.base_param?.dp ?? 0),
       od_rate: enemy.base_param?.od_rate ?? 0,
       max_d_rate: enemy.base_param?.max_d_rate ?? 999,
-      d_rate: enemy.base_param?.d_rate ?? 100,
+      d_rate: enemy.base_param?.d_rate ?? DEFAULT_D_RATE_RAW,
       resistances: {
         element: Object.fromEntries(
           ENEMY_PRESET_ELEMENT_KEYS.map((key) => [

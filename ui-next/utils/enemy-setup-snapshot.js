@@ -8,7 +8,7 @@ const DEFAULT_ENEMY_NAME = '';
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_OD_RATE_MULTIPLIER = 1;
-const DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT = 100;
+const DEFAULT_D_RATE_RAW = 5;
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 export const DEFAULT_ENEMY_PARAM_BORDER = 770;
 const ENEMY_ELEMENT_KEYS = Object.freeze([
@@ -55,7 +55,7 @@ function normalizeDestructionRate(value) {
 
 function normalizeDestructionMultiplierPercent(value) {
   const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : DEFAULT_DESTRUCTION_MULTIPLIER_PERCENT;
+  return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
 }
 
 function normalizeAbsorbElementList(list = []) {

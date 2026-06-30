@@ -1,0 +1,82 @@
+# hbr_calc 統合記録（calc-core 正本一本化）
+
+| 項目 | 値 |
+|------|----|
+| ステータス | ✅ 完了（2026-06-14、simulator側。残: hbr_calc GitHubアーカイブ化=ユーザー操作） |
+| 開始日 | 2026-06-14 |
+| 方針 | curated copy / Python静的リファレンス / JS検証はnode:test＋大規模別script / hbr_calcアーカイブ |
+| ブランチ | feature/integrate-hbr-calc |
+
+## 目的
+hbr_calc（旧 calc-core 正本）を hbr_battle_simulator へ取り込み、「PR→同期（デプロイ）」運用を廃止。calc-core の正本を simulator に一本化する。
+
+---
+
+## Phase A: calc-core 正本確定（reconciliation）✅ 判定: GO・正本= simulator
+
+### JS calc-core 6ファイルの対応
+- **完全一致(2)**: `src/contracts/damage-calculation.js`, `src/data/damage-calculation-data.js`。
+- **乖離(3)**: `src/domain/{damage-calculator,calculator-helpers,destruction-calculator}.js`。
+- `src/index.js` は別スコープ（calc API export vs 本体 index）。同期対象外。
+
+### 乖離の内訳（simulator が正本として妥当）
+- **calculator-helpers.js**: simulator のみ `collectSearchableSkills`（SkillSwitch 変種検索）。`findSkill` が `searchableSkills` 経由になるだけでロジック欠落なし。→ simulator superset。
+- **destruction-calculator.js**: simulator のみ `skillInput.parts` fallback と destMult 非有限/負ガード(f9ab4cd)。attack part 解決は `skillInput.attackPart ?? findAttackPart(skill)` で hbr_calc の inline flattenSkillParts と機能等価。→ simulator superset。
+- **damage-calculator.js**: 単なる import/定数 inline 差に加え、**意図的なロジック分岐**あり:
+  - **Zone / MindEye の扱い**: simulator は「スキル攻撃力アップカテゴリ（加算）」へ移動（`resistanceTotal = affinityMultiplier` のみ、Zone の element 乗算を廃止、MindEye は通常/追撃除外）。hbr_calc は旧モデル（Zone を element 耐性乗算 `elementMultiplier`）。→ **simulator が新・公式仕様準拠モデル**。
+  - **destructionRate**: simulator は `isHpTarget ? destructionRate : DEFAULT`。hbr_calc は `destructionRateOverride`（ナイトキルエッジの一時上書き）対応。
+
+### hbr_calc 固有・simulator 未搭載（既知ギャップ）
+- **`destructionRateOverride`（ナイトキルエッジ等の一時破壊率上書き）**: simulator 全体で参照ゼロ（src/ui-next/tests いずれも未使用）。**休眠未使用機能**であり silent loss ではない。将来ナイトキルエッジ実装時はアーカイブ hbr_calc / `reference/calc-python` から再導入可能。
+
+### 結論
+- simulator の calc-core を**唯一の正本**に確定（より進化したモデル＋ガード＋検索拡張を保持）。
+- 既存 `npm test`(1435 pass) が動作回帰ガード。
+- **Phase C 注意**: hbr_calc の fixtures/Python parity は **旧モデル（Zone=耐性乗算 / destructionRateOverride 等）** を前提に生成されている。simulator JS は意図的に乖離しているため、Zone/MindEye/destructionRateOverride 系の fixture は simulator JS と**不一致になりうる**。Phase C で失敗を triage（simulator 意図的進化＝期待値更新/除外 か、真のバグ＝修正 か）する。
+
+---
+
+## Phase B: Python/analysis 静的リファレンス ✅
+`reference/calc-python/`（engine / Python tests / analysis）へ curated copy。Excel/ODS 生抽出物・バンドルJS・venv 等 140MB+ は持ち込まずアーカイブ hbr_calc 参照（708KB へ圧縮）。`.gitignore` に Python キャッシュ追加。README で「build/CI 対象外の静的資料」明記。
+
+## Phase C: JS検証テスト・fixtures ✅
+hbr_calc fixtures を simulator calc-core に対し実測検証:
+- **破壊率 fixtures（fixed 7 + large 1000 + flatDestruction）: 1007/1007 PASS** → 移植。
+- **ダメージ fixed fixtures（9, `test_cases_fixed.json`）: 既に `damage-calculator.test.js` で統合済み・PASS**（追加作業なし）。
+- **ダメージ large fixtures（2000）: 不採用**。Zone を耐性乗算する**旧 Python モデル**を前提に生成されており、simulator JS（Zone/MindEye=攻撃バフカテゴリの新モデル）と意図的に乖離（例 rand_case_8: JS=1169 vs Py=4092、約3.5倍）。現行 JS の妥当な pass/fail ゲートにならないため移植せず、アーカイブ hbr_calc に残置。
+
+実施:
+- `tests/fixtures/` に `test_cases_destruction.json` / `test_cases_destruction_large.json` / `skill_sp_mapping.json`(SP解決依存) を追加。
+- `tests/calc/destruction-fixtures.mjs`（hbr_calc runner を移植・パス調整。import→`../../src/index.js`、fixtures→`../fixtures/`、json→repo root）。
+- `package.json` に `"test:calc": "node tests/calc/destruction-fixtures.mjs"` 追加。`.mjs` は eslint 対象外（`.js` のみ lint）かつ `npm test`（`tests/*.test.js`）対象外なので大規模回帰を分離できる。
+- 検証: `npm run test:calc` GREEN（1007）、`npm test` 1435 pass、`npm run lint` clean。
+
+## Phase D: docs 移植 ✅
+- 未移植の hbr_calc docs 9件を `docs/calc/` へ移植（data_mapping_specification / integration_research / integration_wbs / phase1_phase2_review_results / review_followup_{verification,unresolved} / review_guide / review_wbs / spreadsheet_analysis）。
+- drift 2件を統一: `damage_calculation_model.md` は hbr_calc が superset（限界値超過WIP追加）のため採用。`destruction_calculation_model.md` は simulator 版（公式破壊率式セクション保持）に hbr_calc の WIP セクション（ヒット毎累積連動）を追記し、通常攻撃式が実機実測と乖離する旨の注記を追加。
+- `docs/README.md` の calc/ セクションを刷新（全21docを index 化、ステータスラベル付与、正本= simulator・reference/calc-python の案内を明記）。
+
+## Phase E: 旧運用廃止・正本反転 ✅（simulator側）
+- **E1**: `AGENTS.md` に「計算機コア（calc-core）の正本」セクションを追加。calc-core 正本= simulator、直接編集可、hbr_calc 同期運用は廃止、`npm test`＋`npm run test:calc`、`reference/calc-python` 案内を明記。`CLAUDE.md` は calc-core/sync 記述なし（変更不要）。
+- **E2**: memory `[[hbr-calc-owns-calculator-core]]` を反転（正本= simulator、直接編集可、同期廃止）。MEMORY.md index も更新。
+- **E3（ユーザー操作で実施）**: `hbr_calc` リポジトリのアーカイブ手順:
+  1. hbr_calc の README/AGENTS.md 冒頭に「**アーカイブ済み。calc-core の正本は hbr_battle_simulator**」を追記。
+  2. GitHub の `amabile4/hbr_calc` を Settings → Archive（read-only 化）。
+  3. ローカル `hbr_calc/json -> ../hbr_battle_simulator/json` symlink は統合後不要（参照したい場合のみ残置）。
+  - ※ 本リポジトリのタスクからは hbr_calc を直接編集しない（read-only 扱い）。
+
+## Phase F: 検証 ✅
+- `npm test`: **1435 pass / 0 fail**。
+- `npm run test:calc`: **1007 pass / 0 fail**（破壊率 fixed 7 + large 1000）。
+- `npm run lint`: clean。
+- calc-core は simulator 内で直接編集→`npm test`/`npm run test:calc` が回る状態になり、同期工程廃止の目的を達成（Issue #18 等の今後の calc 修正は simulator 内で完結）。
+
+## 統合完了サマリ
+calc-core 正本を hbr_battle_simulator に一本化。Python/解析は `reference/calc-python/` 静的リファレンス、破壊率 fixture 回帰は `npm run test:calc`、docs は `docs/calc/`、ワークフローは「simulator 直接編集・同期廃止」へ反転。残（ユーザー操作）: hbr_calc リポジトリの GitHub アーカイブ化（Phase E3 手順）。
+
+## 補遺: 第三者成果物（実体相当）の除去（2026-06-14）
+統合初期（Phase B）に `reference/calc-python/analysis/` へ取り込んだ中に第三者の著作物（実体相当）が混入していたため、著作物保護の観点で**作業ツリー・git 履歴の両方から除去**した（14ファイル）。
+- **Excel 計算機（他者作）由来**: `extracted_info/` 一式（数式・セル・マニュアル本文ダンプ、8ファイル）。
+- **hbr-tool.com（他者サイト）由来**: `hbr_tool_harness.mjs`（バンドル抽出・再現）＋同ハーネス依存の比較スクリプト5本（compare_engines / reconcile_session / reconciliation_helper / debug_overlimit / test_harness）。
+- 方式: `git filter-branch --index-filter` で当ブランチの統合4コミット（`922d288..HEAD`）から除去 → `--force-with-lease` で push。`922d288` 以前・main は不変。バックアップ ref `backup/pre-scrub-integrate-hbr-calc` を保持。
+- 残置（自作・実体でない）: `engine/*.py`（移植版）, 自作解析 `.py`, `destruction_analysis_report.json`, `feedback_draft.md`, `tests/*.py`。
