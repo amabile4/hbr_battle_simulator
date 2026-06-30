@@ -468,7 +468,11 @@ export function calculateDamage(input, data) {
       ignoredEffects.push({ statusType: buff.statusType, skillName: buff.skillName ?? '', side: 'attacker' });
       continue;
     }
-    const resolved = { ...buff, skillName: buff.skillName ?? '', resolvedPower: resolveEffectPower(buff, skills) };
+    const buffWithStats = { ...buff };
+    if (!buffWithStats.providerStats && !buffWithStats.stats && !buffWithStats.providerWis && !buffWithStats.providerWisOrLuk) {
+      buffWithStats.providerStats = stats;
+    }
+    const resolved = { ...buffWithStats, skillName: buffWithStats.skillName ?? '', resolvedPower: resolveEffectPower(buffWithStats, skills) };
     if (['AttackUp', 'Charge', 'ElementAttackUp'].includes(buff.statusType)) {
       buffsResolved.push(resolved);
     } else if (['CritDamageUp', 'CritBuff'].includes(buff.statusType)) {
@@ -486,7 +490,7 @@ export function calculateDamage(input, data) {
       ignoredEffects.push({ statusType: debuff.statusType, skillName: debuff.skillName ?? '', side: 'defender' });
       continue;
     }
-    const resolved = { ...debuff, skillName: debuff.skillName ?? '', resolvedPower: resolveEffectPower(debuff, skills) };
+    const resolved = { ...debuff, skillName: debuff.skillName ?? '', resolvedPower: resolveEffectPower(debuff, skills, { enemyBorder: paramBorder }) };
     if (['DefenseDown', 'ElementResistDown'].includes(debuff.statusType)) {
       debuffsResolved.push(resolved);
     } else if (debuff.statusType === 'Fragile') {
