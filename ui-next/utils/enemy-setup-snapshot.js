@@ -128,6 +128,8 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
   const absorbElementList = normalizeAbsorbElementList(
     source?.absorbElementList ?? source?.resistances?.element?.absorb_element_list ?? manual.absorbElementList
   );
+  const dpRaw = Number(source?.dp);
+  const hpRaw = Number(source?.hp);
   return {
     slotIndex,
     selectedEnemyId: toOptionalEnemyId(source?.selectedEnemyId),
@@ -135,6 +137,10 @@ function normalizeEnemySlot(source = {}, slotIndex = REQUIRED_SLOT_INDEX) {
     param_border: Number.isFinite(Number(source?.param_border)) && Number(source.param_border) > 0
       ? Number(source.param_border)
       : DEFAULT_ENEMY_PARAM_BORDER,
+    // dp / hp は選択済み敵またはフィクスチャから引き継ぐ。存在しない場合は省略して
+    // BattleStateManager が enemies.json から解決できるようにする。
+    ...(Number.isFinite(dpRaw) && dpRaw >= 0 ? { dp: dpRaw } : {}),
+    ...(Number.isFinite(hpRaw) && hpRaw >= 0 ? { hp: hpRaw } : {}),
     isManual: Boolean(source?.isManual),
     manual,
     od_rate: normalizeEnemyOdRateMultiplier(source?.od_rate ?? manual.od_rate),
@@ -193,6 +199,9 @@ export function normalizeEnemySetupSnapshot(snapshot = {}) {
     destructionRate: slot0.destructionRate,
     resistances: slot0.resistances,
     absorbElementList: slot0.absorbElementList,
+    // dp は敵のDPゲージ初期値、hp は討伐予測用の最大HP。選択した敵またはフィクスチャから引き継ぐ。
+    ...(slot0.dp != null ? { dp: slot0.dp } : {}),
+    ...(slot0.hp != null ? { hp: slot0.hp } : {}),
     ...(slot0.e_shield ? { e_shield: structuredClone(slot0.e_shield) } : {}),
     ...(slot0.extra_hp_gauge ? { extra_hp_gauge: structuredClone(slot0.extra_hp_gauge) } : {}),
   };

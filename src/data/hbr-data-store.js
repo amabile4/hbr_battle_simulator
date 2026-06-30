@@ -412,6 +412,7 @@ export class HbrDataStore {
       return skill;
     });
     this.passives = payload.passives;
+    this.enemies = payload.enemies ?? [];
     this.accessories = payload.accessories ?? [];
     this.boosters = payload.boosters ?? [];
     this.chips = payload.chips ?? [];
@@ -433,6 +434,7 @@ export class HbrDataStore {
     this.characterSortMetaByLabel = this.buildCharacterSortMetaByLabel(this.characters);
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
+    this.enemiesById = new Map(this.enemies.map((row) => [Number(row.id), row]));
     this.skillNamesById = buildSkillNameIndex({
       skills: this.skills,
       styles: this.styles,
@@ -526,6 +528,7 @@ export class HbrDataStore {
       styles: readJson(resolve(dir, 'styles.json')),
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
+      enemies: readJsonOrFallback(resolve(dir, 'enemies.json'), []),
       accessories: readJson(resolve(dir, 'accessories.json')),
       boosters: readJson(resolve(dir, 'boosters.json')),
       chips: readJson(resolve(dir, 'chips.json')),
@@ -548,6 +551,7 @@ export class HbrDataStore {
       styles: payload.styles ?? [],
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
+      enemies: payload.enemies ?? [],
       accessories: payload.accessories ?? [],
       boosters: payload.boosters ?? [],
       chips: payload.chips ?? [],

@@ -99,6 +99,20 @@ test('buildCriticalRateBreakdown uses missing summarized critical rate without d
   );
 });
 
+test('buildCriticalRateBreakdown labels transcendence burst critical rate separately', () => {
+  const breakdown = buildCriticalRateBreakdown({
+    criticalRateUpRate: 1,
+    transcendenceBurstCriticalRateUpRate: 1,
+  });
+
+  assert.equal(breakdown.criticalRatePercent, 100);
+  assert.equal(breakdown.isCriticalGuaranteed, true);
+  assert.deepEqual(
+    breakdown.contributions.map((entry) => [entry.label, entry.value]),
+    [['超越バースト クリティカル率', 1]]
+  );
+});
+
 test('buildDamageBreakdown returns official-category target-specific critical multipliers', () => {
   const breakdown = buildDamageBreakdown({
     enemyNamesByEnemy: { 0: '異時層 スカルフェザー 最終形態' },
@@ -163,6 +177,28 @@ test('buildDamageBreakdown returns official-category target-specific critical mu
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === 'アクセサリ'), false);
   assert.equal(findGroup(weakTarget, 'buff').contributions.some((entry) => entry.label === '心眼'), true);
   assert.equal(findGroup(weakTarget, 'crit-mindeye').contributions.some((entry) => entry.label === '心眼'), false);
+});
+
+test('buildDamageBreakdown labels transcendence burst attack and critical damage separately', () => {
+  const target = firstTargetBreakdown({
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    attackUpRate: 3,
+    transcendenceBurstAttackUpRate: 3,
+    criticalDamageUpRate: 1,
+    transcendenceBurstCriticalDamageUpRate: 1,
+  });
+
+  assert.deepEqual(
+    findGroup(target, 'buff').contributions.map((entry) => [entry.label, entry.value]),
+    [['超越バースト 攻撃力', 3]]
+  );
+  assert.deepEqual(
+    findGroup(target, 'crit-mindeye').contributions.map((entry) => [entry.label, entry.value]),
+    [
+      ['クリティカル基礎倍率', 1.5],
+      ['超越バースト クリティカル威力', 1],
+    ]
+  );
 });
 
 test('buildDamageBreakdown uses missing summarized attack and critical damage rates', () => {

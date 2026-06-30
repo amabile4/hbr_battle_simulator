@@ -17,7 +17,7 @@
 |---|---|
 | A-1 〜 A-7 | DP ダメージ MVP: charge 修正・attacker source PartySetup 化・read-only stat 表示・DP 固定・invariant・敵 param_border 実値配線 |
 | 倍率内訳 | 7カテゴリ（buff / crit-mindeye / funnel / token-passive / debuff / affinity / vulnerability）表示 |
-| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続と、新規 EnemySetup snapshot からの敵DP配線を追加 |
+| 破壊率 接合/HP表示 | 右クリックポップアップに破壊率（暫定）手動入力 → このスキル後計算（2026-06-07 完了）。同日に `damageContext.destructionRateByEnemy` 接合、敵 `d_rate` 上昇倍率接続、DP/HP ダメージ同時表示を追加。2026-06-07 追検証で DP ダメージから破壊率乗算を除外し、SkillSwitch 子スキル（例: `46001217` コードダクネス）と対象敵名を威力詳細へ渡す経路を固定。追加調査で `criticalDamageUpRate` / `criticalRateUpRate` の summary rate 接続、新規 EnemySetup snapshot からの敵DP配線、超越バーストの破壊率上昇量+10%とcap+300%（一致属性攻撃のみ、SuperBreak/強ブレイクとは非加算）、威力詳細手入力での有効cap反映を追加 |
 
 ---
 
@@ -76,10 +76,10 @@
 |---|---|---|---|---|
 | D-1 | ✅ | 破壊率上昇式・cap・適用条件の仕様確定（calculateDestruction 実装済み） | ✅ | — |
 | D-2 | 🔴 | **turn engine 記録検証**: `destructionRateByEnemy` が攻撃進行（DP ダメージ発生ごと）を実際に反映しているか確認。空オブジェクトのまま進行しないか | ✅ 完了（攻撃進行では未更新、break/reset/superDown 系のみ更新と確認） | D-1 |
-| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
+| D-3 | 🔴 | **turn engine 上昇計算接続**: `calculateDestruction` を turnState に接続し、攻撃ごとに `setEnemyDestructionRatePercent` を呼ぶ。cap クランプ・break 判定・snapshot 整合 | 🔶 turnState 接続完了（既BREAK / same-action Break・SuperBreak、cap clamp、E-shield active 除外）。敵 `d_rate` 実値は `destructionMultiplierByEnemy` に保持し、破壊率上昇式へ接続。超越バースト中の一致属性攻撃は破壊率上昇量+10%とcap+300%を適用し、SuperBreak/強ブレイクcapとは加算しない。非一致属性攻撃や SuperDown の敵状態更新ではバーストcapを参照しない。`ini_d_rate` は既存 100% 基準と衝突するため初期現在値には未接続 | D-1, D-2 |
 | D-4 | 🔴 | **ダメージ式接合**: `damageContext` に per-enemy 破壊率（`enemyParamBorderByEnemy` と同パターン）を配線。`buildDamageCalculationInput` が `destructionRate` を実値化。`calculateDamage` が HP ダメージに乗算 | ✅ 完了（`destructionRateByEnemy` は `%` で保持し、builder / popup adapter が `calculateDamage` 用 rate に変換） | D-2, D-3 |
 | D-5 | 🔴 | **HP ダメージ表示解禁**: `isHpTarget=false` 固定を解除。右ペインに「非クリ HP」「クリティカル HP」行を追加。DP/HP の表示切り替え | ✅ 完了（右クリック威力詳細で DP/HP の非クリ・クリティカル期待値と現在破壊率を同時表示） | D-4 |
-| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。多段中 DP break 後の残 hit を HP ダメージへ按分して威力詳細に出す表示は未実装） | D-3, D-4, D-5 |
+| D-6 | 🟡 | **テスト補完**: unit（上昇式・cap・接合）/ E2E（HP ダメージ表示・敵タブ連動）/ 実データ DP 割れ検証 | 🔶 部分完了（dp=0 + damage=0 の post-break 破壊率加算、storedRate 100% fallback、HP/DP表示・破壊率>100%時のHP>DP、敵タブ連動 E2E、DPダメージでは破壊率を乗算しないこと、SkillSwitch 子スキルID解決、対象敵名表示、超越バーストの攻撃/critical/バフ・デバフ効果量/破壊率cap非重複、未発動時ゼロ、非一致属性cap非適用、高い保存capへの非加算、`damageContext.destructionRateCapByEnemy` 経由の威力詳細手入力cap反映を固定。2026-06-07 添付セッションのコードダクネスは `skillHitCount=9` / `baseHitCount=6` / `funnelHitBonus=3` / `breakHitCount=1` と確認済み。多段中 DP break 後の残 hit を HP ダメージへ按分して威力詳細に出す表示は未実装） | D-3, D-4, D-5 |
 | D-7 | 🟡 | **受け入れ**: HP ダメージ 3 点一致（Excel・実機・シミュレータ） | ❌ 未着手 | D-6 |
 
 ### 2026-06-07 コードダクネス検算で判明した不足機能
@@ -128,7 +128,7 @@
 | ID | 優先度 | 内容 | 状態 | 依存 |
 |---|---|---|---|---|
 | I-1 | ⚪ | **ShadowClone（影分身）の計算式確定**: 分身攻撃倍率の仕組みを確認。engine 変更要否を判断し必要なら合意 | ❌ 未着手 | — |
-| I-2 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ❌ 未着手 | — |
+| I-2 | ⚪ | **Hacking（ハッキング）の分類確定**: Fragile / DefenseDown と同型か否かを確認。既存型に吸収できるなら engine 変更不要 | ✅ 完了（全能力ダウン source として `enemyAllAbilityDownByEnemy` へ固定100を集約し、既存の `defender.paramBorder` 補正へ接続。engine 型追加不要） | E-1 |
 | I-4 | 🟡 | **全能力ダウン engine マッピング合意**: `enemyAllAbilityDownByEnemy` をエンジン入力のどの引数に渡すか hbr_calc 側と確定（E-1 の実装前提） | ✅ 本repo側判断完了（既存 `defender.paramBorder` 補正で対応、追加engine API不要） | E-1 |
 | I-5 | 🔵 | **破壊率 API 拡張の合意**: D-3 実装で `calculateDestruction` インターフェース変更が生じた場合、hbr_calc 側と合意 | 🔵 D-3 で判断 | D-3 |
 
@@ -272,7 +272,7 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | ShadowClone | 影分身 | ⚠️ | **I-2**: 分身攻撃倍率の仕組みを確認。エンジン未対応 |
 | Funnel | 連撃数アップ | ✅ | funnel群（`funnelEffects` 経由で連撃ヒット×倍率加算） |
 | Diva | 歌姫の加護 | ✅ | token-passive群（`divaSkillAttackUpRate` 専用フィールド経由） |
-| Hacking | ハッキング | ⚠️ | **I-3**: DefenseDown / Fragile 相当か否かを確認 |
+| Hacking | ハッキング | ✅ | 全能力ダウン source。`enemyAllAbilityDownByEnemy` へ固定100として集約し、`defender.paramBorder - penalty` に反映 |
 | FireMark | 火の印 | ✅ | buff群（`markAttackUpRate` / crit-mindeye群（`markCriticalDamageUp`）/ critRate（`markCriticalRateUp`）経由） |
 | AdditionalTurn | 追加ターン | 🔵 | ターン管理 |
 | DoubleActionExtraSkill | EXスキル連続発動 | 🔵 | 行動管理 |
@@ -285,8 +285,8 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | RemoveBuff | バフ解除 | 🔵 | 状態管理 |
 | RemoveDebuff | デバフ解除 | 🔵 | 状態管理 |
 | RemoveSpecialStatus | 特殊状態解除 | 🔵 | 状態管理 |
-| Talisman | 霊符状態 | ⚠️ | **大分類E / I-4**: 全能力ダウン source。差分計算実装後に debuff 枠へ反映（E-1/E-2） |
-| Disaster | 禍状態 | ⚠️ | **大分類E / I-4**: 全能力ダウン source。差分計算実装後に debuff 枠へ反映（E-1/E-2） |
+| Talisman | 霊符状態 | ✅ | 全能力ダウン source。`enemyAllAbilityDownByEnemy` へレベル比例値を集約し、`defender.paramBorder - penalty` に反映 |
+| Disaster | 禍状態 | ✅ | 全能力ダウン source。`enemyAllAbilityDownByEnemy` へレベル比例値を集約し、`defender.paramBorder - penalty` に反映 |
 | ZoneUpEternal | フィールド状態永続 | 🔵 | フィールド管理（フィールドの攻撃倍率は `zonePowerRate` で buff群に反映済み） |
 | ReviveTerritory | 再生の陣 | 🔵 | HP回復フィールド |
 | ArrowCherryBlossoms | 桜花の矢 | 🔵 | キャラ固有状態 |
@@ -300,10 +300,10 @@ D-2 ──> D-3 ──> D-4 ──> D-5 ──> D-6 ──> D-7 ──> V-2
 | Reinforce | 鬼神化中 | 🔵 | 変身状態（ATK増加効果は AttackUp 等として収集） |
 | ActionDisabled | 行動不能 | 🔵 | 行動管理 |
 
-**集計: ✅ 19件 / ⚠️ 5件 / 🔵 66件 （合計 90件）**
+**集計: ✅ 22件 / ⚠️ 2件 / 🔵 66件 （合計 90件）**
 
 | 区分 | タイプ一覧 |
 |---|---|
-| ✅ 反映済み（19件）| AttackUp, DefenseDown, ResistDown, ResistDownOverwrite, Fragile, HighBoost, Babied, CriticalRateUp, CriticalDamageUp, BuffCharge, MindEye, Funnel, Diva, TokenSet, FireMark, Curry, Gelato, Shchi, Steak |
-| ⚠️ 要調査（5件）| DamageRateUp, ShadowClone（I-1）, Hacking（I-2）, Talisman（I-3/E）, Disaster（I-3/E）|
+| ✅ 反映済み（22件）| AttackUp, DefenseDown, ResistDown, ResistDownOverwrite, Fragile, HighBoost, Babied, CriticalRateUp, CriticalDamageUp, BuffCharge, MindEye, Funnel, Diva, Hacking, TokenSet, FireMark, Curry, Gelato, Shchi, Steak, Talisman, Disaster |
+| ⚠️ 要調査（2件）| DamageRateUp（大分類D）, ShadowClone（I-1）|
 | 🔵 スコープ外（66件）| 上記以外（Shredding はスキル使用可否のみ） |

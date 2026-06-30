@@ -1120,8 +1120,7 @@
 }
 
 
-/* ============================================================
-   Turn area: コンテナクエリ（ビューポード幅ではなくコンテナ幅で分岐）
+/* =====================================================   Turn area: コンテナクエリ（ビューポード幅ではなくコンテナ幅で分岐）
    PartySetup 表示/非表示にかかわらず実際のターン列幅で段階的に変化する
    ============================================================ */
 
@@ -1704,8 +1703,7 @@
     0 0 12px rgba(250,204,21,0.45);
 }
 
-/* ============================================================
-   狭い画面（< 480px）: 2行レイアウト
+/* =====================================================   狭い画面（< 480px）: 2行レイアウト
    Row1: [ターン情報 横並び] [ボタン列] [メモ(flex-1)]
    Row2: [スロット full-width]
    ============================================================ */
@@ -2126,8 +2124,7 @@
   [data-turn-slot-layout="balanced"] > [data-role="turn-row-list"] [data-turn-back-group]  { flex: 1; }
 }
 
-/* ============================================================
-   dvh / セーフエリア ユーティリティ
+/* =====================================================   dvh / セーフエリア ユーティリティ
    Tailwind CDN では dvh / env() が未対応のため CSS で補う
    ============================================================ */
 
@@ -2154,8 +2151,7 @@
   max-height: 90dvh;
 }
 
-/* ============================================================
-   トークン表示: 赤枠の中に白丸を 5×2 グリッドで並べる
+/* =====================================================   トークン表示: 赤枠の中に白丸を 5×2 グリッドで並べる
    ============================================================ */
 .token-grid {
   display: grid;
@@ -2184,8 +2180,7 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
-/* ============================================================
-   士気（Morale）表示: アイコン + 白丸（大=2、小=1）
+/* =====================================================   士気（Morale）表示: アイコン + 白丸（大=2、小=1）
    ============================================================ */
 .morale-display {
   display: flex;
@@ -2237,8 +2232,7 @@
   -webkit-line-clamp: 2;
 }
 
-/* ============================================================
-   バフアイコン表示: .buff-icon-list > .buff-icon
+/* =====================================================   バフアイコン表示: .buff-icon-list > .buff-icon
    左→右に充填し、右端に達したら2行目へ折り返す
    ============================================================ */
 .buff-icon-list {
@@ -2267,8 +2261,7 @@
   max-width: min(360px, calc(100vw - 16px));
 }
 
-/* ============================================================
-   キャラクター詳細ポップアップ
+/* =====================================================   キャラクター詳細ポップアップ
    ============================================================ */
 #char-detail-popup {
   display: none;
@@ -2519,8 +2512,7 @@
   object-fit: contain;
 }
 
-/* ============================================================
-   Used Skills Overlay
+/* =====================================================   Used Skills Overlay
    ============================================================ */
 .used-skills-card {
   container-type: inline-size;
@@ -2941,6 +2933,30 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-summary-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #111827;
+  padding: 8px 10px;
+}
+
+.char-popup-damage-calc-summary-row strong {
+  color: #f8fafc;
+  font-size: 15px;
+  line-height: 1.2;
+  text-align: right;
+}
+
 .char-popup-damage-calc-result > div {
   display: flex;
   flex-direction: column;
@@ -3036,6 +3052,47 @@
   gap: 8px;
 }
 
+.char-popup-damage-calc-damage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.char-popup-damage-calc-damage-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid #273549;
+  border-radius: 6px;
+  background: #0f172a;
+  padding: 8px 10px;
+}
+
+.char-popup-damage-calc-damage-label {
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.char-popup-damage-calc-damage-values {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  color: #f8fafc;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.char-popup-damage-calc-damage-values span {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
 .char-popup-damage-calc-note {
   width: 100%;
   resize: vertical;
@@ -3088,6 +3145,10 @@
   font-size: 10px;
   color: #f87171;
   margin-top: 4px;
+}
+
+.char-popup-destruction-rate .char-popup-damage-calc-result {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 @media (max-width: 720px) {
@@ -3479,4 +3540,15 @@
   margin-top: 5px;
   font-size: 10px;
   line-height: 1.4;
+/* DP自動ブレイクの事前予測チップ（未コミット行）: 破線で未確定を示す */
+.dp-auto-break-chip--preview {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+/* 比較ビューなどトグル系 toolbar ボタンの ON 状態 */
+.workspace-toolbar__button--active {
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0369a1;
 }

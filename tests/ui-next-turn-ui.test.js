@@ -44,6 +44,7 @@ function withDom(run) {
     CustomEvent: globalThis.CustomEvent,
     Event: globalThis.Event,
     MouseEvent: globalThis.MouseEvent,
+    fetch: globalThis.fetch,
   };
 
   globalThis.window = dom.window;
@@ -54,20 +55,31 @@ function withDom(run) {
   globalThis.MouseEvent = dom.window.MouseEvent;
   dom.window.scrollTo = () => {};
 
-  try {
-    return run({
-      dom,
-      win: dom.window,
-      root: dom.window.document.querySelector('#root'),
-    });
-  } finally {
+  const cleanup = () => {
     globalThis.window = previous.window;
     globalThis.document = previous.document;
     globalThis.ResizeObserver = previous.ResizeObserver;
     globalThis.CustomEvent = previous.CustomEvent;
     globalThis.Event = previous.Event;
     globalThis.MouseEvent = previous.MouseEvent;
+    globalThis.fetch = previous.fetch;
     dom.window.close();
+  };
+
+  try {
+    const result = run({
+      dom,
+      win: dom.window,
+      root: dom.window.document.querySelector('#root'),
+    });
+    if (result && typeof result.then === 'function') {
+      return result.finally(cleanup);
+    }
+    cleanup();
+    return result;
+  } catch (error) {
+    cleanup();
+    throw error;
   }
 }
 
@@ -1578,6 +1590,45 @@ test('EnemyDetailPopup basic info shows Eシールド summary when present', () 
     popup.close();
   }));
 
+test('EnemyDetailPopup basic info shows normal HP current and max when supplied', () =>
+  withDom(() => {
+    const popup = new EnemyDetailPopup();
+    const payload = createEnemyPopupPayload(1);
+    payload.enemies[0].hpCurrent = 900;
+    payload.enemies[0].hpMax = 1000;
+    popup.show(payload, 0);
+
+    const root = popup.getRootElement();
+    const hpRow = [...root.querySelectorAll('[data-role="enemy-popup-basic-info-row"]')]
+      .find((row) => row.textContent.includes('HP'));
+    assert.ok(hpRow);
+    assert.equal(
+      hpRow.querySelector('[data-role="enemy-popup-basic-info-value"]')?.textContent,
+      '900 / 1000'
+    );
+    popup.close();
+  }));
+
+test('EnemyDetailPopup basic info keeps extra HP gauge display before normal HP fields', () =>
+  withDom(() => {
+    const popup = new EnemyDetailPopup();
+    const payload = createEnemyPopupPayload(1);
+    payload.enemies[0].extraHpGaugeState = { total: 3, remaining: 2, values: [100, 100, 100] };
+    payload.enemies[0].hpCurrent = 900;
+    payload.enemies[0].hpMax = 1000;
+    popup.show(payload, 0);
+
+    const root = popup.getRootElement();
+    const hpRow = [...root.querySelectorAll('[data-role="enemy-popup-basic-info-row"]')]
+      .find((row) => row.textContent.includes('HP'));
+    assert.ok(hpRow);
+    assert.equal(
+      hpRow.querySelector('[data-role="enemy-popup-basic-info-value"]')?.textContent,
+      '2 / 3'
+    );
+    popup.close();
+  }));
+
 test('TurnRowController omits Eシールド strip when no enemy has Eシールド state', () =>
   withDom(({ root }) => {
     const skill = createSkill({
@@ -1858,8 +1909,8 @@ test('TurnRowController enemy popup switches defeat to HP break for multi-gauge 
     const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win, {
       eventType: 'contextmenu',
     });
-    assert.match(popup.textContent ?? '', /HPゲージ/);
-    assert.match(popup.textContent ?? '', /2\/3/);
+    assert.match(popup.textContent ?? '', /HP/);
+    assert.match(popup.textContent ?? '', /2 \/ 3/);
 
     const hpBreakAction = popup.querySelector('[data-role="enemy-popup-action"][data-action-type="hpbreak"]');
     assert.ok(hpBreakAction);
@@ -3412,6 +3463,56 @@ test('TurnRowController enemy detail popup preview keeps SuperBreak visible with
     );
   }));
 
+test('TurnRowController enemy detail popup preview shows Hacking icon for enemy status change', () =>
+  withDom(({ root, win }) => {
+    const skill = createSkill({
+      id: 96023,
+      name: 'Single Slash',
+      targetType: 'Single',
+      parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash' }],
+    });
+    const state = createState(skill, 1);
+    state.turnState.enemyState.enemyNamesByEnemy = { 0: 'Alpha' };
+
+    mountTurnRow({
+      root,
+      stateBefore: state,
+      simulatorSettings: createSimulatorSettings(),
+      previewActionFlow: [
+        {
+          order: 1,
+          actorCharacterId: String(state.party[0].characterId),
+          actorCharacterName: '和泉 ユキ',
+          skillId: 46001215,
+          skillName: 'コードダクネス',
+          costDelta: -14,
+          costPreSp: 14,
+          costPostSp: 0,
+          statusEffectsApplied: [],
+          statusEffectsRemoved: [],
+          enemyStatusChanges: [
+            {
+              statusType: 'Hacking',
+              targetIndex: 0,
+              remaining: 2,
+              exitCond: 'EnemyTurnEnd',
+            },
+          ],
+        },
+      ],
+    });
+
+    const popup = openEnemyDetailPopup(root.querySelector('[data-role="enemy-detail-trigger"]'), win);
+    assert.ok(popup);
+    assert.match(popup.textContent ?? '', /プレビュー（コミット見込み）/);
+    assert.match(popup.textContent ?? '', /ハッキング/);
+    assert.ok(popup.querySelector('[data-status-type="Hacking"]'));
+    assert.match(
+      popup.querySelector('[data-status-type="Hacking"] img')?.getAttribute('src') ?? '',
+      /Hacking\.webp/
+    );
+  }));
+
 test('TurnRowController enemy detail popup shows no-change row when action has no enemy status changes', () =>
   withDom(({ root, win }) => {
     const skill = createSkill({
@@ -3767,6 +3868,11 @@ test('char detail popup preview section renders Funnel from previewActionFlow.fu
 
 test('char detail popup damage tab only renders the opened character action', () =>
   withDom(({ win }) => {
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
     const targetMember = {
       characterId: 'NNanase',
       characterName: '七瀬 七海',
@@ -3797,6 +3903,156 @@ test('char detail popup damage tab only renders the opened character action', ()
       },
     });
 
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '七瀬の威力詳細',
+              damageContext: makeDamageContext(2),
+            },
+            {
+              actorCharacterId: 'OTHER',
+              skillName: '他キャラの威力詳細',
+              damageContext: makeDamageContext(9),
+            },
+          ],
+        },
+        { x: 200, y: 120, isCommitted: false }
+      );
+
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+
+      const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
+      assert.ok(damagePanel);
+      assert.match(damagePanel.textContent ?? '', /七瀬の威力詳細/);
+      assert.match(damagePanel.textContent ?? '', /2.00x/);
+      assert.doesNotMatch(damagePanel.textContent ?? '', /他キャラの威力詳細/);
+      assert.doesNotMatch(damagePanel.textContent ?? '', /9.00x/);
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  }));
+
+test('char detail popup damage tab uses damage context destruction cap for manual destruction input', () =>
+  withDom(async ({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+    const damageContext = {
+      actorCharacterId: 'NNanase',
+      actorStyleId: 1000001,
+      skillId: 999001,
+      skillName: '破壊率上限テスト',
+      isNormalAttack: false,
+      targetEnemyIndex: 0,
+      enemyCount: 1,
+      baseHitCount: 1,
+      effectiveHitCountPerEnemy: 1,
+      destructionRateByEnemy: { 0: 600 },
+      destructionRateCapByEnemy: { 0: 600 },
+      enemyNamesByEnemy: { 0: 'E1' },
+      effectiveDamageRatesByEnemy: { 0: 100 },
+      damageBreakdown: {
+        version: 1,
+        targetBreakdowns: [
+          {
+            targetEnemyIndex: 0,
+            targetLabel: 'E1',
+            finalMultiplier: 1,
+            increasePercent: 0,
+            formula: '1.00x',
+            groups: [],
+          },
+        ],
+      },
+      criticalRateBreakdown: {
+        criticalRatePercent: 0,
+        isCriticalGuaranteed: false,
+        contributions: [],
+      },
+    };
+    const previousFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => [],
+    });
+
+    try {
+      openCharDetailPopup(
+        targetMember,
+        {
+          statusEffects: [],
+          previewActionFlow: [
+            {
+              actorCharacterId: 'NNanase',
+              skillName: '破壊率上限テスト',
+              damageContext,
+            },
+          ],
+        },
+        {
+          x: 200,
+          y: 120,
+          isCommitted: false,
+          enemyDestructionState: {
+            destructionRateByEnemy: { 0: 300 },
+            destructionRateCapByEnemy: { 0: 300 },
+          },
+        }
+      );
+
+      const popup = win.document.body.querySelector('#char-detail-popup');
+      assert.ok(popup);
+      popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+        new win.MouseEvent('click', { bubbles: true, cancelable: true })
+      );
+
+      const input = popup.querySelector('[data-role="destruction-rate-input"]');
+  const destructionRateSummary = popup.querySelector('[data-role="damage-calc-destruction-rate"]');
+      const after = popup.querySelector('[data-role="destruction-rate-after"]');
+      assert.ok(input);
+  assert.ok(destructionRateSummary);
+      assert.ok(after);
+      input.value = '600';
+      input.dispatchEvent(new win.Event('input', { bubbles: true }));
+
+      for (let attempt = 0; attempt < 20 && after.textContent?.trim() !== '600.00%'; attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      assert.match(destructionRateSummary.textContent?.trim() ?? '', /600\.00% \/ 600\.00%/);
+      assert.equal(after.textContent?.trim(), '600.00%');
+    } finally {
+      globalThis.fetch = previousFetch;
+    }
+  }));
+
+test('char detail popup damage tab shows normal enemy HP current and max', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
     openCharDetailPopup(
       targetMember,
       {
@@ -3804,17 +4060,52 @@ test('char detail popup damage tab only renders the opened character action', ()
         previewActionFlow: [
           {
             actorCharacterId: 'NNanase',
-            skillName: '七瀬の威力詳細',
-            damageContext: makeDamageContext(2),
-          },
-          {
-            actorCharacterId: 'OTHER',
-            skillName: '他キャラの威力詳細',
-            damageContext: makeDamageContext(9),
+            skillName: 'HP表示テスト',
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999002,
+              skillName: 'HP表示テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 100 },
+              destructionRateCapByEnemy: { 0: 300 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
           },
         ],
       },
-      { x: 200, y: 120, isCommitted: false }
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        enemyDestructionState: {
+          remainingHpByEnemy: { 0: 12345 },
+          enemyHpByEnemy: { 0: 67890 },
+        },
+      }
     );
 
     const popup = win.document.body.querySelector('#char-detail-popup');
@@ -3823,12 +4114,86 @@ test('char detail popup damage tab only renders the opened character action', ()
       new win.MouseEvent('click', { bubbles: true, cancelable: true })
     );
 
-    const damagePanel = popup.querySelector('[data-tab-panel="damage"]');
-    assert.ok(damagePanel);
-    assert.match(damagePanel.textContent ?? '', /七瀬の威力詳細/);
-    assert.match(damagePanel.textContent ?? '', /2.00x/);
-    assert.doesNotMatch(damagePanel.textContent ?? '', /他キャラの威力詳細/);
-    assert.doesNotMatch(damagePanel.textContent ?? '', /9.00x/);
+    const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
+    assert.equal(hpStatus?.textContent?.trim(), '12345 / 67890');
+  }));
+
+test('char detail popup damage tab prefers extra HP gauge over normal HP fields', () =>
+  withDom(({ win }) => {
+    const targetMember = {
+      characterId: 'NNanase',
+      characterName: '七瀬 七海',
+      styleId: 1000001,
+      styleName: 'テストスタイル',
+      elements: ['Thunder'],
+      weaponType: 'Slash',
+      passives: [],
+    };
+
+    openCharDetailPopup(
+      targetMember,
+      {
+        statusEffects: [],
+        previewActionFlow: [
+          {
+            actorCharacterId: 'NNanase',
+            skillName: 'HPゲージ優先テスト',
+            damageContext: {
+              actorCharacterId: 'NNanase',
+              actorStyleId: 1000001,
+              skillId: 999003,
+              skillName: 'HPゲージ優先テスト',
+              isNormalAttack: false,
+              targetEnemyIndex: 0,
+              enemyCount: 1,
+              baseHitCount: 1,
+              effectiveHitCountPerEnemy: 1,
+              destructionRateByEnemy: { 0: 100 },
+              destructionRateCapByEnemy: { 0: 300 },
+              enemyNamesByEnemy: { 0: 'E1' },
+              effectiveDamageRatesByEnemy: { 0: 100 },
+              damageBreakdown: {
+                version: 1,
+                targetBreakdowns: [
+                  {
+                    targetEnemyIndex: 0,
+                    targetLabel: 'E1',
+                    finalMultiplier: 1,
+                    increasePercent: 0,
+                    formula: '1.00x',
+                    groups: [],
+                  },
+                ],
+              },
+              criticalRateBreakdown: {
+                criticalRatePercent: 0,
+                isCriticalGuaranteed: false,
+                contributions: [],
+              },
+            },
+          },
+        ],
+      },
+      {
+        x: 200,
+        y: 120,
+        isCommitted: false,
+        enemyDestructionState: {
+          remainingHpByEnemy: { 0: 12345 },
+          enemyHpByEnemy: { 0: 67890 },
+          extraHpGaugeStateByEnemy: { 0: { total: 3, remaining: 2, values: [100, 100, 100] } },
+        },
+      }
+    );
+
+    const popup = win.document.body.querySelector('#char-detail-popup');
+    assert.ok(popup);
+    popup.querySelector('.char-popup-tab[data-tab="damage"]')?.dispatchEvent(
+      new win.MouseEvent('click', { bubbles: true, cancelable: true })
+    );
+
+    const hpStatus = popup.querySelector('[data-role="damage-calc-hp-status"]');
+    assert.equal(hpStatus?.textContent?.trim(), '2 / 3');
   }));
 
 test('char detail popup shows form chip and dims inactive ability entries for form-change styles', () =>

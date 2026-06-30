@@ -56,6 +56,17 @@ import {
 import { normalizeValidationPolicy } from '../utils/validation-policy.js';
 import { isPursuitOnlySkill } from '../../src/domain/skill-classifiers.js';
 import { buildActionFlowFromRecord } from '../utils/action-flow-builder.js';
+import { resolvePerHitDpDamageByEnemy } from '../../src/domain/action-dp-damage.js';
+import { resolvePerHitHpDamageByEnemy } from '../../src/domain/action-hp-damage.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../../src/domain/character-stats.js';
+import { resolveDefaultStats } from '../../src/domain/damage-calculator-input-builder.js';
+import {
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_DEAD,
+  ENEMY_STATUS_SUPER_BREAK,
+  ENEMY_STATUS_SUPER_BREAK_DOWN,
+  normalizeEnemyStatusType,
+} from '../../src/domain/enemy-status.js';
 
 function createEmptyReplayDiagnostics() {
   return {
@@ -95,6 +106,13 @@ const SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES = new Set([
   REPLAY_OPERATION_TYPES.SUMMON_ENEMY,
   REPLAY_OPERATION_TYPES.SET_ENEMY_E_SHIELD,
 ]);
+const COMPARISON_EXCLUDED_ENEMY_STATUS_TYPES = new Set([
+  ENEMY_STATUS_BREAK,
+  ENEMY_STATUS_SUPER_BREAK,
+  ENEMY_STATUS_SUPER_BREAK_DOWN,
+  ENEMY_STATUS_DEAD,
+  'DownTurn',
+]);
 const ENEMY_SINGLE_TARGET_TYPES = new Set(['Single', 'EnemySingle']);
 const ENEMY_ALL_TARGET_TYPES = new Set(['All', 'EnemyAll']);
 
@@ -123,6 +141,14 @@ function areDeepEqual(left, right) {
   return false;
 }
 
+function isComparisonExcludedEnemyStatus(statusType) {
+  const normalized = normalizeEnemyStatusType(statusType);
+  return (
+    COMPARISON_EXCLUDED_ENEMY_STATUS_TYPES.has(normalized) ||
+    /break|downturn|dead|superdown/i.test(String(statusType ?? ''))
+  );
+}
+
 function cloneReplayDiagnostics(diagnostics = {}) {
   return {
     setupWarnings: Array.isArray(diagnostics?.setupWarnings)
@@ -141,6 +167,26 @@ function cloneReplayDiagnostics(diagnostics = {}) {
       : null,
     appliedTurnCount: Number(diagnostics?.appliedTurnCount ?? 0),
   };
+}
+
+function mergeTurnWarnings(baseTurnWarnings = [], derivedTurnWarnings = []) {
+  const maxLength = Math.max(baseTurnWarnings.length, derivedTurnWarnings.length);
+  return Array.from({ length: maxLength }, (_, turnIndex) => {
+    const merged = [];
+    const seen = new Set();
+    for (const warning of [
+      ...(Array.isArray(baseTurnWarnings[turnIndex]) ? baseTurnWarnings[turnIndex] : []),
+      ...(Array.isArray(derivedTurnWarnings[turnIndex]) ? derivedTurnWarnings[turnIndex] : []),
+    ]) {
+      const text = String(warning ?? '').trim();
+      if (!text || seen.has(text)) {
+        continue;
+      }
+      merged.push(text);
+      seen.add(text);
+    }
+    return merged;
+  });
 }
 
 const PURSUIT_TRANSFORMED_SKILL_NAME = 'ネコジェット・シャテキ';
@@ -345,6 +391,10 @@ export class TurnEngineManager {
   #pendingSpecialOperations = [];    // ReplayOperation[]
   #validationPolicy = normalizeValidationPolicy();
   #replayDiagnostics = createEmptyReplayDiagnostics();
+  // DPダメージガイド導出用の計算データ（{styles, characters, enemies, skills}）。
+  // 未設定の場合は enrichment を行わず従来挙動を維持する。派生値専用で保存対象外。
+  #damageCalculationData = null;
+  #isComparisonRecalculation = false;
 
   get replayScript() { return this.#replayScript; }
   get computedRecords() { return this.#computedRecords; }
@@ -408,6 +458,18 @@ export class TurnEngineManager {
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
     this.#replayDiagnostics = createEmptyReplayDiagnostics();
+    if ('damageCalculationData' in options) {
+      this.#damageCalculationData = options.damageCalculationData ?? null;
+    }
+  }
+
+  /**
+   * DPダメージガイド導出に使う計算データ（{styles, characters, enemies, skills}）を設定する。
+   * 設定後の commit / recalculate から enrichment が有効になる。
+   * 既存ターンへ反映するには呼び出し側で recalculateFrom(0) を実行すること。
+   */
+  setDamageCalculationData(data) {
+    this.#damageCalculationData = data ?? null;
   }
 
   #appendReplayWarnings(turnIndex, warnings = []) {
@@ -441,6 +503,9 @@ export class TurnEngineManager {
     this.#pendingInterruptOdLevel = null;
     this.#pendingSpecialOperations = [];
     this.#validationPolicy = normalizeValidationPolicy(options.validationPolicy);
+    if ('damageCalculationData' in options) {
+      this.#damageCalculationData = options.damageCalculationData ?? null;
+    }
     this.#recalculateAllBestEffort({
       strictExtraTurnTurnIndexes: new Set(),
     });
@@ -540,6 +605,7 @@ export class TurnEngineManager {
       }
     );
     this.#appendPreviewResourceWarnings(previewRecord, warnings);
+    this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
 
     const interruptLevel = options.interruptOdLevel ?? this.#pendingInterruptOdLevel ?? 0;
     const requiredInterruptGauge = interruptLevel > 0 ? getOdGaugeRequirement(interruptLevel) : 0;
@@ -611,6 +677,84 @@ export class TurnEngineManager {
   }
 
   /**
+   * 比較ビュー用: 手動ブレイク/討伐指定（actionOutcomeOverrides）を一括無効化した
+   * 「自動計算のみ」の推移を別バッファで再計算して返す（read-only API）。
+   *
+   * - replayScript / computedStates / computedRecords / pending には一切影響しない
+   *   （クローンに差し替えて recalculateFrom(0) を流用し、finally で必ず復元する）。
+   * - 戻り値はビュー状態であり、保存JSONには含めない。
+   * - replayScript 未ロード時は null。
+   *
+   * @returns {{ states: object[], records: (object|null)[] } | null}
+   */
+  buildComparisonComputedStates() {
+    if (!this.#replayScript) {
+      return null;
+    }
+    const savedReplayScript = this.#replayScript;
+    const savedComputedStates = this.#computedStates;
+    const savedComputedRecords = this.#computedRecords;
+    const savedPendingPreemptiveOdLevel = this.#pendingPreemptiveOdLevel;
+    const savedPendingInterruptOdLevel = this.#pendingInterruptOdLevel;
+    const savedPendingSpecialOperations = this.#pendingSpecialOperations;
+    const savedIsComparisonRecalculation = this.#isComparisonRecalculation;
+    try {
+      const comparisonScript = structuredClone(savedReplayScript);
+      for (const turn of comparisonScript.turns ?? []) {
+        if (turn && typeof turn === 'object') {
+          turn.actionOutcomeOverrides = [];
+          turn.overrideEntries = this.#buildComparisonOverrideEntries(turn.overrideEntries);
+        }
+      }
+      this.#replayScript = comparisonScript;
+      this.#computedStates = [];
+      this.#computedRecords = [];
+      this.#isComparisonRecalculation = true;
+      this.recalculateFrom(0);
+      const comparisonStates = this.#computedStates;
+      const comparisonRecords = this.#computedRecords;
+      const stateBefores = (comparisonScript.turns ?? []).map((_, turnIndex) => {
+        const rawBefore = turnIndex === 0
+          ? this.#initialState
+          : (comparisonStates[turnIndex - 1] ?? comparisonStates.at(-1) ?? this.#initialState);
+        return this.#buildStateBeforeForTurn(turnIndex, rawBefore);
+      });
+      return { states: comparisonStates, records: comparisonRecords, stateBefores };
+    } catch (err) {
+      console.warn('TurnEngineManager.buildComparisonComputedStates failed:', err.message);
+      return null;
+    } finally {
+      this.#replayScript = savedReplayScript;
+      this.#computedStates = savedComputedStates;
+      this.#computedRecords = savedComputedRecords;
+      this.#pendingPreemptiveOdLevel = savedPendingPreemptiveOdLevel;
+      this.#pendingInterruptOdLevel = savedPendingInterruptOdLevel;
+      this.#pendingSpecialOperations = savedPendingSpecialOperations;
+      this.#isComparisonRecalculation = savedIsComparisonRecalculation;
+    }
+  }
+
+  #buildComparisonOverrideEntries(overrideEntries = []) {
+    return (Array.isArray(overrideEntries) ? overrideEntries : [])
+      .flatMap((entry) => {
+        const type = String(entry?.type ?? '');
+        if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES) {
+          return [];
+        }
+        if (type !== REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES) {
+          return [structuredClone(entry)];
+        }
+        const statuses = Array.isArray(entry?.payload) ? entry.payload : [];
+        const filteredStatuses = statuses.filter(
+          (status) => !isComparisonExcludedEnemyStatus(status?.statusType)
+        );
+        return filteredStatuses.length > 0
+          ? [{ ...structuredClone(entry), payload: filteredStatuses.map((status) => structuredClone(status)) }]
+          : [];
+      });
+  }
+
+  /**
    * fromIndex ターン以降を再計算する。
    * fromIndex 以降の computedStates / computedRecords を破棄して再実行。
    * OD operations（ACTIVATE_PREEMPTIVE_OD / RESERVE_INTERRUPT_OD）も再現する。
@@ -674,6 +818,7 @@ export class TurnEngineManager {
       );
       this.#replaceReplayTurnActionOutcomeOverrides(turn, actionOutcomeOverrides, enemyCount);
       this.#replaceReplayTurnFollowUpOverrides(turn, followUpOverrides, enemyCount);
+      this.#clearRemainingGaugesForSummonedSlots(state, turn.operations);
       try {
         state = applyBeforeCommitOperations(
           state,
@@ -703,6 +848,7 @@ export class TurnEngineManager {
 
       try {
         const previewRecord = previewTurnRecord(state, actions, null, effectiveEnemyCount);
+        this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
         const { nextState, committedRecord } = commitTurnRecord(state, previewRecord, [], {
           interruptOdLevel: interruptLevel ?? 0,
           enemyAttackTargetCharacterIds: scenarioTurn.enemyAttackTargetCharacterIds ?? [],
@@ -1124,7 +1270,179 @@ export class TurnEngineManager {
   }
 
   getReplayDiagnostics() {
-    return cloneReplayDiagnostics(this.#replayDiagnostics);
+    const diagnostics = cloneReplayDiagnostics(this.#replayDiagnostics);
+    diagnostics.turnWarnings = mergeTurnWarnings(
+      diagnostics.turnWarnings,
+      this.#buildAutoManualConsistencyTurnWarnings()
+    );
+    return diagnostics;
+  }
+
+  /**
+   * 自動ガイド（DP/HP累積由来の source:'auto' イベント）と操作履歴の乖離を
+   * ターン別の派生警告として導出する（保存JSON非対象）。
+   *
+   * 精度規則:
+   * - 敵ごとの auto ターンは全リストで保持し、比較先は「指定ターンより前で最も近い auto ターン」
+   *   （連戦の kill→summon→kill 列で最初の1件に固定されない）
+   * - 召喚警告は payload.targetEnemyIndex と同一スロットの討伐ガイドのみと比較する。
+   *   未指定（自動スロット解決）の召喚は関連付け不能のため警告対象外
+   * - 召喚が「auto kill の直後ターン」または「手動 kill の直後ターン」なら整合とみなす
+   *   （後者の乖離は手動 kill 警告側が表示するため二重警告にしない）
+   */
+  #buildAutoManualConsistencyTurnWarnings() {
+    const turns = Array.isArray(this.#replayScript?.turns) ? this.#replayScript.turns : [];
+    const records = Array.isArray(this.#computedRecords) ? this.#computedRecords : [];
+    if (turns.length === 0 || records.length === 0) {
+      return [];
+    }
+
+    const appendTurnToMap = (map, enemyIndex, turnIndex) => {
+      if (!map.has(enemyIndex)) {
+        map.set(enemyIndex, []);
+      }
+      const list = map.get(enemyIndex);
+      if (!list.includes(turnIndex)) {
+        list.push(turnIndex);
+      }
+    };
+
+    const autoBreakTurnsByEnemy = new Map();
+    const autoKillTurnsByEnemy = new Map();
+    records.forEach((record, turnIndex) => {
+      for (const action of Array.isArray(record?.actions) ? record.actions : []) {
+        for (const change of Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : []) {
+          if (String(change?.source ?? '') !== 'auto') {
+            continue;
+          }
+          const enemyIndex = Number(change?.targetIndex ?? change?.enemyIndex);
+          if (!Number.isInteger(enemyIndex) || enemyIndex < 0) {
+            continue;
+          }
+          const mode = String(change?.mode ?? '');
+          const statusType = String(change?.statusType ?? '');
+          if (mode === 'DownTurn' || /break|downturn/i.test(statusType)) {
+            appendTurnToMap(autoBreakTurnsByEnemy, enemyIndex, turnIndex);
+          }
+          if (mode === 'Dead' || /^dead$/i.test(statusType)) {
+            appendTurnToMap(autoKillTurnsByEnemy, enemyIndex, turnIndex);
+          }
+        }
+      }
+    });
+
+    if (autoBreakTurnsByEnemy.size === 0 && autoKillTurnsByEnemy.size === 0) {
+      return [];
+    }
+
+    // 召喚の整合判定用: 手動 kill 指定ターン（敵ごと）
+    const manualKillTurnsByEnemy = new Map();
+    turns.forEach((turn, turnIndex) => {
+      for (const override of normalizeActionOutcomeOverrides(turn?.actionOutcomeOverrides ?? [])) {
+        if (String(override?.outcome ?? '') !== ACTION_OUTCOME_TYPES.KILL) {
+          continue;
+        }
+        for (const enemyIndex of Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []) {
+          const normalizedEnemyIndex = Number(enemyIndex);
+          if (Number.isInteger(normalizedEnemyIndex) && normalizedEnemyIndex >= 0) {
+            appendTurnToMap(manualKillTurnsByEnemy, normalizedEnemyIndex, turnIndex);
+          }
+        }
+      }
+    });
+
+    const warningsByTurn = [];
+    const appendWarning = (turnIndex, message) => {
+      if (!Number.isInteger(turnIndex) || turnIndex < 0 || !message) {
+        return;
+      }
+      if (!Array.isArray(warningsByTurn[turnIndex])) {
+        warningsByTurn[turnIndex] = [];
+      }
+      warningsByTurn[turnIndex].push(message);
+    };
+
+    const nearestEarlierTurn = (list, beforeTurnIndex) => {
+      let nearest = null;
+      for (const candidate of list) {
+        if (candidate < beforeTurnIndex && (nearest === null || candidate > nearest)) {
+          nearest = candidate;
+        }
+      }
+      return nearest;
+    };
+
+    turns.forEach((turn, turnIndex) => {
+      for (const override of normalizeActionOutcomeOverrides(turn?.actionOutcomeOverrides ?? [])) {
+        const outcome = String(override?.outcome ?? '');
+        const targetMap =
+          outcome === ACTION_OUTCOME_TYPES.BREAK
+            ? autoBreakTurnsByEnemy
+            : outcome === ACTION_OUTCOME_TYPES.KILL
+              ? autoKillTurnsByEnemy
+              : null;
+        if (!targetMap) {
+          continue;
+        }
+        for (const enemyIndex of Array.isArray(override?.enemyIndexes) ? override.enemyIndexes : []) {
+          const normalizedEnemyIndex = Number(enemyIndex);
+          const autoTurns = targetMap.get(normalizedEnemyIndex) ?? [];
+          // 同一ターンの auto と手動は整合扱い（手動優先表示のみ）
+          if (autoTurns.includes(turnIndex)) {
+            continue;
+          }
+          const nearestAutoTurn = nearestEarlierTurn(autoTurns, turnIndex);
+          if (nearestAutoTurn === null) {
+            continue;
+          }
+          const label = outcome === ACTION_OUTCOME_TYPES.BREAK ? 'ブレイク' : '討伐';
+          appendWarning(
+            turnIndex,
+            `自動${label}ガイドは #${nearestAutoTurn + 1}、手動${label}指定は #${turnIndex + 1} です（E${normalizedEnemyIndex + 1}）。`
+          );
+        }
+      }
+
+      for (const operation of Array.isArray(turn?.operations) ? turn.operations : []) {
+        if (String(operation?.type ?? '') !== REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
+          continue;
+        }
+        const targetEnemyIndex = Number(
+          operation?.payload?.targetEnemyIndex ?? operation?.payload?.enemyIndex
+        );
+        if (!Number.isInteger(targetEnemyIndex) || targetEnemyIndex < 0) {
+          // スロット未指定（自動解決）の召喚は討伐ガイドと関連付けできないため警告しない
+          continue;
+        }
+        const autoTurns = autoKillTurnsByEnemy.get(targetEnemyIndex) ?? [];
+        if (autoTurns.length === 0) {
+          continue;
+        }
+        // auto kill / 手動 kill の直後ターンの召喚は整合
+        if (autoTurns.some((autoTurnIndex) => turnIndex === autoTurnIndex + 1)) {
+          continue;
+        }
+        const manualTurns = manualKillTurnsByEnemy.get(targetEnemyIndex) ?? [];
+        if (manualTurns.some((manualTurnIndex) => turnIndex === manualTurnIndex + 1)) {
+          continue;
+        }
+        const nearestEarlierKill = nearestEarlierTurn(autoTurns, turnIndex - 1);
+        if (nearestEarlierKill !== null) {
+          appendWarning(
+            turnIndex,
+            `召喚操作が自動討伐ガイド #${nearestEarlierKill + 1} より後にあります（E${targetEnemyIndex + 1}）。`
+          );
+        } else {
+          const nextAutoTurn = Math.min(...autoTurns.filter((autoTurnIndex) => autoTurnIndex >= turnIndex));
+          appendWarning(
+            turnIndex,
+            `召喚操作が自動討伐ガイド #${nextAutoTurn + 1} より前にあります（E${targetEnemyIndex + 1}）。`
+          );
+        }
+      }
+    });
+
+    return warningsByTurn;
   }
 
   buildTurnEditDraft(turnIndex) {
@@ -1248,6 +1566,10 @@ export class TurnEngineManager {
    */
   getStateBefore(turnIndex) {
     const rawBefore = this.#getBaseStateBefore(turnIndex);
+    return this.#buildStateBeforeForTurn(turnIndex, rawBefore);
+  }
+
+  #buildStateBeforeForTurn(turnIndex, rawBefore) {
     const turn = this.#replayScript?.turns?.[turnIndex];
 
     const hasSlots = Array.isArray(turn?.slots) && turn.slots.some((s) => s?.styleId != null);
@@ -1278,6 +1600,7 @@ export class TurnEngineManager {
     const scenarioTurn = this.#buildScenarioTurnFromOverrideEntries(turn?.overrideEntries ?? [], warnings);
     this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
     this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
+    this.#clearRemainingGaugesForSummonedSlots(state, turn?.operations);
     if (hasOperations) {
       try {
         const enemyCount = clampEnemyCount(
@@ -1384,7 +1707,7 @@ export class TurnEngineManager {
     };
   }
 
-  #buildEnemyReplayOverrideEntriesFromSnapshots(snapshot = {}, baselineSnapshot = {}) {
+  #buildEnemyReplayOverrideEntriesFromSnapshots(snapshot = {}, baselineSnapshot = {}, { force = false } = {}) {
     const entries = [];
     for (const [fieldName, type] of Object.entries(ENEMY_SNAPSHOT_OVERRIDE_FIELD_TO_TYPE)) {
       const hasSnapshotField = Object.prototype.hasOwnProperty.call(snapshot, fieldName);
@@ -1395,7 +1718,10 @@ export class TurnEngineManager {
       const baselinePayload = Object.prototype.hasOwnProperty.call(baselineSnapshot, fieldName)
         ? baselineSnapshot[fieldName]
         : undefined;
-      if (areDeepEqual(nextPayload, baselinePayload)) {
+      // force: 召喚などの snapshot-only operation を含むターンは、初期状態との差分が
+      // なくても全フィールドを記録する。差分最適化だと「召喚で Dead 解除 → statuses が
+      // 初期状態と同型に戻る」ケースで entry が出ず、再計算時に復活が再現されない。
+      if (!force && areDeepEqual(nextPayload, baselinePayload)) {
         continue;
       }
       entries.push({
@@ -1406,10 +1732,16 @@ export class TurnEngineManager {
     return entries;
   }
 
-  #buildTurnStartEnemyOverrideEntries(state) {
+  #buildTurnStartEnemyOverrideEntries(state, { force = false } = {}) {
     const snapshot = buildEnemyStateOverrideSnapshot(state?.turnState);
     const baselineSnapshot = buildEnemyStateOverrideSnapshot(this.#initialState?.turnState);
-    return this.#buildEnemyReplayOverrideEntriesFromSnapshots(snapshot, baselineSnapshot);
+    return this.#buildEnemyReplayOverrideEntriesFromSnapshots(snapshot, baselineSnapshot, { force });
+  }
+
+  #hasSnapshotOnlyOperations(operations = []) {
+    return (Array.isArray(operations) ? operations : []).some((operation) =>
+      SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES.has(String(operation?.type ?? ''))
+    );
   }
 
   #applyScenarioTurnEnemyOverrides(state, scenarioTurn = {}) {
@@ -1420,7 +1752,13 @@ export class TurnEngineManager {
     if (Object.keys(snapshot).length === 0) {
       return state;
     }
-    applyEnemyStateOverrideSnapshot(state.turnState, snapshot);
+    applyEnemyStateOverrideSnapshot(
+      state.turnState,
+      snapshot,
+      this.#isComparisonRecalculation
+        ? { preserveCurrentStatusPredicate: (status) => isComparisonExcludedEnemyStatus(status?.statusType) }
+        : {}
+    );
     return state;
   }
 
@@ -1463,6 +1801,41 @@ export class TurnEngineManager {
     return (Array.isArray(operations) ? operations : [])
       .filter((operation) => !SCENARIO_SNAPSHOT_ONLY_OPERATION_TYPES.has(String(operation?.type ?? '')))
       .map((operation) => structuredClone(operation));
+  }
+
+  /**
+   * 召喚（snapshot-only operation）でスロットの敵が差し替わるターンでは、
+   * 前の敵の残DP/残HP（派生追跡値・保存対象外）を破棄して最大値からの再導出に戻す。
+   * commit 経路では turn-operations 側の適用が行うが、再計算経路は召喚を
+   * override entries で再現するため、ここで明示的に破棄する必要がある。
+   */
+  #clearRemainingGaugesForSummonedSlots(state, operations = []) {
+    const enemyState = state?.turnState?.enemyState;
+    if (!enemyState || typeof enemyState !== 'object') {
+      return;
+    }
+    for (const operation of Array.isArray(operations) ? operations : []) {
+      if (String(operation?.type ?? '') !== REPLAY_OPERATION_TYPES.SUMMON_ENEMY) {
+        continue;
+      }
+      const targetEnemyIndex = Number(
+        operation?.payload?.targetEnemyIndex ?? operation?.payload?.enemyIndex
+      );
+      for (const remainingKey of ['remainingDpByEnemy', 'remainingHpByEnemy']) {
+        const remainingMap = enemyState[remainingKey];
+        if (!remainingMap || typeof remainingMap !== 'object') {
+          continue;
+        }
+        if (Number.isInteger(targetEnemyIndex) && targetEnemyIndex >= 0) {
+          delete remainingMap[String(targetEnemyIndex)];
+        } else {
+          // スロット未指定の召喚は対象が状態依存のため、全スロットを再導出に戻す
+          for (const key of Object.keys(remainingMap)) {
+            delete remainingMap[key];
+          }
+        }
+      }
+    }
   }
 
   #filterSnapshotOnlyOperations(operations = []) {
@@ -1525,7 +1898,9 @@ export class TurnEngineManager {
       draft.operations,
       draft.enemyCount
     );
-    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(replayEnemySnapshotState);
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(replayEnemySnapshotState, {
+      force: this.#hasSnapshotOnlyOperations(draft.operations),
+    });
     return normalizeLightweightReplayTurn({
       turn: draft.turn,
       slots: draft.slots,
@@ -1791,6 +2166,7 @@ export class TurnEngineManager {
       this.#alignPositionsToSlots(state, turn);
       this.#applyScenarioTurnPlayerOverrides(state, scenarioTurn);
       this.#applyScenarioTurnEnemyOverrides(state, scenarioTurn);
+      this.#clearRemainingGaugesForSummonedSlots(state, turn.operations);
       const enemyCount = clampEnemyCount(
         scenarioTurn.enemyCount ?? state?.turnState?.enemyState?.enemyCount ?? DEFAULT_ENEMY_COUNT
       );
@@ -1858,6 +2234,7 @@ export class TurnEngineManager {
         onWarning: (message) => warnings.push(String(message)),
       });
       this.#appendPreviewResourceWarnings(previewRecord, warnings);
+      this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
 
       const odGaugeAfter = Number(previewRecord?.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);
       const requiredInterruptGauge = interruptLevel != null ? getOdGaugeRequirement(interruptLevel) : 0;
@@ -2092,6 +2469,103 @@ export class TurnEngineManager {
     return operations;
   }
 
+  #buildAttackerInputForMember(member) {
+    const role = String(member?.role ?? 'Attacker');
+    const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+    const stats =
+      normalizeCharacterStats(member?.stats)
+      ?? resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats);
+    return { role, limitBreakCount, ...stats };
+  }
+
+  /**
+   * previewRecord.actions に per-hit DP/HPダメージ（ガイド導出値）を付与する。
+   *
+   * damageContext は commit 計算内でのみ構築されるため、クローン状態への probe commit で取得する。
+   * 計算データ未設定・対象ゲージ敵なし・probe 失敗時は何もせず従来挙動を維持する。
+   * 付与値は派生値であり、replayScript（保存JSON）には書き込まれない。
+   * DP（perHitDpDamageByEnemy: 破壊率乗算除外）と HP（perHitHpDamageByEnemy: 破壊率乗算）を
+   * 同一 probe から導出することで、probe commit のコストを1回に抑える。
+   */
+  #enrichPreviewRecordWithDpDamage(state, previewRecord) {
+    const data = this.#damageCalculationData;
+    const actions = previewRecord?.actions;
+    if (!data || !Array.isArray(actions) || actions.length === 0) {
+      return;
+    }
+    const enemyDpByEnemy = state?.turnState?.enemyState?.enemyDpByEnemy ?? {};
+    const enemyHpByEnemy = state?.turnState?.enemyState?.enemyHpByEnemy ?? {};
+    const hasDpGauge = Object.values(enemyDpByEnemy).some((value) => Number(value) > 0);
+    const hasHpTracking = Object.values(enemyHpByEnemy).some((value) => Number(value) > 0);
+    if (!hasDpGauge && !hasHpTracking) {
+      return;
+    }
+    let probeActions = null;
+    try {
+      const probe = commitTurnRecord(
+        this.#cloneWorkingState(state),
+        structuredClone(previewRecord),
+        [],
+        { interruptOdLevel: 0 }
+      );
+      probeActions = probe?.committedRecord?.actions ?? null;
+    } catch {
+      return;
+    }
+    if (!Array.isArray(probeActions)) {
+      return;
+    }
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      // 明示的に指定済みの perHit*DamageByEnemy は尊重する
+      if (!action || (action.perHitDpDamageByEnemy && action.perHitHpDamageByEnemy)) {
+        continue;
+      }
+      const probeAction = probeActions[i];
+      if (
+        !probeAction?.damageContext ||
+        String(probeAction.characterId ?? '') !== String(action.characterId ?? '') ||
+        Number(probeAction.skillId ?? 0) !== Number(action.skillId ?? 0)
+      ) {
+        continue;
+      }
+      const member = (state?.party ?? []).find(
+        (candidate) => String(candidate?.characterId ?? '') === String(action.characterId ?? '')
+      );
+      if (!member) {
+        continue;
+      }
+      const attackerInput = this.#buildAttackerInputForMember(member);
+      const hitCount = Number(probeAction.skillHitCount ?? 0) || null;
+      if (hasDpGauge && !action.perHitDpDamageByEnemy) {
+        const dpDamageByEnemy = resolvePerHitDpDamageByEnemy({
+          damageContext: probeAction.damageContext,
+          attackerInput,
+          enemyDpByEnemy,
+          hitCount,
+          data,
+        });
+        if (dpDamageByEnemy) {
+          action.perHitDpDamageByEnemy = dpDamageByEnemy.perHitDpDamageByEnemy;
+          action.totalDpDamageByEnemy = dpDamageByEnemy.totalDpDamageByEnemy;
+        }
+      }
+      if (hasHpTracking && !action.perHitHpDamageByEnemy) {
+        const hpDamageByEnemy = resolvePerHitHpDamageByEnemy({
+          damageContext: probeAction.damageContext,
+          attackerInput,
+          enemyHpByEnemy,
+          hitCount,
+          data,
+        });
+        if (hpDamageByEnemy) {
+          action.perHitHpDamageByEnemy = hpDamageByEnemy.perHitHpDamageByEnemy;
+          action.totalHpDamageByEnemy = hpDamageByEnemy.totalHpDamageByEnemy;
+        }
+      }
+    }
+  }
+
   #previewResolvedTurn(
     state,
     slotActions = {},
@@ -2119,6 +2593,7 @@ export class TurnEngineManager {
         allowSkillConditionMismatch: this.#validationPolicy.allowSkillConditionMismatch,
         onWarning: (message) => warnings.push(String(message)),
       });
+      this.#enrichPreviewRecordWithDpDamage(state, previewRecord);
       let previewActionFlowRecord = previewRecord;
       let projectedState = null;
       try {
@@ -2515,7 +2990,9 @@ export class TurnEngineManager {
       };
     });
     const normalizedEnemyCount = clampEnemyCount(enemyCount);
-    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(options.enemyOverrideState ?? state);
+    const enemyOverrideEntries = this.#buildTurnStartEnemyOverrideEntries(options.enemyOverrideState ?? state, {
+      force: this.#hasSnapshotOnlyOperations(operations),
+    });
     const normalizedActionOutcomeOverrides = this.#normalizeActionOutcomeOverridesForState(
       state,
       slotActions,

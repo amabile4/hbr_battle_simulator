@@ -36,6 +36,8 @@ import {
 } from '../utils/action-outcome-overrides.js';
 import {
   buildAutoBreakChipModels,
+  buildDpAutoBreakChipModels,
+  buildHpAutoKillChipModels,
   buildManualHpBreakChipModels,
   buildManualBreakChipModels,
   buildManualKillChipModels,
@@ -2474,6 +2476,7 @@ export class TurnRowController {
   #buildManualBreakChipsHtml(isCommitted) {
     const members = this.#getMembersInPositionOrder().filter((member) => member.position <= 2);
     const enemyNamesByEnemy = this.#getEnemyNamesByEnemy();
+    const actionsForChips = this.#getActionsForAutoBreakChips(isCommitted);
     const manualChipModels = buildManualBreakChipModels({
       overrides: this.#getCurrentActionOutcomeOverridesForDisplay(isCommitted),
       members,
@@ -2481,12 +2484,18 @@ export class TurnRowController {
       enemyNamesByEnemy,
     });
     const autoChipModels = buildAutoBreakChipModels({
-      actions: this.#getActionsForAutoBreakChips(isCommitted),
+      actions: actionsForChips,
       members,
       store: this.#store,
       enemyNamesByEnemy,
     });
-    if (manualChipModels.length === 0 && autoChipModels.length === 0) {
+    const dpAutoChipModels = buildDpAutoBreakChipModels({
+      actions: actionsForChips,
+      members,
+      store: this.#store,
+      enemyNamesByEnemy,
+    });
+    if (manualChipModels.length === 0 && autoChipModels.length === 0 && dpAutoChipModels.length === 0) {
       return '';
     }
     const manualHtml = manualChipModels.map((chip) => `
@@ -2503,9 +2512,24 @@ export class TurnRowController {
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
         `).join('');
+    // 未コミット行は「予測（未確定）」であることを破線スタイルとラベルで区別する
+    const dpAutoHtml = dpAutoChipModels.map((chip) => (isCommitted ? `
+          <span data-role="dp-auto-break-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold leading-tight text-sky-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        ` : `
+          <span data-role="dp-auto-break-chip"
+                data-preview="true"
+                title="予測: ${chip.label}"
+                class="dp-auto-break-chip--preview inline-flex max-w-full items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-xs font-semibold leading-tight text-sky-700">
+            <span class="max-w-full break-all">予測: ${chip.label}</span>
+          </span>
+        `)).join('');
     return `
       <div data-role="manual-break-chip-list" class="flex flex-wrap gap-1 pb-1">
-        ${manualHtml}${autoHtml}
+        ${manualHtml}${autoHtml}${dpAutoHtml}
       </div>
     `;
   }
@@ -2530,7 +2554,27 @@ export class TurnRowController {
       store: this.#store,
       enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
     });
-    if (chipModels.length === 0) return '';
+    const hpAutoChipModels = buildHpAutoKillChipModels({
+      actions: this.#getActionsForAutoBreakChips(isCommitted),
+      members: this.#getMembersInPositionOrder().filter((member) => member.position <= 2),
+      store: this.#store,
+      enemyNamesByEnemy: this.#getEnemyNamesByEnemy(),
+    });
+    if (chipModels.length === 0 && hpAutoChipModels.length === 0) return '';
+    const hpAutoHtml = hpAutoChipModels.map((chip) => (isCommitted ? `
+          <span data-role="hp-auto-kill-chip"
+                title="${chip.label}"
+                class="inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold leading-tight text-emerald-700">
+            <span class="max-w-full break-all">${chip.label}</span>
+          </span>
+        ` : `
+          <span data-role="hp-auto-kill-chip"
+                data-preview="true"
+                title="予測: ${chip.label}"
+                class="dp-auto-break-chip--preview inline-flex max-w-full items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold leading-tight text-emerald-700">
+            <span class="max-w-full break-all">予測: ${chip.label}</span>
+          </span>
+        `)).join('');
     return `
       <div data-role="kill-chip-list" class="flex flex-wrap gap-1 pb-1">
         ${chipModels.map((chip) => `
@@ -2539,7 +2583,7 @@ export class TurnRowController {
                 class="inline-flex max-w-full items-center rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold leading-tight text-green-700">
             <span class="max-w-full break-all">${chip.label}</span>
           </span>
-        `).join('')}
+        `).join('')}${hpAutoHtml}
       </div>
     `;
   }
@@ -3646,6 +3690,11 @@ export class TurnRowController {
       const max_d_rate = enemyState.destructionRateCapByEnemy?.[enemyKey] ?? null;
       const damageRates = enemyState.damageRatesByEnemy?.[enemyKey] ?? null;
       const absorbElements = enemyState.absorbElementsByEnemy?.[enemyKey] ?? null;
+      const dpMax = enemyState.enemyDpByEnemy?.[enemyKey] ?? null;
+      const dpCurrent = enemyState.remainingDpByEnemy?.[enemyKey] ?? null;
+      const hpMax = enemyState.enemyHpByEnemy?.[enemyKey] ?? null;
+      const hpCurrent = enemyState.remainingHpByEnemy?.[enemyKey] ?? null;
+      const destructionRateCurrent = enemyState.destructionRateByEnemy?.[enemyKey] ?? null;
       const hasDisplayedEShieldState = Object.prototype.hasOwnProperty.call(displayedEShieldStateByEnemy, enemyKey);
       const eShieldState = hasDisplayedEShieldState
         ? displayedEShieldStateByEnemy[enemyKey]
@@ -3698,6 +3747,11 @@ export class TurnRowController {
         ...(absorbElements ? { absorbElements: structuredClone(absorbElements) } : {}),
         ...(eShieldState ? { eShieldState: structuredClone(eShieldState) } : {}),
         ...(extraHpGaugeState ? { extraHpGaugeState: structuredClone(extraHpGaugeState) } : {}),
+        ...(dpMax !== null ? { dpMax } : {}),
+        ...(dpCurrent !== null ? { dpCurrent } : {}),
+        ...(hpMax !== null ? { hpMax } : {}),
+        ...(hpCurrent !== null ? { hpCurrent } : {}),
+        ...(destructionRateCurrent !== null ? { destructionRateCurrent } : {}),
       };
     });
 
@@ -4529,6 +4583,12 @@ export class TurnRowController {
     const editBadgeHtml = isEditMode
       ? '<span class="turn-info-status-chip turn-info-status-chip-edit">編集中</span>'
       : '';
+    const warningMessageHtml = warningCount > 0
+      ? `<div data-role="turn-row-warning-message"
+              class="pt-0.5 text-[9px] font-semibold text-amber-700 leading-tight">
+           ${this.#rowDiagnostics.warnings.map((warning) => `<div>${escapeHtml(warning)}</div>`).join('')}
+         </div>`
+      : '';
 
     if (!isCommitted) {
       // 未コミット行: stateBefore の turnState から OD / EX 状態を先読みする
@@ -4572,6 +4632,7 @@ export class TurnRowController {
           ${this.#rowDiagnostics.error
             ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
             : ''}
+          ${warningMessageHtml}
         </div>`;
     }
 
@@ -4610,6 +4671,7 @@ export class TurnRowController {
         ${this.#rowDiagnostics.error
           ? `<div class="pt-0.5 text-[9px] font-semibold text-red-700 leading-tight">${this.#rowDiagnostics.error}</div>`
           : ''}
+        ${warningMessageHtml}
         ${allEnemiesDefeated
           ? `<div data-role="turn-info-battle-end-row" class="w-full">
                <div data-role="turn-info-battle-end"
@@ -5609,6 +5671,11 @@ export class TurnRowController {
             enemyDestructionState: {
               destructionRateByEnemy: this.#stateAfter?.turnState?.enemyState?.destructionRateByEnemy ?? {},
               destructionRateCapByEnemy: this.#stateAfter?.turnState?.enemyState?.destructionRateCapByEnemy ?? {},
+              remainingDpByEnemy: this.#stateAfter?.turnState?.enemyState?.remainingDpByEnemy ?? {},
+              enemyDpByEnemy: this.#stateAfter?.turnState?.enemyState?.enemyDpByEnemy ?? {},
+              remainingHpByEnemy: this.#stateAfter?.turnState?.enemyState?.remainingHpByEnemy ?? {},
+              enemyHpByEnemy: this.#stateAfter?.turnState?.enemyState?.enemyHpByEnemy ?? {},
+              extraHpGaugeStateByEnemy: this.#stateAfter?.turnState?.enemyState?.extraHpGaugeStateByEnemy ?? {},
             },
           }
         );

@@ -93,6 +93,47 @@ test('calculateDestruction treats dp=0 zero-damage hits as post-break destructio
   assertAlmostEqual(result.breakdown.finalBaseDestruction, 1.5, 'alreadyBrokenZeroDamage.finalBaseDestruction');
 });
 
+test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+33.3%になる', () => {
+  // SP=10, DR倍率=10 → bg30=1.0, finalBaseDestruction=1.0 の設定
+  // DP=4,550,000、1ヒット650,000ダメージ → 7発目(index 6)で累積4,550,000≥DP → ブレイク
+  // 貢献ヒット: index 6(ブレイクヒット), 7, 8 = 3ヒット
+  // DR加算 = 3 × (1.0/9) = 1/3 ≈ 33.33%（実機では端数処理の差異で+32.6%になる）
+  const data = {
+    styles: [{ id: 1, role: 'Attacker' }],
+    enemies: [],
+    skills: [
+      {
+        id: 9001,
+        name: 'テスト9ヒット',
+        hit_count: 9,
+        sp_cost: 10,
+        parts: [{ skill_type: 'AttackSkill', multipliers: { dr: 10 } }],
+      },
+    ],
+  };
+
+  const input = {
+    attacker: { styleId: 1 },
+    defender: {
+      destructionRate: 1.0,
+      destructionLimit: 5.0,
+      destructionMultiplier: 1.0,
+      dp: 4550000,
+    },
+    skill: { skillId: 9001, name: 'テスト9ヒット' },
+    hits: Array.from({ length: 9 }, () => ({ damage: 650000 })),
+    autoBreak: true,
+  };
+
+  const result = calculateDestruction(input, data);
+
+  assertAlmostEqual(
+    result.destructionRate - 1.0,
+    1 / 3,
+    '9hit autoBreak DR加算(計算値+33.3%)'
+  );
+});
+
 test('calculateDestruction resolves role, accessory, and limit exceedance bonuses', () => {
   const data = {
     styles: [{ id: 2, role: 'Blaster' }],
@@ -183,4 +224,53 @@ test('calculateDestruction resolves flatDestructionRateBonus', () => {
   const res = calculateDestruction(input, data);
   assertAlmostEqual(res.breakdown.baseDestruction, 1.1, 'baseDestruction');
   assertAlmostEqual(res.breakdown.flatDestructionRateBonus, 0.10, 'flatDestructionRateBonus');
+});
+
+test('calculateDestruction: resolveEffectPower regression test for DestructionUp buff', () => {
+  const data = {
+    styles: [{ id: 2, role: 'Blaster' }],
+    enemies: [],
+    skills: [
+      {
+        id: 46001361,
+        name: 'Test Destruction Skill',
+        parts: [
+          {
+            skill_type: 'DestructionUp',
+            power: [0.20, 0.35],
+            diff_for_max: 132,
+            parameters: { wis: 1, luk: 2 },
+            growth: [0.0, 0.0]
+          }
+        ]
+      }
+    ]
+  };
+
+  const input = {
+    attacker: {
+      styleId: 2,
+      statusEffects: [
+        {
+          statusType: 'DestructionUp',
+          sourceSkillId: 46001361,
+          skillLevel: 10,
+          orbLevel: 1,
+          providerStats: { wis: 600, luk: 600 },
+        }
+      ]
+    },
+    defender: {
+      destructionRate: 1.0,
+      destructionLimit: 3.0,
+      destructionMultiplier: 1.0,
+      dp: 0,
+    },
+    skill: { name: '通常攻撃' },
+    hits: [{ damage: 100 }],
+    autoBreak: true,
+  };
+
+  const result = calculateDestruction(input, data);
+  assertAlmostEqual(result.breakdown.buffMultiplier, 0.39676, 'DestructionUp resolvedPower regression');
 });

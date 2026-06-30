@@ -40,6 +40,7 @@ import {
   createJsonDataCacheContext,
   fetchJsonWithCache,
 } from './utils/json-cache.js';
+import { loadDamageCalculationData } from './utils/damage-calculation-data.js';
 
 const UI_NEXT_READY_FLAG_KEY = '__UI_NEXT_READY__';
 const UI_NEXT_BOOT_METRICS_KEY = '__UI_NEXT_BOOT_METRICS__';
@@ -571,6 +572,7 @@ function loadSessionText({
   text,
   initialSetup,
   battleStateManager,
+  turnEngineManager,
   turnArea,
 }) {
   const session = normalizeSessionSnapshot(JSON.parse(text));
@@ -586,6 +588,18 @@ function loadSessionText({
     session.simulatorSettings,
     session.validationPolicy,
   );
+  scheduleDeferredTask(async () => {
+    try {
+      const damageCalculationData = await loadDamageCalculationData();
+      turnEngineManager?.setDamageCalculationData(damageCalculationData);
+      if (turnEngineManager?.committedTurnCount > 0) {
+        turnEngineManager.recalculateFrom(0);
+        turnArea.refreshRows();
+      }
+    } catch (error) {
+      console.error('Failed to refresh damage guide after session load:', error);
+    }
+  }, 0);
   initialSetup.setHasActiveBattle(true);
   initialSetup.setHasRecords(session.replayScript.turns.length > 0);
   window.collapseSetup?.();
@@ -856,6 +870,7 @@ function setupWorkspaceShell() {
       sessionSave: document.querySelector('#session-save-btn'),
       sessionLoad: document.querySelector('#session-load-btn'),
       sessionLoadInput: document.querySelector('#session-load-input'),
+      comparisonToggle: document.querySelector('#toggle-comparison-view'),
     },
   };
 }
@@ -1003,12 +1018,18 @@ async function main() {
         // 直近3ヶ月フィルタを完全に無効化して全ボスを選択可能にする。
         // 本番利用時は未設定のため実挙動は変わらない。
         const disableRecentMonthsFilter = Boolean(window.__HBR_TEST_DISABLE_RECENT_MONTHS_FILTER__);
+        battleStateManager.setEnemyCatalog(rawEnemies);
         const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
           enemyEShieldOverrides: store.enemyEShieldOverrides,
           disableRecentMonthsFilter,
         });
         initialSetup.setEnemies(enemyPresets);
         turnArea.setEnemyPresets(enemyPresets);
+        const snapshot = initialSetup.getCurrentSetupSnapshot();
+        if (snapshot?.party?.isFrontFilled && turnEngineManager.committedTurnCount > 0) {
+          const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
+          turnArea.reinitialize(state, snapshot.simulatorSettings);
+        }
       } catch (error) {
         console.error('Failed to hydrate enemy presets:', error);
       }
@@ -1021,6 +1042,24 @@ async function main() {
         initialSetup.setDimensionBattles(dimensionBattles);
       } catch (error) {
         console.error('Failed to hydrate stage presets:', error);
+      }
+    }, 0);
+
+    // DPダメージガイド用の計算データを TurnEngineManager に注入する。
+    // 起動時のレンダリングをブロックしないよう遅延ロードする。
+    // 失敗時はガイドなしのまま続行（アプリを止めない）。
+    scheduleDeferredTask(async () => {
+      try {
+        const damageCalculationData = await loadDamageCalculationData();
+        turnEngineManager.setDamageCalculationData(damageCalculationData);
+        // セッションロード直後など既にターンが存在する場合は再計算して DP を反映する。
+        // recalculateFrom はエンジン内部状態のみ更新するため、完了後に UI の再描画も行う。
+        if (turnEngineManager.committedTurnCount > 0) {
+          turnEngineManager.recalculateFrom(0);
+          turnArea.refreshRows();
+        }
+      } catch (error) {
+        console.error('Failed to load damage calculation data for DP guide:', error);
       }
     }, 0);
 
@@ -1096,6 +1135,7 @@ async function main() {
           text,
           initialSetup,
           battleStateManager,
+          turnEngineManager,
           turnArea,
         });
       } catch (err) {
@@ -1113,6 +1153,15 @@ async function main() {
       });
       usedSkillsOverlay.setRows(rows);
       usedSkillsOverlay.toggle();
+    });
+
+    // 一時比較ビュー: 手動ブレイク/討伐指定の一括無効化トグル（ビュー状態のみ・保存JSON非対象）
+    workspaceShell.buttons.comparisonToggle?.addEventListener('click', () => {
+      const nextEnabled = !turnArea.comparisonMode;
+      turnArea.setComparisonMode(nextEnabled);
+      const button = workspaceShell.buttons.comparisonToggle;
+      button.setAttribute('aria-pressed', String(nextEnabled));
+      button.classList.toggle('workspace-toolbar__button--active', nextEnabled);
     });
 
     bootProfiler.mark('main:ready');

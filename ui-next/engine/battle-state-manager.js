@@ -234,6 +234,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     currentHp: enemySetup?.currentHp,
     param_border: enemySetup?.param_border,
     dp: enemySetup?.dp,
+    hp: enemySetup?.hp,
     od_rate: enemySetup?.od_rate,
     max_d_rate: enemySetup?.max_d_rate,
     d_rate: enemySetup?.d_rate,
@@ -267,11 +268,35 @@ function resolveEnemySlotDp(slot = {}, dataStore = null) {
     return direct;
   }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
-  const enemy = Array.isArray(dataStore?.enemies)
-    ? dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId)
-    : null;
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseDp = Number(enemy?.base_param?.dp ?? enemy?.dp);
   return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
+}
+
+// maxHP は保存対象外（操作イベント正本の方針）。slot 直接値またはenemies.json から再導出する。
+function resolveEnemySlotHp(slot = {}, dataStore = null) {
+  const direct = Number(slot?.hp);
+  if (Number.isFinite(direct) && direct >= 0) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
+  const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
+  return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
+}
+
+function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
+  if (!Number.isFinite(selectedEnemyId)) {
+    return null;
+  }
+  if (typeof dataStore?.enemiesById?.get === 'function') {
+    const found = dataStore.enemiesById.get(selectedEnemyId);
+    if (found) return found;
+  }
+  if (Array.isArray(dataStore?.enemies)) {
+    return dataStore.enemies.find((candidate) => Number(candidate?.id) === selectedEnemyId) ?? null;
+  }
+  return null;
 }
 
 function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
@@ -305,6 +330,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
         ? Number(slot.param_border)
         : DEFAULT_ENEMY_PARAM_BORDER,
       dp: resolveEnemySlotDp(slot, dataStore),
+      hp: resolveEnemySlotHp(slot, dataStore),
       rates: buildEnemyDamageRates(slot),
       absorbElements: buildEnemyAbsorbElements(slot),
       maxDestructionRate,
@@ -332,6 +358,9 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     enemyDpByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), slotState.dp])
     ),
+    enemyHpByEnemy: Object.fromEntries(
+      slotStates.map((slotState, index) => [String(index), slotState.hp])
+    ),
     damageRatesByEnemy: Object.fromEntries(
       slotStates.map((slotState, index) => [String(index), { ...slotState.rates }])
     ),
@@ -349,13 +378,15 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     ),
     eShieldStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.eShieldState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.eShieldState)])
+        .map((slotState, index) => [index, slotState.eShieldState])
+        .filter(([, eShieldState]) => Boolean(eShieldState))
+        .map(([index, eShieldState]) => [String(index), structuredClone(eShieldState)])
     ),
     extraHpGaugeStateByEnemy: Object.fromEntries(
       slotStates
-        .filter((slotState) => Boolean(slotState.extraHpGaugeState))
-        .map((slotState, index) => [String(index), structuredClone(slotState.extraHpGaugeState)])
+        .map((slotState, index) => [index, slotState.extraHpGaugeState])
+        .filter(([, extraHpGaugeState]) => Boolean(extraHpGaugeState))
+        .map(([index, extraHpGaugeState]) => [String(index), structuredClone(extraHpGaugeState)])
     ),
   };
 }
@@ -380,6 +411,8 @@ function buildPreemptiveZoneState(enemySetup) {
  */
 export class BattleStateManager {
   #store;
+  #enemyCatalog = [];
+  #enemyCatalogById = new Map();
   #state = null;
   #party = null;
   #isDirty = false;
@@ -395,6 +428,24 @@ export class BattleStateManager {
 
   markDirty() {
     this.#isDirty = true;
+  }
+
+  setEnemyCatalog(enemies = []) {
+    this.#enemyCatalog = Array.isArray(enemies) ? enemies : [];
+    this.#enemyCatalogById = new Map(
+      this.#enemyCatalog.map((enemy) => [Number(enemy?.id), enemy])
+    );
+  }
+
+  #getEnemyDataSource() {
+    if (this.#enemyCatalog.length === 0) {
+      return this.#store;
+    }
+    return {
+      ...this.#store,
+      enemies: this.#enemyCatalog,
+      enemiesById: this.#enemyCatalogById,
+    };
   }
 
   /**
@@ -477,7 +528,7 @@ export class BattleStateManager {
     );
 
     const preemptiveZoneState = buildPreemptiveZoneState(enemySetup);
-    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#store);
+    const enemyStateOverrides = buildEnemyStateOverrides(enemySetup, this.#getEnemyDataSource());
 
     const result = createInitializedBattleSnapshot({
       dataStore: this.#store,
@@ -506,6 +557,7 @@ export class BattleStateManager {
       enemyNamesByEnemy: enemyStateOverrides.enemyNamesByEnemy,
       paramBorderByEnemy: enemyStateOverrides.paramBorderByEnemy,
       enemyDpByEnemy: enemyStateOverrides.enemyDpByEnemy,
+      enemyHpByEnemy: enemyStateOverrides.enemyHpByEnemy,
       damageRatesByEnemy: enemyStateOverrides.damageRatesByEnemy,
       destructionRateByEnemy: {},
       destructionRateCapByEnemy: enemyStateOverrides.destructionRateCapByEnemy,

@@ -348,6 +348,17 @@ function collectAttackBuffContributions(input, targetContext) {
     );
   }
 
+  const transcendenceBurstAttackUpRate = toFiniteNumber(input?.transcendenceBurstAttackUpRate, 0);
+  if (transcendenceBurstAttackUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト 攻撃力',
+        value: transcendenceBurstAttackUpRate,
+        iconStatusType: 'AttackUp',
+      })
+    );
+  }
+
   for (const contribution of cloneArray(input?.accessoryContributions)) {
     const value = toFiniteNumber(contribution?.value ?? contribution?.rate, 0);
     if (value !== 0) {
@@ -362,6 +373,7 @@ function collectAttackBuffContributions(input, targetContext) {
     toFiniteNumber(input?.babiedSkillAttackUpRate, 0) +
     toFiniteNumber(input?.divaSkillAttackUpRate, 0) +
     toFiniteNumber(input?.markAttackUpRate, 0) +
+    transcendenceBurstAttackUpRate +
     toFiniteNumber(input?.attackUpPerTokenRate, 0);
   const missingAttackUpRate = toFiniteNumber(input?.attackUpRate, 0) - representedAttackUp;
   if (missingAttackUpRate > 0) {
@@ -392,7 +404,22 @@ function collectCritMindEyeContributions(input) {
   for (const effect of criticalDamageEffects) {
     contributions.push(createRateContribution(effect));
   }
-  const representedCriticalDamageUp = sumValues(criticalDamageEffects.map((effect) => createRateContribution(effect)));
+  const transcendenceBurstCriticalDamageUpRate = toFiniteNumber(
+    input?.transcendenceBurstCriticalDamageUpRate,
+    0
+  );
+  if (transcendenceBurstCriticalDamageUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト クリティカル威力',
+        value: transcendenceBurstCriticalDamageUpRate,
+        iconStatusType: 'CriticalDamageUp',
+      })
+    );
+  }
+  const representedCriticalDamageUp =
+    sumValues(criticalDamageEffects.map((effect) => createRateContribution(effect))) +
+    transcendenceBurstCriticalDamageUpRate;
   const missingCriticalDamageUpRate = toFiniteNumber(input?.criticalDamageUpRate, 0) - representedCriticalDamageUp;
   if (missingCriticalDamageUpRate > 0) {
     contributions.push(
@@ -581,7 +608,22 @@ export function buildCriticalRateBreakdown(input = {}) {
   for (const effect of criticalRateEffects) {
     contributions.push(createRateContribution(effect));
   }
-  const representedCriticalRateUp = sumValues(criticalRateEffects.map((effect) => createRateContribution(effect)));
+  const transcendenceBurstCriticalRateUpRate = toFiniteNumber(
+    input?.transcendenceBurstCriticalRateUpRate,
+    0
+  );
+  if (transcendenceBurstCriticalRateUpRate !== 0) {
+    contributions.push(
+      createStaticContribution({
+        label: '超越バースト クリティカル率',
+        value: transcendenceBurstCriticalRateUpRate,
+        iconStatusType: 'CriticalRateUp',
+      })
+    );
+  }
+  const representedCriticalRateUp =
+    sumValues(criticalRateEffects.map((effect) => createRateContribution(effect))) +
+    transcendenceBurstCriticalRateUpRate;
   const missingCriticalRateUpRate = toFiniteNumber(input?.criticalRateUpRate, 0) - representedCriticalRateUp;
   if (missingCriticalRateUpRate > 0) {
     contributions.push(

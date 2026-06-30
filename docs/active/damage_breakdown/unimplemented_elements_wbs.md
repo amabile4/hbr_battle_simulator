@@ -40,9 +40,9 @@
 
 | 要素 | フィールド | 分類 | 備考 |
 |---|---|---|---|
-| 全能力ダウン合算値 | `enemyAllAbilityDownByEnemy` | **B** | `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。効果は敵の防御ステータスを-N引き下げるもので、倍率ではない。2026-06-07 に `buildDamageCalculationInput` で `defender.paramBorder - penalty` へ接続済み。倍率内訳表示は stat delta / 表示設計後に対応 |
+| 全能力ダウン合算値 | `enemyAllAbilityDownByEnemy` | **B** | `buildEnemyAllAbilityPenaltyMaps` 内で Hacking / Talisman / Disaster のうち高い方を採用した合算値。Hacking は固定100。効果は敵の防御ステータスを-N引き下げるもので、倍率ではない。2026-06-07 に `buildDamageCalculationInput` で `defender.paramBorder - penalty` へ接続済み。倍率内訳表示は stat delta / 表示設計後に対応 |
 | タリスマンレベル | `enemyTalismanLevelByEnemy` | **B** | 全能力ダウンの source level として `damageContext` に保持済み。絶対ステータス追跡と差分計算の実装後に内訳表示を再検討する |
-| 災難レベル | `enemyDisasterLevelByEnemy` | **B** | 同上。Talisman/Disaster のうち高い方のみが採用されるため、将来の差分計算では `enemyAllAbilityDownByEnemy` と併せて扱う |
+| 災難レベル | `enemyDisasterLevelByEnemy` | **B** | 同上。Hacking/Talisman/Disaster のうち高い方のみが採用されるため、将来の差分計算では `enemyAllAbilityDownByEnemy` と併せて扱う |
 
 ## 4. DP条件詳細
 
@@ -108,6 +108,6 @@
 ## 協議記録（2026-05-31）
 
 - `attackUpRate` はスキルバフ AttackUp / markAttackUp / attackUpPerToken / babied / diva / food の **合算値** であり、これをそのまま表示すると既表示済み項目との二重計上が発生する。表示対象から除外することを Claude / Codex 双方で確認。
-- `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Talisman / Disaster のうち高い方を採用した合算値。これは倍率ではなく敵の防御ステータスを-N引き下げる値であり、2026-06-07 に計算入力では `paramBorder` 補正として接続した。威力詳細の倍率内訳には引き続き表示しない。
+- `enemyAllAbilityDownByEnemy` は `buildEnemyAllAbilityPenaltyMaps` 内で Hacking / Talisman / Disaster のうち高い方を採用した合算値。これは倍率ではなく敵の防御ステータスを-N引き下げる値であり、2026-06-07 に計算入力では `paramBorder` 補正として接続した。威力詳細の倍率内訳には引き続き表示しない。
 - `markDestructionRateGainBonusRate` は印Lv3の**破壊率上昇量**（+10%）であり、ダメージ倍率ではないことをユーザーが確認（2026-05-31）。現在は `damageContext` に値を保持するのみで威力詳細には表示しない。将来の破壊率追跡実装時に備え `DESTRUCTION_RATE_GAIN_SKILL_TYPE_PATTERN` / `hasDestructionRateGainPartInParts` を WIP コメント付きで残存。
 - `defenseUpRate` が攻撃ダメージ倍率に影響しないことをコードレベルで確認済み。

@@ -34,6 +34,7 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     enemyDpByEnemy: {},
     enemyNamesByEnemy: {},
     destructionRateByEnemy: {},
+    destructionRateCapByEnemy: {},
     activeStatusEffects: [],
     chargeEffects: [],
     enemyStatusEffects: [],
@@ -64,6 +65,12 @@ test('buildDamageCalculationContext applies defaults and null-safe target enemy 
     markAttackUpRate: 0,
     markDamageTakenDownRate: 0,
     markDestructionRateGainBonusRate: 0,
+    transcendenceBurstAttackUpRate: 0,
+    transcendenceBurstDestructionRateGainBonusRate: 0,
+    transcendenceBurstAttackBuffSkillEffectUpRate: 0,
+    transcendenceBurstDebuffSkillEffectUpRate: 0,
+    transcendenceBurstCriticalRateUpRate: 0,
+    transcendenceBurstCriticalDamageUpRate: 0,
     markCriticalRateUp: 0,
     markCriticalDamageUp: 0,
     accessoryAttackUpRate: 0,
@@ -111,6 +118,11 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
       1: null,
       2: 'bad',
     },
+    destructionRateCapByEnemy: {
+      0: '600',
+      1: null,
+      2: 'bad',
+    },
     enemyTalismanLevelByEnemy: {
       0: '3',
       1: null,
@@ -143,6 +155,9 @@ test('buildDamageCalculationContext filters enemy indexes and coerces damage rat
   assert.equal(context.destructionRateByEnemy[0], 150);
   assert.equal(context.destructionRateByEnemy[1], 0);
   assert.equal(Number.isNaN(context.destructionRateByEnemy[2]), true);
+  assert.equal(context.destructionRateCapByEnemy[0], 600);
+  assert.equal(context.destructionRateCapByEnemy[1], 0);
+  assert.equal(Number.isNaN(context.destructionRateCapByEnemy[2]), true);
   assert.equal(context.enemyTalismanLevelByEnemy[0], 3);
   assert.equal(context.enemyTalismanLevelByEnemy[1], 0);
   assert.equal(context.enemyDisasterLevelByEnemy[0], 2);

@@ -138,23 +138,42 @@ export function findSkillByNameAndSuffix(skills, name, suffix) {
   return skills.find((skill) => skill?.name === name && skillIdEndsWith(skill, suffix)) ?? null;
 }
 
+export function collectSearchableSkills(skills = []) {
+  const searchable = [];
+  for (const skill of skills ?? []) {
+    searchable.push(skill);
+    for (const part of skill?.parts ?? []) {
+      if (String(part?.skill_type ?? '') !== 'SkillSwitch' || !Array.isArray(part?.strval)) {
+        continue;
+      }
+      for (const variant of part.strval) {
+        if (variant?.parts) {
+          searchable.push(variant);
+        }
+      }
+    }
+  }
+  return searchable;
+}
+
 export function findSkill(skills, skillId, skillName) {
+  const searchableSkills = collectSearchableSkills(skills);
   let candidates = [];
   if (hasValue(skillId)) {
-    candidates = skills.filter((skill) => Number(skill?.id) === Number(skillId));
+    candidates = searchableSkills.filter((skill) => Number(skill?.id) === Number(skillId));
   }
 
   const cleanedName = cleanSkillName(skillName);
   if (!candidates.length && cleanedName === NORMAL_ATTACK_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
+    const skill = findSkillByNameAndSuffix(searchableSkills, NORMAL_ATTACK_SKILL_NAME, NORMAL_ATTACK_ID_SUFFIX);
     candidates = skill ? [skill] : [];
   }
   if (!candidates.length && cleanedName === PURSUIT_SKILL_NAME) {
-    const skill = findSkillByNameAndSuffix(skills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
+    const skill = findSkillByNameAndSuffix(searchableSkills, PURSUIT_SKILL_NAME, PURSUIT_ID_SUFFIX);
     candidates = skill ? [skill] : [];
   }
   if (!candidates.length && cleanedName) {
-    candidates = skills.filter((skill) => skill?.name === cleanedName);
+    candidates = searchableSkills.filter((skill) => skill?.name === cleanedName);
   }
   if (!candidates.length) {
     return null;

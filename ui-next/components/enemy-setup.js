@@ -329,6 +329,21 @@ function createDefaultManualBySlot() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => defaultManual());
 }
 
+function createDefaultGaugeOverrides() {
+  return Array.from({ length: ENEMY_SLOT_COUNT }, () => null);
+}
+
+// snapshot 直書きの dp/hp を取り込む（手動敵・フィクスチャ用）。どちらも無ければ null
+function gaugeOverrideFromSnapshot(source = {}) {
+  const dp = Number(source?.dp);
+  const hp = Number(source?.hp);
+  const override = {
+    ...(Number.isFinite(dp) && dp >= 0 ? { dp } : {}),
+    ...(Number.isFinite(hp) && hp >= 0 ? { hp } : {}),
+  };
+  return Object.keys(override).length > 0 ? override : null;
+}
+
 function createDefaultManualFlags() {
   return Array.from({ length: ENEMY_SLOT_COUNT }, () => false);
 }
@@ -387,6 +402,9 @@ export class EnemySetupController {
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
     isManualBySlot: createDefaultManualFlags(),
     manualBySlot: createDefaultManualBySlot(),
+    // snapshot 直書きの dp/hp（手動敵・フィクスチャ用）。敵を選び直すとクリアされ、
+    // 選択敵からの再導出に戻る。保存JSONの dp/hp 往復維持に必要
+    gaugeOverridesBySlot: createDefaultGaugeOverrides(),
   };
 
   constructor({ root, enemies = [], onChange = null }) {
@@ -418,6 +436,7 @@ export class EnemySetupController {
         this.#state.selectedEnemyIds[slotIndex] = null;
         this.#state.isManualBySlot[slotIndex] = false;
         this.#state.manualBySlot[slotIndex] = defaultManual();
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         if (this.#state.activeSlotIndex === slotIndex) {
           this.#state.activeSlotIndex = REQUIRED_SLOT_INDEX;
         }
@@ -472,6 +491,7 @@ export class EnemySetupController {
           this.#state.selectedEnemyIds[slotIndex] = this.#resolveDefaultEnemyIdForSlot(slotIndex, nextCategoryKey);
         }
         this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         this.#ensureRequiredSlotSelected();
         this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
@@ -492,6 +512,7 @@ export class EnemySetupController {
           this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
         }
         this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
         this.#ensureRequiredSlotSelected();
         this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
@@ -648,6 +669,7 @@ export class EnemySetupController {
       const effectiveExtraHpGauge = cloneEnemyExtraHpGauge(
         selectedEnemy?.extra_hp_gauge ?? effective.extra_hp_gauge
       );
+      const gaugeOverride = this.#state.gaugeOverridesBySlot[slotIndex];
       return {
         slotIndex,
         selectedEnemyId,
@@ -657,7 +679,9 @@ export class EnemySetupController {
         maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
         param_border: resolveEnemyParamBorder(selectedEnemy),
-        dp: resolveEnemyDp(selectedEnemy),
+        // snapshot 直書きの dp/hp（手動敵）を優先し、なければ選択敵から導出
+        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy),
+        ...(gaugeOverride?.hp != null ? { hp: gaugeOverride.hp } : {}),
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,
@@ -681,6 +705,8 @@ export class EnemySetupController {
       selectedEnemyId: slot0.selectedEnemyId,
       selectedEnemyName: slot0.selectedEnemyName,
       enemyCount: selectedCount > 0 ? selectedCount : 1,
+      dp: slot0.dp,
+      ...(slot0.hp != null ? { hp: slot0.hp } : {}),
       isManual: slot0.isManual,
       manual: cloneManual(slot0.manual),
       od_rate: slot0.od_rate,
@@ -698,6 +724,7 @@ export class EnemySetupController {
     const nextSelectedCategoryKeys = createDefaultSelectedCategoryKeys();
     const nextIsManualBySlot = createDefaultManualFlags();
     const nextManualBySlot = createDefaultManualBySlot();
+    const nextGaugeOverridesBySlot = createDefaultGaugeOverrides();
 
     if (Array.isArray(snapshot.enemySlots)) {
       for (const slot of snapshot.enemySlots) {
@@ -706,6 +733,7 @@ export class EnemySetupController {
           continue;
         }
         nextSelectedEnemyIds[slotIndex] = normalizeSelectedEnemyId(slot?.selectedEnemyId);
+        nextGaugeOverridesBySlot[slotIndex] = gaugeOverrideFromSnapshot(slot);
         const hasManualState =
           (slot?.manual && typeof slot.manual === 'object') ||
           slot?.od_rate != null ||
@@ -747,12 +775,16 @@ export class EnemySetupController {
       if (snapshot.isManual != null) {
         nextIsManualBySlot[REQUIRED_SLOT_INDEX] = Boolean(snapshot.isManual);
       }
+      if (!nextGaugeOverridesBySlot[REQUIRED_SLOT_INDEX]) {
+        nextGaugeOverridesBySlot[REQUIRED_SLOT_INDEX] = gaugeOverrideFromSnapshot(snapshot);
+      }
     }
 
     this.#state.selectedEnemyIds = nextSelectedEnemyIds;
     this.#state.selectedCategoryKeys = nextSelectedCategoryKeys;
     this.#state.isManualBySlot = nextIsManualBySlot;
     this.#state.manualBySlot = nextManualBySlot;
+    this.#state.gaugeOverridesBySlot = nextGaugeOverridesBySlot;
 
     if (snapshot.preemptiveField != null) {
       this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
@@ -780,6 +812,7 @@ export class EnemySetupController {
       preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
       isManualBySlot: createDefaultManualFlags(),
       manualBySlot: createDefaultManualBySlot(),
+      gaugeOverridesBySlot: createDefaultGaugeOverrides(),
     };
     this.#ensureRequiredSlotSelected();
     this.#syncSelectedCategories();

@@ -407,6 +407,11 @@ export class EnemyDetailPopup {
         ...(enemy?.extraHpGaugeState ? { extraHpGaugeState: structuredClone(enemy.extraHpGaugeState) } : {}),
         ...(enemy?.hp !== undefined ? { hp: enemy.hp } : {}),
         ...(enemy?.maxHp !== undefined ? { maxHp: enemy.maxHp } : {}),
+        ...(enemy?.dpCurrent !== undefined ? { dpCurrent: enemy.dpCurrent } : {}),
+        ...(enemy?.dpMax !== undefined ? { dpMax: enemy.dpMax } : {}),
+        ...(enemy?.hpCurrent !== undefined ? { hpCurrent: enemy.hpCurrent } : {}),
+        ...(enemy?.hpMax !== undefined ? { hpMax: enemy.hpMax } : {}),
+        ...(enemy?.destructionRateCurrent !== undefined ? { destructionRateCurrent: enemy.destructionRateCurrent } : {}),
       };
     });
   }
@@ -923,14 +928,29 @@ export class EnemyDetailPopup {
            </div>`,
           ]]
         : []),
-      ...(extraHpGaugeState
-        ? [[
-            'HPゲージ',
-            escapeHtml(
-              `${Number(extraHpGaugeState.remaining ?? 0)}/${Number(extraHpGaugeState.total ?? 0)}`
-            ),
-          ]]
-        : []),
+      ['DP', escapeHtml(
+        Number.isFinite(Number(enemy?.dpCurrent)) && Number.isFinite(Number(enemy?.dpMax))
+          ? `${Number(enemy.dpCurrent)} / ${Number(enemy.dpMax)}`
+          : Number.isFinite(Number(enemy?.dpMax))
+            ? `- / ${Number(enemy.dpMax)}`
+            : '-'
+      )],
+      ['HP', escapeHtml(
+        extraHpGaugeState
+          ? `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`
+          : Number.isFinite(Number(enemy?.hpCurrent)) && Number.isFinite(Number(enemy?.hpMax))
+            ? `${Number(enemy.hpCurrent)} / ${Number(enemy.hpMax)}`
+            : Number.isFinite(Number(enemy?.hpMax)) && Number(enemy.hpMax) > 0
+              ? `- / ${Number(enemy.hpMax)}`
+              : 'N/A'
+      )],
+      ['破壊率', escapeHtml(
+        Number.isFinite(Number(enemy?.destructionRateCurrent)) && Number.isFinite(Number(enemy?.max_d_rate))
+          ? `${Number(enemy.destructionRateCurrent).toFixed(2)}% / ${Number(enemy.max_d_rate)}%`
+          : Number.isFinite(Number(enemy?.max_d_rate))
+            ? `- / ${Number(enemy.max_d_rate)}%`
+            : '-'
+      )],
       ['OD率', escapeHtml(Number.isFinite(Number(enemy?.od_rate)) ? `×${Number(enemy.od_rate).toFixed(2)}` : '-'), true],
       ['最大D率', escapeHtml(Number.isFinite(Number(enemy?.max_d_rate)) ? Number(enemy.max_d_rate) : '-'), true],
       ['耐性', escapeHtml(damageRateEntries.length > 0 ? damageRateEntries.join(' / ') : '未設定'), true],
