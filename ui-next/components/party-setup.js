@@ -9,11 +9,12 @@ import {
   normalizeCharacterStats,
   resolveStatsWithSupport,
   resolveCharacterStyleStats,
-  TEMPLATE_REINCARNATION_COUNT,
 } from '../../src/domain/character-stats.js';
 import { resolveEquipmentStatBonus, EQUIPMENT_STAT_KEYS } from '../../src/domain/equipment-stats.js';
 import { EQUIPMENT_BUILD_TEMPLATES } from '../../src/domain/equipment-template-configs.js';
 import { StatsSettingsPanel } from './stats-settings-panel.js';
+import { readStyleOwnership, resolveOwnershipState } from '../utils/style-ownership-store.js';
+import { readCharacterSettings, resolveTitleRank, resolveReincarnation } from '../utils/character-settings-store.js';
 
 // tier ごとの LB 上限（hbr-data-store.js の LIMIT_BREAK_MAX_BY_TIER と同値）
 const LB_MAX = { A: 20, S: 10, SS: 4, SSR: 4 };
@@ -393,7 +394,14 @@ export class PartySetupController {
         (candidate) => String(candidate?.label ?? '') === String(style.chara_label ?? '')
       ) ??
       null;
+    // 全スタイルの LB データをオーナーシップストアから構築（デフォルト適用済み）
+    const ownershipEntries = readStyleOwnership();
     const limitBreakLevelsByStyleId = {};
+    for (const s of this.#store.styles ?? []) {
+      const state = resolveOwnershipState(ownershipEntries, s, this.#store);
+      limitBreakLevelsByStyleId[Number(s.id)] = state ?? 0;
+    }
+    // パーティースロットで明示設定した LB で上書き
     for (const currentSlot of this.#slots) {
       if (currentSlot.styleId != null) {
         limitBreakLevelsByStyleId[Number(currentSlot.styleId)] = Number(currentSlot.lb ?? 0);
@@ -402,6 +410,12 @@ export class PartySetupController {
         limitBreakLevelsByStyleId[Number(currentSlot.supportStyleId)] = Number(currentSlot.supportLb ?? 0);
       }
     }
+    // キャラクター設定（転生・称号）をストアから取得
+    const characterSettings = readCharacterSettings();
+    const charaLabel = String(style.chara_label ?? '');
+    const effectiveTitleRank = resolveTitleRank(characterSettings, charaLabel);
+    const effectiveReincarnation = resolveReincarnation(characterSettings, charaLabel);
+
     const effectiveClv = characterLevel ?? slot?.characterLevel ?? 180;
     const effectiveSlv = styleLevel ?? slot?.styleLevel ?? 20;
     const effectiveLevel = effectiveClv + effectiveSlv;
@@ -410,8 +424,8 @@ export class PartySetupController {
       style,
       styles: this.#store.styles,
       level: effectiveLevel,
-      reincarnationCount: TEMPLATE_REINCARNATION_COUNT,
-      titleRank: 12,
+      reincarnationCount: effectiveReincarnation,
+      titleRank: effectiveTitleRank,
       titleBadgeRanks: this.#store.titleBadgeRanks,
       limitBreakLevel,
       limitBreakLevelsByStyleId,
