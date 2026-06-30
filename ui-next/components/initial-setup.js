@@ -40,6 +40,7 @@ export class InitialSetupController {
   #isApplyingSetupSnapshot = false;
 
   #onOpenStyleOwnership = null;
+  #onOpenCharacterSettings = null;
 
   constructor({
     root,
@@ -50,6 +51,7 @@ export class InitialSetupController {
     onApply = null,
     onRecalculate = null,
     onOpenStyleOwnership = null,
+    onOpenCharacterSettings = null,
   }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
@@ -59,6 +61,7 @@ export class InitialSetupController {
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
     this.#onOpenStyleOwnership = onOpenStyleOwnership;
+    this.#onOpenCharacterSettings = onOpenCharacterSettings;
   }
 
   /**
@@ -173,6 +176,17 @@ export class InitialSetupController {
                 スタイル所持状況を設定
               </button>
             </div>
+            <!-- 転生・称号設定 -->
+            <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">転生・称号レベル</h3>
+            <div class="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3">
+              <div class="mt-1 text-xs leading-5 text-gray-500 mb-2">
+                キャラクターごとの転生回数（0〜5）と称号レベル（0〜12）を設定します。未設定の場合、転生 5・称号レベル 12 として計算されます。
+              </div>
+              <button data-role="open-character-settings"
+                      class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
+                転生・称号レベルを設定
+              </button>
+            </div>
           </div>
         </div>
 
@@ -268,6 +282,10 @@ export class InitialSetupController {
     // 所持スタイル状況ボタン
     this.#root.querySelector('[data-role="open-style-ownership"]')
       ?.addEventListener('click', () => this.#onOpenStyleOwnership?.());
+
+    // 転生・称号設定ボタン
+    this.#root.querySelector('[data-role="open-character-settings"]')
+      ?.addEventListener('click', () => this.#onOpenCharacterSettings?.());
 
   }
 
