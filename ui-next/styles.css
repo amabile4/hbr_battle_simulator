@@ -3098,3 +3098,149 @@
   background: #f9fafb;
   color: #374151;
 }
+
+/* ---- Style Ownership Panel (sop-*) ---- */
+.sop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sop-dialog {
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2);
+  width: 100%;
+  max-width: 900px;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.sop-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.sop-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.sop-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sop-team-section { }
+
+.sop-team-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sop-cards-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+}
+
+.sop-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 4px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.1s;
+  background: #fff;
+  width: 100%;
+}
+
+.sop-card:hover { background: #f1f5f9; }
+
+.sop-card--unowned { opacity: 0.45; }
+
+.sop-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #e2e8f0;
+  display: block;
+}
+
+.sop-card__name {
+  font-size: 9px;
+  line-height: 1.3;
+  color: #475569;
+  width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  word-break: break-all;
+  margin-top: 3px;
+}
+
+.sop-card__chip {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.sop-card__chip--unowned { background: #e2e8f0; color: #94a3b8; }
+.sop-card__chip--lb0 { background: #dbeafe; color: #1d4ed8; }
+.sop-card__chip--lb { background: #ede9fe; color: #7c3aed; }
+.sop-card__chip--lbmax { background: #d1fae5; color: #059669; }
+
+.sop-tier-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.1s;
+}
+
+.sop-tier-btn:hover { border-color: #94a3b8; }
+
+.sop-tier-btn--active {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px #3b82f6;
+}

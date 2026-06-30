@@ -39,6 +39,8 @@ export class InitialSetupController {
   #activeTab = 'party';
   #isApplyingSetupSnapshot = false;
 
+  #onOpenStyleOwnership = null;
+
   constructor({
     root,
     pickerOverlay,
@@ -47,6 +49,7 @@ export class InitialSetupController {
     dimensionBattles = [],
     onApply = null,
     onRecalculate = null,
+    onOpenStyleOwnership = null,
   }) {
     this.#root = root;
     this.#pickerOverlay = pickerOverlay;
@@ -55,6 +58,7 @@ export class InitialSetupController {
     this.#dimensionBattles = Array.isArray(dimensionBattles) ? dimensionBattles : [];
     this.#onApply = onApply;
     this.#onRecalculate = onRecalculate;
+    this.#onOpenStyleOwnership = onOpenStyleOwnership;
   }
 
   /**
@@ -158,6 +162,17 @@ export class InitialSetupController {
                 </span>
               </span>
             </label>
+            <!-- 所持スタイル状況 -->
+            <h3 class="font-bold border-b border-gray-200 pb-2 text-gray-700 mt-4">所持スタイル状況</h3>
+            <div class="rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3">
+              <div class="mt-1 text-xs leading-5 text-gray-500 mb-2">
+                スタイルの所持・限界突破状況を設定します。未設定の場合、A/S は限界突破最大、SS/SSR は限界突破 0 としてステータスが計算されます。
+              </div>
+              <button data-role="open-style-ownership"
+                      class="text-xs px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
+                スタイル所持状況を設定
+              </button>
+            </div>
           </div>
         </div>
 
@@ -249,6 +264,10 @@ export class InitialSetupController {
         meta: null,
       });
     });
+
+    // 所持スタイル状況ボタン
+    this.#root.querySelector('[data-role="open-style-ownership"]')
+      ?.addEventListener('click', () => this.#onOpenStyleOwnership?.());
 
   }
 

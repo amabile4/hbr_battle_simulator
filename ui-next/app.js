@@ -1,5 +1,6 @@
 import { HbrDataStore } from '../src/data/hbr-data-store.js';
 import { InitialSetupController } from './components/initial-setup.js';
+import { StyleOwnershipPanel } from './components/style-ownership-panel.js';
 import { PassiveLogPaneController } from './components/passive-log-pane.js';
 import { PartyPresetToolbarController } from './components/party-preset-toolbar.js';
 import { UsedSkillsOverlayController } from './components/used-skills-overlay.js';
@@ -951,11 +952,15 @@ async function main() {
     const presetToolbarRoot = document.querySelector('#party-preset-toolbar');
 
     bootProfiler.mark('initial-setup:init:start');
+    const styleOwnershipPanel = new StyleOwnershipPanel({ store });
+    styleOwnershipPanel.mount(document.body);
+
     initialSetup = new InitialSetupController({
       root: setupRoot,
       pickerOverlay,
       store,
       enemies: [],
+      onOpenStyleOwnership: () => styleOwnershipPanel.open(),
       onApply: (snapshot) => {
         try {
           const state = battleStateManager.buildFromSnapshot(snapshot.party, snapshot.enemy);
