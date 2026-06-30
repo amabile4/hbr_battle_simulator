@@ -985,10 +985,20 @@ async function main() {
     const presetToolbarRoot = document.querySelector('#party-preset-toolbar');
 
     bootProfiler.mark('initial-setup:init:start');
-    const styleOwnershipPanel = new StyleOwnershipPanel({ store });
+    const styleOwnershipPanel = new StyleOwnershipPanel({
+      store,
+      onChanged: () => {
+        initialSetup?.recomputePartyStats?.();
+      }
+    });
     styleOwnershipPanel.mount(document.body);
 
-    const characterSettingsPanel = new CharacterSettingsPanel({ store });
+    const characterSettingsPanel = new CharacterSettingsPanel({
+      store,
+      onChanged: () => {
+        initialSetup?.recomputePartyStats?.();
+      }
+    });
     characterSettingsPanel.mount(document.body);
 
     initialSetup = new InitialSetupController({

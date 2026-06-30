@@ -14,6 +14,7 @@ import {
   normalizeCharacterStats,
   resolveStatsWithSupport,
   resolveCharacterStyleStats,
+  UNOWNED_STYLE_LIMIT_BREAK,
 } from '../../src/domain/character-stats.js';
 import { resolveEquipmentStatBonus, EQUIPMENT_STAT_KEYS } from '../../src/domain/equipment-stats.js';
 import { EQUIPMENT_BUILD_TEMPLATES } from '../../src/domain/equipment-template-configs.js';
@@ -287,6 +288,31 @@ export class PartySetupController {
     });
   }
 
+  recomputeAllAutomaticStats() {
+    let changed = false;
+    for (let i = 0; i < PARTY_SLOT_COUNT; i++) {
+      const slot = this.#slots[i];
+      if (slot.style) {
+        const nextStats = this.#resolveAutomaticStats(i, 'main');
+        if (!statsEqual(slot.stats, nextStats)) {
+          slot.stats = nextStats;
+          changed = true;
+        }
+      }
+      if (slot.supportStyle) {
+        const nextSupportStats = this.#resolveAutomaticStats(i, 'support');
+        if (!statsEqual(slot.supportStats, nextSupportStats)) {
+          slot.supportStats = nextSupportStats;
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      this.#render();
+      this.#onChange?.(this.getSnapshot(), { hasStatsDelta: true });
+    }
+  }
+
   mount() {
     this.#picker.mount();
     this.#skillSettingsPanel = new SkillSettingsPanel({
@@ -499,7 +525,7 @@ export class PartySetupController {
     const limitBreakLevelsByStyleId = {};
     for (const s of this.#store.styles ?? []) {
       const state = resolveOwnershipState(ownershipEntries, s, this.#store);
-      limitBreakLevelsByStyleId[Number(s.id)] = state ?? 0;
+      limitBreakLevelsByStyleId[Number(s.id)] = state ?? UNOWNED_STYLE_LIMIT_BREAK;
     }
     // パーティースロットで明示設定した LB で上書き
     for (const currentSlot of this.#slots) {

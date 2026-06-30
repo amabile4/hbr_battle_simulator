@@ -54,8 +54,11 @@ export class StyleOwnershipPanel {
   #entries = {};
   #filters = new Set(TIERS);
 
-  constructor({ store }) {
+  #onChanged = null;
+
+  constructor({ store, onChanged = null }) {
     this.#store = store;
+    this.#onChanged = onChanged;
   }
 
   mount(containerEl) {
@@ -267,6 +270,7 @@ export class StyleOwnershipPanel {
           else if (op === 'lbmax') this.#entries[key] = lbMax;
         }
         writeStyleOwnership(this.#entries);
+        this.#onChanged?.();
         // ボディ再描画
         const body = overlay.querySelector('#sop-body');
         if (body) body.innerHTML = this.#renderBody();
@@ -287,6 +291,7 @@ export class StyleOwnershipPanel {
         const current = resolveOwnershipState(this.#entries, style, this.#store);
         this.#entries[String(styleId)] = cycleOwnershipState(current, lbMax);
         writeStyleOwnership(this.#entries);
+        this.#onChanged?.();
         this.#updateCardEl(styleId);
       });
     });

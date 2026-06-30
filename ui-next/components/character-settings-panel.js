@@ -38,8 +38,11 @@ export class CharacterSettingsPanel {
   #settings = {};
   #iconMap = null;
 
-  constructor({ store }) {
+  #onChanged = null;
+
+  constructor({ store, onChanged = null }) {
     this.#store = store;
+    this.#onChanged = onChanged;
   }
 
   mount(containerEl) {
@@ -170,6 +173,7 @@ export class CharacterSettingsPanel {
         };
       }
       writeCharacterSettings(this.#settings);
+      this.#onChanged?.();
 
       // 入力欄を更新（再レンダリングなしで個別更新）
       for (const row of overlay.querySelectorAll('[data-csp-chara]')) {
@@ -201,6 +205,7 @@ export class CharacterSettingsPanel {
         if (reincInput) reincInput.value = reincVal;
         this.#settings[label] = { titleRank: titleVal, reincarnation: reincVal };
         writeCharacterSettings(this.#settings);
+        this.#onChanged?.();
         row.classList.remove('csp-row--default');
         titleInput?.classList.remove('csp-input--default');
         reincInput?.classList.remove('csp-input--default');

@@ -96,6 +96,10 @@ export class InitialSetupController {
     this.#syncPartySetupBattleState();
   }
 
+  recomputePartyStats() {
+    this.#partySetup?.recomputeAllAutomaticStats?.();
+  }
+
   mount() {
     // 一度だけ DOM を構築
     this.#root.innerHTML = `
