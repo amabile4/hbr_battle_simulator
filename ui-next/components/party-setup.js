@@ -154,6 +154,14 @@ function dedupeNumericIds(ids = []) {
   )];
 }
 
+function statsEqual(left, right) {
+  const normalizedLeft = normalizeCharacterStats(left);
+  const normalizedRight = normalizeCharacterStats(right);
+  return normalizedLeft && normalizedRight
+    ? Object.keys(normalizedLeft).every((key) => normalizedLeft[key] === normalizedRight[key])
+    : false;
+}
+
 function makeLbOptions(style) {
   if (!style) return [{ value: 0, label: '限突 0' }];
   const max = LB_MAX[style.tier] ?? 0;
@@ -480,7 +488,7 @@ export class PartySetupController {
       styles: this.#store.styles,
       limitBreakLevel,
       limitBreakLevelsByStyleId,
-    });
+    }) ?? this.#resolveStyleJsonStats(style);
     if (!automaticStats) {
       return null;
     }
@@ -517,19 +525,17 @@ export class PartySetupController {
       const supportStyle = supportStyleId ? (this.#store.getStyleById(supportStyleId) ?? null) : null;
       const lb = Number(snapshot?.limitBreakLevelsByPartyIndex?.[index] ?? 0);
       const supportLb = Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0);
-      const defaultStats = style ? this.#resolveInitialStats(style, lb) : null;
-      const supportDefaultStats = style && supportStyle ? this.#resolveInitialStats(supportStyle, supportLb) : null;
       return {
         styleId: style ? Number(styleId) : null,
         style,
         supportStyleId: style && supportStyle ? Number(supportStyleId) : null,
         supportStyle: style ? supportStyle : null,
-        defaultStats,
-        supportDefaultStats,
-        stats: style ? (normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.stats) ?? defaultStats) : null,
+        defaultStats: null,
+        supportDefaultStats: null,
+        stats: style ? normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.stats) : null,
         supportStats:
           style && supportStyle
-            ? (normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.supportStats) ?? supportDefaultStats)
+            ? normalizeCharacterStats(snapshot?.statsByPartyIndex?.[index]?.supportStats)
             : null,
         lb,
         supportLb,
@@ -629,7 +635,16 @@ export class PartySetupController {
   }
 
   #resolveInitialStats(style, limitBreakLevel = 0) {
-    return this.#resolveStyleJsonStats(style) ?? resolveDefaultStats(style?.role, limitBreakLevel);
+    if (!style) return null;
+    const character = Array.isArray(this.#store?.characters)
+      ? this.#store.characters.find((entry) => String(entry?.label) === String(style?.chara_label)) ?? null
+      : null;
+    return resolveTemplateCharacterStats({
+      character,
+      style,
+      styles: this.#store?.styles ?? [],
+      limitBreakLevel,
+    }) ?? this.#resolveStyleJsonStats(style) ?? resolveDefaultStats(style?.role, limitBreakLevel);
   }
 
   // ---- preset ----

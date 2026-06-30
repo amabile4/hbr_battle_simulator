@@ -12572,6 +12572,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       fieldStateEvents: [...fieldStateEvents, ...moraleResult.fieldStateEvents, ...talismanFieldEvents],
       doubleActionStatusEvents,
       funnelEvents,
+      sprightlyEvents,
       activeBuffStatusEvents,
       buffStatusEvents,
       guardEvents,

@@ -149,6 +149,8 @@ function createStoreStubWithBaseStats() {
   ];
   store.styles[0].base_param = { str: 1, dex: 2, wis: 3, spr: 4, luk: 5, con: 6 };
   store.styles[1].base_param = { str: 7, dex: 8, wis: 9, spr: 10, luk: 11, con: 12 };
+  store.getCharacterByLabel = (label) =>
+    store.characters.find((character) => character.label === label) ?? null;
   return store;
 }
 
@@ -244,13 +246,13 @@ test('PartySetupController fills missing snapshot main stats with fallback defau
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
     const panel = win.document.querySelector('#stats-settings-panel');
 
-    assert.equal(panel.querySelector('[data-stat="str"]').value, '650');
-    assert.equal(panel.querySelector('[data-stat="wis"]').value, '600');
-    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats.str, 650);
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '710');
+    assert.equal(panel.querySelector('[data-stat="wis"]').value, '667');
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0'].stats, undefined);
   }));
 
 test('PartySetupController fills missing snapshot stats from character and style base_param', () =>
-  withDom(({ root, pickerOverlay }) => {
+  withDom(({ root, pickerOverlay, win }) => {
     const controller = new PartySetupController({
       root,
       pickerOverlay,
@@ -259,30 +261,18 @@ test('PartySetupController fills missing snapshot stats from character and style
     controller.mount();
     controller.applySnapshot({
       styleIds: [1001, null, null, null, null, null],
-      supportStyleIds: [1002, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
       limitBreakLevelsByPartyIndex: { 0: 0 },
-      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
       statsByPartyIndex: {},
     });
 
-    const snapshot = controller.getSnapshot();
+    assert.equal(controller.getSnapshot().statsByPartyIndex['0']?.stats, undefined);
 
-    assert.deepEqual(snapshot.statsByPartyIndex['0'].stats, {
-      str: 11,
-      dex: 22,
-      wis: 33,
-      spr: 44,
-      luk: 55,
-      con: 66,
-    });
-    assert.deepEqual(snapshot.statsByPartyIndex['0'].supportStats, {
-      str: 117,
-      dex: 128,
-      wis: 139,
-      spr: 150,
-      luk: 161,
-      con: 172,
-    });
+    root.querySelector('[data-action="open-stats-settings"][data-slot-index="0"][data-mode="main"]')
+      .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const panel = win.document.querySelector('#stats-settings-panel');
+    assert.equal(panel.querySelector('[data-stat="str"]').value, '11');
+    assert.equal(panel.querySelector('[data-stat="dex"]').value, '22');
   }));
 
 test('PartySetupController keeps automatic stats unsaved, follows LB, and reset clears manual input', () =>
