@@ -209,6 +209,45 @@ test('calculateDestruction uses raw d_rate for normal attack destruction and onl
   );
 });
 
+test('calculateDestruction applies the transcendence destruction bonus to pursuits without other destruction buffs', () => {
+  const data = {
+    styles: [{ id: 1, role: 'Blaster' }],
+    enemies: [],
+    skills: [],
+  };
+  const result = calculateDestruction(
+    {
+      attacker: {
+        styleId: 1,
+        statusEffects: [{ statusType: 'DestructionUp', power: 1.0 }],
+        accessoryDestructionRateBonus: 2.0,
+        flatDestructionRateBonus: 2.0,
+        resonanceDestructionRateBonus: 2.0,
+        transcendenceBurstDestructionRateGainBonusRate: 0.1,
+      },
+      defender: {
+        destructionRate: 1,
+        destructionLimit: 9,
+        destructionMultiplier: 10,
+        destructionResist: 0.5,
+        dp: 0,
+      },
+      skill: {
+        name: '追撃',
+        isPursuit: true,
+        attackPart: { skill_type: 'AttackSkill', multipliers: { dr: 1 } },
+      },
+      hits: [{ damage: 0 }],
+    },
+    data
+  );
+
+  // 基礎10% × 超越1.10 × 破壊率耐性0.5。通常バフ・装備・共鳴は追撃へ乗らない。
+  assertAlmostEqual(result.destructionRate, 1.055, 'pursuit.transcendence.destructionRate');
+  assertAlmostEqual(result.breakdown.finalBaseDestruction, 0.055, 'pursuit.transcendence.finalBase');
+  assertAlmostEqual(result.breakdown.transcendenceBurstActionMultiplier, 1.1, 'pursuit.transcendence.multiplier');
+});
+
 test('calculateDestruction: 9ヒット autoBreak 7発目ブレイクで破壊率が計算値+13.33%になる', () => {
   // 新式: DR倍率=10, d_rate=1, 9hit → baseDestRate=10*1/100=0.1
   // DP=4,550,000、1ヒット650,000ダメージ → 7発目(index 6)で累積4,550,000≥DP → ブレイク

@@ -1,4 +1,14 @@
 export function buildDamageCalculationContext(input = {}) {
+  const normalizeNumberMap = (value) =>
+    value && typeof value === 'object'
+      ? Object.fromEntries(
+          Object.entries(value).map(([targetIndex, mapValue]) => [
+            String(targetIndex),
+            Number(mapValue ?? 0),
+          ])
+        )
+      : {};
+
   return {
     actorCharacterId: String(input.actorCharacterId ?? ''),
     actorStyleId: Number(input.actorStyleId ?? 0),
@@ -50,14 +60,13 @@ export function buildDamageCalculationContext(input = {}) {
             ])
           )
         : {},
-    enemyDpByEnemy:
-      input.enemyDpByEnemy && typeof input.enemyDpByEnemy === 'object'
-        ? Object.fromEntries(
-            Object.entries(input.enemyDpByEnemy).map(([targetIndex, value]) => [
-              String(targetIndex),
-              Number(value ?? 0),
-            ])
-          )
+    enemyDpByEnemy: normalizeNumberMap(input.enemyDpByEnemy),
+    remainingDpByEnemy: normalizeNumberMap(input.remainingDpByEnemy),
+    enemyHpByEnemy: normalizeNumberMap(input.enemyHpByEnemy),
+    remainingHpByEnemy: normalizeNumberMap(input.remainingHpByEnemy),
+    extraHpGaugeStateByEnemy:
+      input.extraHpGaugeStateByEnemy && typeof input.extraHpGaugeStateByEnemy === 'object'
+        ? structuredClone(input.extraHpGaugeStateByEnemy)
         : {},
     enemyNamesByEnemy:
       input.enemyNamesByEnemy && typeof input.enemyNamesByEnemy === 'object'
@@ -138,6 +147,7 @@ export function buildDamageCalculationContext(input = {}) {
     attackByOwnDpRateResolvedMultiplier: Number(input.attackByOwnDpRateResolvedMultiplier ?? 0),
     highBoostSkillAtkRate: Number(input.highBoostSkillAtkRate ?? 0),
     attackUpRate: Number(input.attackUpRate ?? 0),
+    fightingSpiritBonusValue: Number(input.fightingSpiritBonusValue ?? 0),
     defenseUpRate: Number(input.defenseUpRate ?? 0),
     criticalRateUpRate: Number(input.criticalRateUpRate ?? 0),
     criticalDamageUpRate: Number(input.criticalDamageUpRate ?? 0),

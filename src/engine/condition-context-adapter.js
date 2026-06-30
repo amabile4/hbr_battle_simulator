@@ -33,7 +33,8 @@ export function buildSpecialStatusesMap(member) {
 
     const isActive =
       String(effect?.exitCond ?? '') === 'Eternal' ||
-      Number(effect?.remaining ?? 0) > 0;
+      Number(effect?.remaining ?? 0) > 0 ||
+      (typeId === 155 && String(effect?.statusType ?? '') === 'BIYamawakiServant');
     if (isActive) {
       map.set(typeId, (map.get(typeId) ?? 0) + 1);
     }

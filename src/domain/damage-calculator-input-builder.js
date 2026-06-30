@@ -178,14 +178,39 @@ export function resolveDefaultStats(role, limitBreakCount = DEFAULT_LIMIT_BREAK_
   );
 }
 
+function buildFightingSpiritStatSource(damageContext = {}, bonusValue = 0) {
+  if (!Number.isFinite(bonusValue) || bonusValue === 0) {
+    return null;
+  }
+  const sourceEffect = Array.isArray(damageContext?.activeStatusEffects)
+    ? damageContext.activeStatusEffects.find((effect) => String(effect?.statusType ?? '') === 'FightingSpirit')
+    : null;
+  const sourceName = String(sourceEffect?.sourceSkillName ?? sourceEffect?.sourceCharacterName ?? '').trim();
+  return {
+    id: 'fightingSpirit',
+    label: '闘志',
+    delta: bonusValue,
+    statKeys: [...DAMAGE_CALCULATION_STAT_KEYS],
+    ...(sourceName ? { sourceName } : {}),
+  };
+}
+
 export function buildDamageStatDeltaViewModel(damageContext = {}, attackerStatsInput = {}, enemyAdapter = {}) {
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const attackerStats = normalizeStats(defaultStats, attackerStatsInput);
   const targetEnemyIndex = getTargetEnemyIndex(damageContext, enemyAdapter);
   const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
   const enemyAllAbilityDown = resolveEnemyAllAbilityDown(damageContext, targetEnemyIndex);
+  const fightingSpiritBonus = toFiniteNumber(damageContext?.fightingSpiritBonusValue, 0);
+  const fightingSpiritSource = buildFightingSpiritStatSource(damageContext, fightingSpiritBonus);
   const enemyStats = Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, paramBorder]));
-  const makeRow = (base) => ({ base, buffDelta: 0, debuffDelta: 0, resolved: base });
+  const makeRow = (base) => ({
+    base,
+    buffDelta: fightingSpiritBonus,
+    debuffDelta: 0,
+    resolved: base + fightingSpiritBonus,
+    sources: fightingSpiritSource ? [fightingSpiritSource] : [],
+  });
   const makeEnemyRow = (base) => ({
     base,
     buffDelta: 0,
@@ -203,6 +228,10 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
   const targetBreakdown = getTargetBreakdown(damageContext, targetEnemyIndex);
   const defaultStats = resolveDefaultStats(attackerStatsInput?.role, attackerStatsInput?.limitBreakCount);
   const stats = normalizeStats(defaultStats, attackerStatsInput);
+  const fightingSpiritBonus = toFiniteNumber(damageContext?.fightingSpiritBonusValue, 0);
+  const boostedStats = fightingSpiritBonus > 0
+    ? Object.fromEntries(DAMAGE_CALCULATION_STAT_KEYS.map((key) => [key, stats[key] + fightingSpiritBonus]))
+    : stats;
   const affinityRate = resolveAffinityRate(damageContext, enemyAdapter, targetEnemyIndex, targetBreakdown);
   const destructionRate = resolveDestructionRate(damageContext, enemyAdapter, targetEnemyIndex);
   const paramBorder = toFiniteNumber(enemyAdapter?.paramBorder, DEFAULT_ENEMY_BORDER);
@@ -218,7 +247,7 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
       styleId: toFiniteNumber(damageContext?.actorStyleId, 0),
       role: String(attackerStatsInput?.role ?? 'Attacker'),
       limitBreakCount: clampLimitBreakCount(attackerStatsInput?.limitBreakCount),
-      stats,
+      stats: boostedStats,
       tokenCount: toFiniteNumber(attackerStatsInput?.tokenCount, damageContext?.tokenAttackTokenCount ?? 0),
       tokenRatio,
       attackPierceUpRate: toFiniteNumber(damageContext?.attackPierceUpRate, 0),

@@ -49,7 +49,7 @@ const DAMAGE_DATA = {
   skills: [createAttackSkill()],
 };
 
-function createInitialState({ enemyDp = 0, enemyHp = 0 } = {}) {
+function createInitialState({ enemyDp = 0, enemyHp = 0, extraHpGauge = null } = {}) {
   const members = Array.from({ length: 6 }, (_, index) => {
     const skills = index === 0
       ? [createAttackSkill(), createProtectionSkill()]
@@ -78,6 +78,9 @@ function createInitialState({ enemyDp = 0, enemyHp = 0 } = {}) {
   enemyState.paramBorderByEnemy = { 0: 620 };
   enemyState.enemyDpByEnemy = { 0: enemyDp };
   enemyState.enemyHpByEnemy = { 0: enemyHp };
+  if (extraHpGauge) {
+    enemyState.extraHpGaugeStateByEnemy = { 0: structuredClone(extraHpGauge) };
+  }
   enemyState.destructionRateByEnemy = { 0: 100 };
   enemyState.destructionRateCapByEnemy = { 0: 300 };
   enemyState.breakStateByEnemy = {};
@@ -207,6 +210,45 @@ test('comparison view: auto DP break remains active in comparison buffer', () =>
     enemyHasStatus(comparison.states[0], /break|downturn/i),
     true,
     '比較バッファでもDP自動ブレイク（自動計算）が有効であること'
+  );
+});
+
+test('comparison view: saved extra HP gauge snapshots are disabled with manual HP break', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState({
+      extraHpGauge: { total: 2, remaining: 2, values: [1_000_000, 2_000_000] },
+    }),
+    {}
+  );
+
+  manager.commitNextTurn(
+    { 0: { skillId: ATTACK_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } } },
+    {
+      enemyCount: 1,
+      note: 'manual hp break',
+      actionOutcomeOverrides: [{ position: 0, outcome: 'HpBreak', enemyIndexes: [0] }],
+    }
+  );
+  manager.replayScript.turns[0].overrideEntries = [
+    {
+      type: 'EnemyExtraHpGauges',
+      payload: { 0: { total: 2, remaining: 1, values: [1_000_000, 2_000_000] } },
+    },
+  ];
+
+  const comparison = manager.buildComparisonComputedStates();
+
+  assert.ok(comparison, '比較バッファが取得できること');
+  assert.deepEqual(
+    manager.computedStates[0]?.turnState?.enemyState?.extraHpGaugeStateByEnemy?.['0'],
+    { total: 2, remaining: 1, values: [1_000_000, 2_000_000] },
+    '本体では手動HP破壊後のゲージ状態が維持されること'
+  );
+  assert.deepEqual(
+    comparison.states[0]?.turnState?.enemyState?.extraHpGaugeStateByEnemy?.['0'],
+    { total: 2, remaining: 2, values: [1_000_000, 2_000_000] },
+    '比較バッファでは手動HP破壊由来のゲージスナップショットを持ち込まないこと'
   );
 });
 

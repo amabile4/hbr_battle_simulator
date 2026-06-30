@@ -6,7 +6,8 @@
  *   各アクションへ perHitHpDamageByEnemy（派生値）が付与され、エンジンの
  *   applyEnemyHpFromActions が HP を累積消費し、HP0 で自動討伐（source:'auto' の Dead）する。
  * - HPダメージは破壊率（destructionRate）が乗算される（DPは乗算除外）。
- * - extra HP gauge（多段ゲージ）搭載敵は既存のHPブレイク管理に委ね、対象外。
+ * - extra HP gauge（多段ゲージ）搭載敵は現在セグメントHPを累積消費し、
+ *   0到達で自動HP破壊（source:'auto' の HpBreak）する。
  * - 手動 kill（actionOutcomeOverrides）が最優先。
  * - データ未注入時は従来挙動（HP消費なし）を維持する。
  * - 派生値は replayScript（保存JSON）に混入しない。
@@ -27,6 +28,7 @@ import { TurnEngineManager } from '../ui-next/engine/turn-engine-manager.js';
 // ---------------------------------------------------------------------------
 
 const ATTACK_SKILL_ID = 9901;
+const PENETRATION_SKILL_ID = 9903;
 const ATTACK_SKILL_POWER = 3001;
 const ATTACK_SKILL_HIT_COUNT = 3;
 
@@ -55,12 +57,33 @@ function createProtectionSkill(id = 9902) {
   };
 }
 
+function createPenetrationCriticalSkill() {
+  return {
+    id: PENETRATION_SKILL_ID,
+    name: 'PenetrationCritical',
+    label: 'PenetrationCritical9903',
+    sp_cost: 0,
+    cond: '',
+    target_type: 'Single',
+    hitCount: ATTACK_SKILL_HIT_COUNT,
+    parts: [
+      {
+        skill_type: 'PenetrationCriticalAttack',
+        target_type: 'Single',
+        type: 'Slash',
+        power: [ATTACK_SKILL_POWER],
+        value: [3, 0],
+      },
+    ],
+  };
+}
+
 // calculateDamage が参照する最小データセット
 const DAMAGE_DATA = {
   styles: [{ id: 9100, role: 'Attacker' }],
   characters: [],
   enemies: [],
-  skills: [createAttackSkill()],
+  skills: [createAttackSkill(), createPenetrationCriticalSkill()],
 };
 
 function createInitialState({
@@ -71,7 +94,7 @@ function createInitialState({
 } = {}) {
   const members = Array.from({ length: 6 }, (_, index) => {
     const skills = index === 0
-      ? [createAttackSkill(), createProtectionSkill()]
+      ? [createAttackSkill(), createPenetrationCriticalSkill(), createProtectionSkill()]
       : [createProtectionSkill(9200 + index)];
     return new CharacterStyle({
       characterId: `TM${index + 1}`,
@@ -114,6 +137,13 @@ function commitAttackTurn(manager, options = {}) {
   );
 }
 
+function commitPenetrationCriticalTurn(manager, options = {}) {
+  return manager.commitNextTurn(
+    { 0: { skillId: PENETRATION_SKILL_ID, target: { type: 'enemy', enemyIndex: 0 } } },
+    { enemyCount: 1, note: 'penetration critical', ...options }
+  );
+}
+
 function getRemainingHp(manager, turnIndex, enemyKey = '0') {
   return manager.computedStates[turnIndex]?.turnState?.enemyState?.remainingHpByEnemy?.[enemyKey];
 }
@@ -141,6 +171,18 @@ function collectDeadEvents(record) {
   for (const action of record?.actions ?? []) {
     for (const change of action?.enemyStatusChanges ?? []) {
       if (/^dead$/i.test(String(change?.statusType ?? '')) || String(change?.mode ?? '') === 'Dead') {
+        events.push(change);
+      }
+    }
+  }
+  return events;
+}
+
+function collectHpBreakEvents(record) {
+  const events = [];
+  for (const action of record?.actions ?? []) {
+    for (const change of action?.enemyStatusChanges ?? []) {
+      if (/^hpbreak$/i.test(String(change?.statusType ?? '')) || String(change?.mode ?? '') === 'HpBreak') {
         events.push(change);
       }
     }
@@ -259,29 +301,96 @@ test('hp damage guide: destruction rate multiplies HP damage', () => {
   );
 });
 
+test('hp damage guide: penetration critical value is included in affinity rate', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(createInitialState(), {}, { damageCalculationData: DAMAGE_DATA });
+
+  const record = commitPenetrationCriticalTurn(manager);
+  const action = record.actions[0];
+
+  assert.equal(
+    action.damageContext?.effectiveDamageRatesByEnemy?.['0'],
+    300,
+    '貫通クリティカル value[0]=3 を相性倍率へ含めること'
+  );
+  assert.equal(
+    action.damageContext?.affinityContributionsByEnemy?.['0']?.some(
+      (entry) => entry.reference === 'PenetrationCriticalAttack' && Number(entry.multiplier) === 3
+    ),
+    true,
+    '威力詳細用の相性内訳にも貫通クリティカル倍率が含まれること'
+  );
+  assert.ok(
+    Number(action.totalHpDamageByEnemy?.['0'] ?? 0) > 0,
+    '貫通クリティカルスキルでもHPダメージガイドが導出されること'
+  );
+});
+
 // ---------------------------------------------------------------------------
-// テスト 6: extra HP gauge（多段ゲージ）搭載敵は対象外
+// テスト 6: extra HP gauge（多段ゲージ）搭載敵も現在段階HPを累積消費する
 // ---------------------------------------------------------------------------
 
-test('hp damage guide: enemies with extra HP gauge are excluded from auto kill tracking', () => {
+test('hp damage guide: enemies with extra HP gauge consume current segment and auto HP break', () => {
   const manager = new TurnEngineManager();
   manager.initialize(
     createInitialState({
-      enemyHp: 1,
-      extraHpGauge: { total: 2, remaining: 2, values: [100, 100] },
+      extraHpGauge: { total: 2, remaining: 2, values: [4_000, 100] },
     }),
     {},
     { damageCalculationData: DAMAGE_DATA }
   );
 
-  commitAttackTurn(manager);
+  const firstRecord = commitAttackTurn(manager);
 
   assert.equal(
     getRemainingHp(manager, 0),
-    undefined,
-    '多段ゲージ敵は remainingHpByEnemy の追跡対象外であること'
+    999,
+    '多段ゲージ敵の現在段階HPが消費されること'
   );
-  assert.equal(enemyHasDeadStatus(manager, 0), false, '多段ゲージ敵は自動討伐されないこと');
+  assert.deepEqual(
+    manager.computedStates[0].turnState.enemyState.extraHpGaugeStateByEnemy['0'],
+    { total: 2, remaining: 2, values: [4_000, 100] },
+    'HP0未到達ならゲージ段階は進まないこと'
+  );
+  assert.equal(collectHpBreakEvents(firstRecord).length, 0, 'HP0未到達なら HpBreak イベントは出ないこと');
+
+  const secondRecord = commitAttackTurn(manager);
+
+  assert.equal(getRemainingHp(manager, 1), 100, 'HP破壊後は次の段階HPを保持すること');
+  assert.deepEqual(
+    manager.computedStates[1].turnState.enemyState.extraHpGaugeStateByEnemy['0'],
+    { total: 2, remaining: 1, values: [4_000, 100] },
+    '現在段階HP0到達でゲージ段階が進むこと'
+  );
+  const hpBreakEvents = collectHpBreakEvents(secondRecord);
+  assert.equal(hpBreakEvents.length, 1, 'HpBreak イベントが1件記録されること');
+  assert.equal(String(hpBreakEvents[0]?.source ?? ''), 'auto', 'HpBreak イベントの source が auto であること');
+  assert.equal(enemyHasDeadStatus(manager, 1), false, 'HP破壊では自動討伐されないこと');
+});
+
+test('hp damage guide: manual HP break syncs remaining HP to next segment', () => {
+  const manager = new TurnEngineManager();
+  manager.initialize(
+    createInitialState({
+      extraHpGauge: { total: 2, remaining: 2, values: [4_000, 100] },
+    }),
+    {},
+    { damageCalculationData: DAMAGE_DATA }
+  );
+
+  const record = commitAttackTurn(manager, {
+    actionOutcomeOverrides: [{ position: 0, outcome: 'HpBreak', enemyIndexes: [0] }],
+  });
+
+  const hpBreakEvents = collectHpBreakEvents(record);
+  assert.equal(hpBreakEvents.length, 1, '手動 HpBreak イベントが1件記録されること');
+  assert.equal(String(hpBreakEvents[0]?.source ?? ''), 'manual', 'HpBreak イベントの source が manual であること');
+  assert.equal(getRemainingHp(manager, 0), 100, '手動HP破壊後は次の段階HPを保持すること');
+  assert.deepEqual(
+    manager.computedStates[0].turnState.enemyState.extraHpGaugeStateByEnemy['0'],
+    { total: 2, remaining: 1, values: [4_000, 100] },
+    '手動HP破壊でゲージ段階が進むこと'
+  );
 });
 
 // ---------------------------------------------------------------------------

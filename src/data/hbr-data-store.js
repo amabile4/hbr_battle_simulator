@@ -415,6 +415,7 @@ export class HbrDataStore {
     });
     this.passives = payload.passives;
     this.enemies = payload.enemies ?? [];
+    this.battles = payload.battles ?? [];
     this.accessories = payload.accessories ?? [];
     this.boosters = payload.boosters ?? [];
     this.chips = payload.chips ?? [];
@@ -437,6 +438,28 @@ export class HbrDataStore {
     this.stylesById = new Map(this.styles.map((row) => [Number(row.id), row]));
     this.skillsById = new Map(this.skills.map((row) => [Number(row.id), row]));
     this.enemiesById = new Map(this.enemies.map((row) => [Number(row.id), row]));
+    this.battleEnemiesById = new Map();
+    this.battleEnemiesByName = new Map();
+    for (const battle of this.battles) {
+      for (const enemy of battle?.enemy_list ?? []) {
+        const enemyId = Number(enemy?.id);
+        if (
+          Number.isFinite(enemyId) &&
+          (!this.battleEnemiesById.has(enemyId) ||
+            shouldPreferBattleEnemy(enemy, this.battleEnemiesById.get(enemyId)))
+        ) {
+          this.battleEnemiesById.set(enemyId, enemy);
+        }
+        const enemyName = String(enemy?.name ?? '').trim();
+        if (
+          enemyName &&
+          (!this.battleEnemiesByName.has(enemyName) ||
+            shouldPreferBattleEnemy(enemy, this.battleEnemiesByName.get(enemyName)))
+        ) {
+          this.battleEnemiesByName.set(enemyName, enemy);
+        }
+      }
+    }
     this.skillNamesById = buildSkillNameIndex({
       skills: this.skills,
       styles: this.styles,
@@ -531,6 +554,7 @@ export class HbrDataStore {
       skills: readJson(resolve(dir, 'skills.json')),
       passives: readJson(resolve(dir, 'passives.json')),
       enemies: readJsonOrFallback(resolve(dir, 'enemies.json'), []),
+      battles: readJsonOrFallback(resolve(dir, 'battles.json'), []),
       accessories: readJson(resolve(dir, 'accessories.json')),
       boosters: readJson(resolve(dir, 'boosters.json')),
       chips: readJson(resolve(dir, 'chips.json')),
@@ -554,6 +578,7 @@ export class HbrDataStore {
       skills: payload.skills ?? [],
       passives: payload.passives ?? [],
       enemies: payload.enemies ?? [],
+      battles: payload.battles ?? [],
       accessories: payload.accessories ?? [],
       boosters: payload.boosters ?? [],
       chips: payload.chips ?? [],
@@ -1814,4 +1839,13 @@ export class HbrDataStore {
 
     return new Party(members);
   }
+}
+
+function hasExtraDpGauges(enemy = null) {
+  const dpGauges = enemy?.base_param?.eg?.dp;
+  return Array.isArray(dpGauges) && dpGauges.length > 1;
+}
+
+function shouldPreferBattleEnemy(candidate = null, current = null) {
+  return hasExtraDpGauges(candidate) && !hasExtraDpGauges(current);
 }

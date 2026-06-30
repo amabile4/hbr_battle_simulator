@@ -907,6 +907,7 @@ async function main() {
       epRuleOverrides,
       transcendenceRuleOverrides,
       enemyEShieldOverrides,
+      battles,
       supportSkills,
       boosters,
       chips,
@@ -921,6 +922,7 @@ async function main() {
       fetchJson('../json/ep_rule_overrides.json'),
       fetchJson('../json/transcendence_rule_overrides.json'),
       fetchJsonOrFallback('../json/enemy_eshield_overrides.json', []),
+      fetchJsonOrFallback('../json/battles.json', []),
       fetchJsonOrFallback('../json/support_skills.json', []),
       fetchJson('../json/boosters.json'),
       fetchJson('../json/chips.json'),
@@ -939,6 +941,7 @@ async function main() {
       epRuleOverrides,
       transcendenceRuleOverrides,
       enemyEShieldOverrides,
+      battles,
       supportSkills,
     };
     bootProfiler.mark('data:fetch:done');
@@ -1034,6 +1037,7 @@ async function main() {
         const disableRecentMonthsFilter = Boolean(window.__HBR_TEST_DISABLE_RECENT_MONTHS_FILTER__);
         battleStateManager.setEnemyCatalog(rawEnemies);
         const enemyPresets = buildEnemyList(rawEnemies, new Date(), {
+          battles: store.battles,
           enemyEShieldOverrides: store.enemyEShieldOverrides,
           disableRecentMonthsFilter,
         });

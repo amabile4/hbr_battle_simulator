@@ -5,6 +5,7 @@ import {
 } from '../../src/config/battle-defaults.js';
 import { cloneEnemyEShieldState } from '../../src/domain/enemy-e-shield.js';
 import { cloneEnemyExtraHpGaugeState } from '../../src/domain/enemy-extra-hp-gauge.js';
+import { cloneEnemyExtraDpGaugeState, getEnemyExtraDpGaugeCurrentMax } from '../../src/domain/enemy-extra-dp-gauge.js';
 import { getNormalAttackElementsForPartyIndex } from '../../src/domain/normal-attack-elements.js';
 import { normalizeStageSetupEnchantEffects } from '../../src/domain/stage-setup-enchants.js';
 import {
@@ -245,6 +246,7 @@ function buildLegacyEnemySlot(enemySetup = {}) {
     resistances: enemySetup?.resistances,
     absorbElementList: enemySetup?.absorbElementList,
     e_shield: enemySetup?.e_shield,
+    extra_dp_gauge: cloneEnemyExtraDpGaugeState(enemySetup?.extra_dp_gauge),
     extra_hp_gauge: cloneEnemyExtraHpGaugeState(enemySetup?.extra_hp_gauge),
   };
 }
@@ -271,10 +273,39 @@ function resolveEnemySlotDp(slot = {}, dataStore = null) {
   if (Number.isFinite(direct) && direct >= 0) {
     return direct;
   }
+  const extraDpGaugeState = resolveEnemySlotExtraDpGaugeState(slot, dataStore);
+  const stagedDp = getEnemyExtraDpGaugeCurrentMax(extraDpGaugeState);
+  if (Number.isFinite(stagedDp) && stagedDp >= 0) {
+    return stagedDp;
+  }
   const selectedEnemyId = Number(slot?.selectedEnemyId);
   const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseDp = Number(enemy?.base_param?.dp ?? enemy?.dp);
   return Number.isFinite(baseDp) && baseDp >= 0 ? baseDp : 0;
+}
+
+function resolveEnemySlotExtraDpGaugeState(slot = {}, dataStore = null) {
+  const direct = cloneEnemyExtraDpGaugeState(slot?.extra_dp_gauge ?? slot?.extraDpGaugeState);
+  if (direct) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  if (!Number.isFinite(selectedEnemyId)) {
+    return null;
+  }
+  const battleEnemy =
+    typeof dataStore?.battleEnemiesById?.get === 'function'
+      ? dataStore.battleEnemiesById.get(selectedEnemyId)
+      : null;
+  if (battleEnemy) {
+    return cloneEnemyExtraDpGaugeState(battleEnemy?.base_param?.eg?.dp);
+  }
+  const selectedEnemyName = String(slot?.selectedEnemyName ?? '').trim();
+  const battleEnemyByName =
+    selectedEnemyName && typeof dataStore?.battleEnemiesByName?.get === 'function'
+      ? dataStore.battleEnemiesByName.get(selectedEnemyName)
+      : null;
+  return cloneEnemyExtraDpGaugeState(battleEnemyByName?.base_param?.eg?.dp);
 }
 
 // maxHP は保存対象外（操作イベント正本の方針）。slot 直接値またはenemies.json から再導出する。
@@ -286,7 +317,16 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   const selectedEnemyId = Number(slot?.selectedEnemyId);
   const enemy = resolveEnemyById(dataStore, selectedEnemyId);
   const baseHp = Number(enemy?.base_param?.hp ?? enemy?.hp);
-  return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
+  if (Number.isFinite(baseHp) && baseHp >= 0) {
+    return baseHp;
+  }
+  const selectedEnemyName = String(slot?.selectedEnemyName ?? '').trim();
+  const battleEnemyByName =
+    selectedEnemyName && typeof dataStore?.battleEnemiesByName?.get === 'function'
+      ? dataStore.battleEnemiesByName.get(selectedEnemyName)
+      : null;
+  const battleBaseHp = Number(battleEnemyByName?.base_param?.hp ?? battleEnemyByName?.hp);
+  return Number.isFinite(battleBaseHp) && battleBaseHp >= 0 ? battleBaseHp : 0;
 }
 
 function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
@@ -351,6 +391,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
       rawDestructionMultiplier,
       rawOdRate,
       eShieldState: buildEnemyEShieldState(slot),
+      extraDpGaugeState: resolveEnemySlotExtraDpGaugeState(slot, dataStore),
       extraHpGaugeState: buildEnemyExtraHpGaugeState(slot),
     };
   });
@@ -395,6 +436,12 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
         .map((slotState, index) => [index, slotState.eShieldState])
         .filter(([, eShieldState]) => Boolean(eShieldState))
         .map(([index, eShieldState]) => [String(index), structuredClone(eShieldState)])
+    ),
+    extraDpGaugeStateByEnemy: Object.fromEntries(
+      slotStates
+        .map((slotState, index) => [index, slotState.extraDpGaugeState])
+        .filter(([, extraDpGaugeState]) => Boolean(extraDpGaugeState))
+        .map(([index, extraDpGaugeState]) => [String(index), structuredClone(extraDpGaugeState)])
     ),
     extraHpGaugeStateByEnemy: Object.fromEntries(
       slotStates
@@ -602,6 +649,7 @@ export class BattleStateManager {
       absorbElementsByEnemy: enemyStateOverrides.absorbElementsByEnemy,
       odRateByEnemy: enemyStateOverrides.odRateByEnemy,
       eShieldStateByEnemy: enemyStateOverrides.eShieldStateByEnemy,
+      extraDpGaugeStateByEnemy: enemyStateOverrides.extraDpGaugeStateByEnemy,
       extraHpGaugeStateByEnemy: enemyStateOverrides.extraHpGaugeStateByEnemy,
       enemyStatuses: [],
       breakStateByEnemy: {},

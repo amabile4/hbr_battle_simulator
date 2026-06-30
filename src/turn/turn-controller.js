@@ -35,6 +35,11 @@ import {
   decrementEnemyExtraHpGaugeState,
 } from '../domain/enemy-extra-hp-gauge.js';
 import {
+  cloneEnemyExtraDpGaugeState,
+  decrementEnemyExtraDpGaugeState,
+  getEnemyExtraDpGaugeCurrentMax,
+} from '../domain/enemy-extra-dp-gauge.js';
+import {
   ENEMY_STATUS_BREAK,
   ENEMY_STATUS_SUPER_BREAK,
   ENEMY_STATUS_SUPER_BREAK_DOWN,
@@ -82,6 +87,7 @@ const TALISMAN_PENALTY_PER_LEVEL = 10;
 const DISASTER_MAX_LEVEL = 10;
 const DISASTER_PENALTY_PER_LEVEL = 7;
 const HACKING_ALL_ABILITY_DOWN = 100;
+const MISFORTUNE_ALL_ABILITY_DOWN = 20;
 const TALISMAN_STATE_DEFAULT = Object.freeze({
   active: false,
   level: 0,
@@ -228,6 +234,7 @@ const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
   DefenseUp: 'DefenseUp',
   CriticalRateUp: 'CriticalRateUp',
   CriticalDamageUp: 'CriticalDamageUp',
+  OverDriveRateUp: 'OverDriveRateUp',
 });
 const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
   new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
@@ -1748,15 +1755,25 @@ function getDamagePartReferences(part, options = {}) {
   return [...new Set(out)];
 }
 
+function getPenetrationCriticalAffinityMultiplier(part) {
+  if (String(part?.skill_type ?? '') !== 'PenetrationCriticalAttack') {
+    return 1;
+  }
+  const multiplier = Number(Array.isArray(part?.value) ? part.value[0] : 0);
+  return Number.isFinite(multiplier) && multiplier > 0 ? multiplier : 1;
+}
+
 function computeEnemyEffectiveDamageRatePercentForPart(turnState, targetIndex, part, options = {}) {
   const references = getDamagePartReferences(part, options);
+  const penetrationCriticalMultiplier = getPenetrationCriticalAffinityMultiplier(part);
   if (references.length === 0) {
-    return DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
+    return truncateToTwoDecimals(DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT * penetrationCriticalMultiplier);
   }
   let rate = 1;
   for (const reference of references) {
     rate *= getEnemyResistanceRatePercent(turnState, targetIndex, reference) / 100;
   }
+  rate *= penetrationCriticalMultiplier;
   return truncateToTwoDecimals(rate * 100);
 }
 
@@ -1787,6 +1804,15 @@ function resolveBestDamagePartAffinityForEnemy(state, member, skill, targetIndex
       iconStatusType: DAMAGE_AFFINITY_REFERENCE_ICON_TYPES[reference] ?? '',
     };
   });
+  const penetrationCriticalMultiplier = getPenetrationCriticalAffinityMultiplier(bestPart);
+  if (penetrationCriticalMultiplier > 1) {
+    contributions.push({
+      reference: 'PenetrationCriticalAttack',
+      label: '貫通クリティカル',
+      multiplier: penetrationCriticalMultiplier,
+      iconStatusType: 'CriticalRateUp',
+    });
+  }
   return {
     references,
     contributions,
@@ -2263,6 +2289,99 @@ function mergeDestructionRateByEnemy(currentMap, snapshotMap, forceOverwriteKeys
   return current;
 }
 
+function mergeDestructionRateCapByEnemy(currentMap, snapshotMap, forceOverwriteKeys = null) {
+  const current = currentMap && typeof currentMap === 'object'
+    ? structuredClone(currentMap)
+    : {};
+  const snapshot = snapshotMap && typeof snapshotMap === 'object'
+    ? snapshotMap
+    : {};
+  const snapshotKeys = new Set(Object.keys(snapshot));
+  if (forceOverwriteKeys) {
+    for (const key of forceOverwriteKeys) {
+      if (!snapshotKeys.has(key)) {
+        delete current[key];
+      }
+    }
+  }
+  for (const [key, snapshotValue] of Object.entries(snapshot)) {
+    const snapshotNum = Number(snapshotValue);
+    if (!Number.isFinite(snapshotNum)) {
+      continue;
+    }
+    if (forceOverwriteKeys && forceOverwriteKeys.has(key)) {
+      current[key] = snapshotNum;
+      continue;
+    }
+    const currentNum = Number(current[key]);
+    current[key] = Number.isFinite(currentNum)
+      ? Math.max(currentNum, snapshotNum)
+      : snapshotNum;
+  }
+  return current;
+}
+
+function mergeEnemyBreakStateByEnemy(currentMap, snapshotMap, currentRateMap = {}, currentCapMap = {}) {
+  if (!snapshotMap || typeof snapshotMap !== 'object') {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(snapshotMap).map(([key, rawBreakState]) => {
+      const snapshot = rawBreakState && typeof rawBreakState === 'object'
+        ? structuredClone(rawBreakState)
+        : {};
+      const isSpecialBreakState =
+        Object.hasOwn(snapshot, 'baseCap') ||
+        Object.hasOwn(snapshot, 'strongBreakActive') ||
+        (snapshot.superDown && typeof snapshot.superDown === 'object');
+      if (!isSpecialBreakState) {
+        return [String(key), snapshot];
+      }
+      const current = currentMap && typeof currentMap === 'object' && currentMap[key] && typeof currentMap[key] === 'object'
+        ? currentMap[key]
+        : null;
+      const hasSuperDown = snapshot.superDown && typeof snapshot.superDown === 'object';
+      const hasStrongBreak = snapshot.strongBreakActive === true;
+      const specialCapBonus =
+        (hasStrongBreak ? SPECIAL_BREAK_CAP_BONUS_PERCENT : 0) +
+        (hasSuperDown ? SPECIAL_BREAK_CAP_BONUS_PERCENT : 0);
+      const currentCap = Number(currentCapMap?.[key]);
+      const baseFromCurrentCap =
+        Number.isFinite(currentCap) && currentCap > specialCapBonus
+          ? currentCap - specialCapBonus
+          : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT;
+      const currentBaseCap = Number(current?.baseCap);
+      snapshot.baseCap = Math.max(
+        DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+        Number(snapshot.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT),
+        Number.isFinite(currentBaseCap) ? currentBaseCap : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+        baseFromCurrentCap
+      );
+      if (hasSuperDown) {
+        const currentPreRate = Number(current?.superDown?.preRate);
+        const currentPreCap = Number(current?.superDown?.preCap);
+        const currentRate = Number(currentRateMap?.[key]);
+        snapshot.superDown = {
+          ...snapshot.superDown,
+          preRate: Math.max(
+            DEFAULT_DESTRUCTION_RATE_PERCENT,
+            Number(snapshot.superDown.preRate ?? DEFAULT_DESTRUCTION_RATE_PERCENT),
+            Number.isFinite(currentPreRate) ? currentPreRate : DEFAULT_DESTRUCTION_RATE_PERCENT,
+            Number.isFinite(currentRate) ? Math.min(currentRate, snapshot.baseCap) : DEFAULT_DESTRUCTION_RATE_PERCENT
+          ),
+          preCap: Math.max(
+            DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+            Number(snapshot.superDown.preCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT),
+            Number.isFinite(currentPreCap) ? currentPreCap : DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
+            snapshot.baseCap
+          ),
+        };
+      }
+      return [String(key), snapshot];
+    })
+  );
+}
+
 function normalizeEnemyEShieldStateEntry(value) {
   return cloneEnemyEShieldState(value);
 }
@@ -2314,7 +2433,9 @@ export function getEnemyState(turnState) {
       absorbElementsByEnemy: {},
       odRateByEnemy: {},
       eShieldStateByEnemy: {},
+      extraDpGaugeStateByEnemy: {},
       extraHpGaugeStateByEnemy: {},
+      dpGaugeBreakTurnByEnemy: {},
       breakStateByEnemy: {},
       enemyNamesByEnemy: {},
       paramBorderByEnemy: {},
@@ -2367,6 +2488,14 @@ export function getEnemyState(turnState) {
               .filter(([, shieldState]) => Boolean(shieldState))
           )
         : {},
+    extraDpGaugeStateByEnemy:
+      state.extraDpGaugeStateByEnemy && typeof state.extraDpGaugeStateByEnemy === 'object'
+        ? Object.fromEntries(
+            Object.entries(state.extraDpGaugeStateByEnemy)
+              .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraDpGaugeState(gaugeState)])
+              .filter(([, gaugeState]) => Boolean(gaugeState))
+          )
+        : {},
     extraHpGaugeStateByEnemy:
       state.extraHpGaugeStateByEnemy && typeof state.extraHpGaugeStateByEnemy === 'object'
         ? Object.fromEntries(
@@ -2374,6 +2503,10 @@ export function getEnemyState(turnState) {
               .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraHpGaugeState(gaugeState)])
               .filter(([, gaugeState]) => Boolean(gaugeState))
           )
+        : {},
+    dpGaugeBreakTurnByEnemy:
+      state.dpGaugeBreakTurnByEnemy && typeof state.dpGaugeBreakTurnByEnemy === 'object'
+        ? state.dpGaugeBreakTurnByEnemy
         : {},
     breakStateByEnemy:
       state.breakStateByEnemy && typeof state.breakStateByEnemy === 'object' ? state.breakStateByEnemy : {},
@@ -2425,6 +2558,8 @@ export function buildEnemyStateOverrideSnapshot(turnState) {
     enemyDestructionMultipliers: structuredClone(enemyState.destructionMultiplierByEnemy),
     enemyOdRates: structuredClone(enemyState.odRateByEnemy),
     enemyEShields: structuredClone(enemyState.eShieldStateByEnemy),
+    enemyExtraDpGauges: structuredClone(enemyState.extraDpGaugeStateByEnemy),
+    enemyDpGaugeBreakTurns: structuredClone(enemyState.dpGaugeBreakTurnByEnemy),
     enemyExtraHpGauges: structuredClone(enemyState.extraHpGaugeStateByEnemy),
     enemyAbsorbElements: structuredClone(enemyState.absorbElementsByEnemy),
     enemyBreakStates: structuredClone(enemyState.breakStateByEnemy),
@@ -2516,6 +2651,13 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
           .filter(([, gaugeState]) => Boolean(gaugeState))
       )
     : structuredClone(current.extraHpGaugeStateByEnemy);
+  const nextExtraDpGaugeStateByEnemy = hasOwnEnemyOverrideField(snapshot, 'enemyExtraDpGauges')
+    ? Object.fromEntries(
+        Object.entries(snapshot.enemyExtraDpGauges ?? {})
+          .map(([targetIndex, gaugeState]) => [String(targetIndex), cloneEnemyExtraDpGaugeState(gaugeState)])
+          .filter(([, gaugeState]) => Boolean(gaugeState))
+      )
+    : structuredClone(current.extraDpGaugeStateByEnemy);
   const nextEnemyState = {
     ...current,
     enemyCount: nextEnemyCount,
@@ -2535,7 +2677,11 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
       ? mergeDestructionRateByEnemy(current.destructionRateByEnemy, snapshot.enemyDestructionRates, options?.forceDestructionRateKeys ?? null)
       : structuredClone(current.destructionRateByEnemy),
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
-      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
+      ? mergeDestructionRateCapByEnemy(
+          current.destructionRateCapByEnemy,
+          snapshot.enemyDestructionRateCaps,
+          options?.forceDestructionRateKeys ?? null
+        )
       : structuredClone(current.destructionRateCapByEnemy),
     destructionMultiplierByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionMultipliers')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionMultipliers)
@@ -2560,12 +2706,21 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
             .filter(([, shieldState]) => Boolean(shieldState))
         )
       : structuredClone(current.eShieldStateByEnemy),
+    extraDpGaugeStateByEnemy: nextExtraDpGaugeStateByEnemy,
+    dpGaugeBreakTurnByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDpGaugeBreakTurns')
+      ? cloneEnemySlotObjectMap(snapshot.enemyDpGaugeBreakTurns)
+      : structuredClone(current.dpGaugeBreakTurnByEnemy),
     extraHpGaugeStateByEnemy: nextExtraHpGaugeStateByEnemy,
     absorbElementsByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyAbsorbElements')
       ? cloneEnemySlotObjectMap(snapshot.enemyAbsorbElements)
       : structuredClone(current.absorbElementsByEnemy),
     breakStateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyBreakStates')
-      ? cloneEnemySlotObjectMap(snapshot.enemyBreakStates)
+      ? mergeEnemyBreakStateByEnemy(
+          current.breakStateByEnemy,
+          snapshot.enemyBreakStates,
+          current.destructionRateByEnemy,
+          current.destructionRateCapByEnemy
+        )
       : structuredClone(current.breakStateByEnemy),
     statuses: hasOwnEnemyOverrideField(snapshot, 'enemyStatuses')
       ? buildOverrideEnemyStatuses(current.statuses, snapshot.enemyStatuses, nextEnemyCount, options)
@@ -2768,15 +2923,37 @@ function buildEnemyHackingPenaltyMap(turnState, enemyCount = DEFAULT_ENEMY_COUNT
   return penaltyMap;
 }
 
+function buildEnemyMisfortunePenaltyMap(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
+  const numericEnemyCount = clampEnemyCount(enemyCount);
+  const penaltyMap = {};
+  const statuses = Array.isArray(turnState?.enemyState?.statuses) ? turnState.enemyState.statuses : [];
+  for (const status of statuses) {
+    if (String(status?.statusType ?? '') !== 'Misfortune') {
+      continue;
+    }
+    const targetIndex = Number(status?.targetIndex);
+    if (!Number.isInteger(targetIndex) || targetIndex < 0 || targetIndex >= numericEnemyCount) {
+      continue;
+    }
+    if (!isEnemyAlive(turnState, targetIndex, numericEnemyCount)) {
+      continue;
+    }
+    penaltyMap[String(targetIndex)] = MISFORTUNE_ALL_ABILITY_DOWN;
+  }
+  return penaltyMap;
+}
+
 function buildEnemyAllAbilityPenaltyMaps(turnState, enemyCount = DEFAULT_ENEMY_COUNT) {
   const talismanMaps = buildEnemyTalismanMaps(turnState, enemyCount);
   const disasterMaps = buildEnemyDisasterMaps(turnState, enemyCount);
   const hackingMap = buildEnemyHackingPenaltyMap(turnState, enemyCount);
+  const misfortuneMap = buildEnemyMisfortunePenaltyMap(turnState, enemyCount);
   const enemyAllAbilityDownByEnemy = {};
   for (const sourceMap of [
     disasterMaps.enemyAllAbilityDownByEnemy,
     talismanMaps.enemyAllAbilityDownByEnemy,
     hackingMap,
+    misfortuneMap,
   ]) {
     for (const [targetIndex, penalty] of Object.entries(sourceMap)) {
       const currentPenalty = Number(enemyAllAbilityDownByEnemy[targetIndex] ?? 0);
@@ -3471,6 +3648,18 @@ function getEnemyExtraHpGaugeStateByTarget(turnState, targetIndex) {
   return cloneEnemyExtraHpGaugeState(enemyState.extraHpGaugeStateByEnemy?.[String(Number(targetIndex))]);
 }
 
+function getEnemyExtraHpGaugeCurrentSegmentMax(extraHpGaugeState = null) {
+  const normalized = cloneEnemyExtraHpGaugeState(extraHpGaugeState);
+  if (!normalized) {
+    return null;
+  }
+  const total = Math.round(Number(normalized.total ?? normalized.values.length ?? 0));
+  const remaining = Math.round(Number(normalized.remaining ?? 0));
+  const currentIndex = total - remaining;
+  const segmentMax = Number(normalized.values?.[currentIndex] ?? 0);
+  return Number.isFinite(segmentMax) && segmentMax > 0 ? segmentMax : null;
+}
+
 function setEnemyEShieldStateByTarget(turnState, targetIndex, state) {
   const enemyState = getEnemyState(turnState);
   const next = { ...(enemyState.eShieldStateByEnemy ?? {}) };
@@ -3684,8 +3873,13 @@ function upsertEnemyStatus(turnState, status, enemyCountOverride = null) {
 function clearEnemySpecialBreakState(turnState, targetIndex) {
   const breakState = getEnemyBreakStateByTarget(turnState, targetIndex);
   if (!breakState) {
+    const hasStaleSpecialBreakStatus =
+      hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_STRONG_BREAK) ||
+      hasEnemyStatus(turnState, targetIndex, ENEMY_STATUS_SUPER_DOWN);
     removeEnemyStatuses(turnState, targetIndex, [ENEMY_STATUS_STRONG_BREAK, ENEMY_STATUS_SUPER_DOWN]);
-    deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
+    if (hasStaleSpecialBreakStatus) {
+      deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
+    }
     return;
   }
   let currentRate = getEnemyDestructionRatePercent(turnState, targetIndex);
@@ -3701,20 +3895,20 @@ function clearEnemySpecialBreakState(turnState, targetIndex) {
   }
   const finalCap = Number(breakState.baseCap ?? DEFAULT_DESTRUCTION_RATE_CAP_PERCENT);
   setEnemyDestructionRatePercent(turnState, targetIndex, Math.min(finalCap, currentRate));
-  deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
+  if (finalCap > DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) {
+    setEnemyDestructionRateCapPercent(turnState, targetIndex, finalCap);
+  } else {
+    deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
+  }
   setEnemyBreakStateByTarget(turnState, targetIndex, null);
   removeEnemyStatuses(turnState, targetIndex, [ENEMY_STATUS_STRONG_BREAK, ENEMY_STATUS_SUPER_DOWN]);
 }
 
 function resetEnemyHpBreakPhaseState(turnState, targetIndex) {
-  setEnemyDestructionRatePercent(turnState, targetIndex, DEFAULT_DESTRUCTION_RATE_PERCENT);
-  deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
-  setEnemyBreakStateByTarget(turnState, targetIndex, null);
+  clearEnemySpecialBreakState(turnState, targetIndex);
   removeEnemyStatuses(turnState, targetIndex, [
     ENEMY_STATUS_BREAK,
     ENEMY_STATUS_DOWN_TURN,
-    ENEMY_STATUS_STRONG_BREAK,
-    ENEMY_STATUS_SUPER_DOWN,
   ]);
   resetEnemyRemainingDpToMax(turnState, targetIndex);
 }
@@ -3723,12 +3917,14 @@ function resetEnemyHpBreakPhaseState(turnState, targetIndex) {
 function resetEnemyRemainingDpToMax(turnState, targetIndex) {
   const enemyState = getEnemyState(turnState);
   const key = String(Number(targetIndex));
-  const maxDp = Number(enemyState.enemyDpByEnemy?.[key] ?? 0);
+  const stagedMaxDp = getEnemyExtraDpGaugeCurrentMax(enemyState.extraDpGaugeStateByEnemy?.[key]);
+  const maxDp = Number(stagedMaxDp ?? enemyState.enemyDpByEnemy?.[key] ?? 0);
   if (!(maxDp > 0) || !enemyState.remainingDpByEnemy || typeof enemyState.remainingDpByEnemy !== 'object') {
     return;
   }
   turnState.enemyState = {
     ...enemyState,
+    enemyDpByEnemy: { ...enemyState.enemyDpByEnemy, [key]: maxDp },
     remainingDpByEnemy: { ...enemyState.remainingDpByEnemy, [key]: maxDp },
   };
 }
@@ -3826,6 +4022,8 @@ function removeEnemySuperDownState(turnState, targetIndex) {
   setEnemyDestructionRatePercent(turnState, targetIndex, restoredRate);
   if (nextState.strongBreakActive) {
     setEnemyDestructionRateCapPercent(turnState, targetIndex, nextCap);
+  } else if (Number(current.superDown.preCap) > DEFAULT_DESTRUCTION_RATE_CAP_PERCENT) {
+    setEnemyDestructionRateCapPercent(turnState, targetIndex, Number(current.superDown.preCap));
   } else {
     deleteEnemyDestructionRateCapPercent(turnState, targetIndex);
   }
@@ -3839,7 +4037,7 @@ function removeEnemySuperDownState(turnState, targetIndex) {
     targetIndex,
     statusType: ENEMY_STATUS_SUPER_DOWN,
     destructionRateAfter: restoredRate,
-    destructionRateCap: nextState.strongBreakActive ? nextCap : getEnemyDestructionRateCapPercent(turnState, targetIndex),
+    destructionRateCap: getEnemyDestructionRateCapPercent(turnState, targetIndex),
   };
 }
 
@@ -4773,6 +4971,183 @@ function analyzeAutoBreakDestructionHits({ hits = [], defenderDp = 0, simulatedG
   };
 }
 
+function resolveEnemyDpGaugeBreakTurnId(turnState) {
+  const turnIndex = Number(turnState?.turnIndex ?? 0);
+  return Number.isFinite(turnIndex) ? turnIndex : 0;
+}
+
+function resolveCurrentEnemyDpGaugeMax(extraDpGaugeState = null, fallbackMax = 0) {
+  const stagedMax = getEnemyExtraDpGaugeCurrentMax(extraDpGaugeState);
+  if (Number.isFinite(stagedMax) && stagedMax > 0) {
+    return stagedMax;
+  }
+  const fallback = Number(fallbackMax ?? 0);
+  return Number.isFinite(fallback) && fallback > 0 ? fallback : 0;
+}
+
+function consumeEnemyDpGaugeForAction({
+  dpBefore,
+  dpDamage,
+  extraDpGaugeState,
+  currentTurnId,
+  previousBreakTurnId,
+  fallbackMax,
+} = {}) {
+  const before = Math.max(0, Number(dpBefore ?? 0));
+  const damage = Math.max(0, Number(dpDamage ?? 0));
+  const sameTurnAlreadyBroke =
+    Number.isFinite(Number(previousBreakTurnId)) && Number(previousBreakTurnId) === Number(currentTurnId);
+  const normalizedExtra = cloneEnemyExtraDpGaugeState(extraDpGaugeState);
+
+  if (damage <= 0 || before <= 0) {
+    return {
+      dp: before,
+      maxDp: resolveCurrentEnemyDpGaugeMax(normalizedExtra, fallbackMax),
+      extraDpGaugeState: normalizedExtra,
+      brokeFinalGauge: false,
+      brokeGauge: false,
+      breakTurnId: previousBreakTurnId,
+    };
+  }
+
+  if (sameTurnAlreadyBroke) {
+    return {
+      dp: Math.max(1, before - damage),
+      maxDp: resolveCurrentEnemyDpGaugeMax(normalizedExtra, fallbackMax),
+      extraDpGaugeState: normalizedExtra,
+      brokeFinalGauge: false,
+      brokeGauge: false,
+      breakTurnId: previousBreakTurnId,
+    };
+  }
+
+  if (damage < before) {
+    return {
+      dp: before - damage,
+      maxDp: resolveCurrentEnemyDpGaugeMax(normalizedExtra, fallbackMax),
+      extraDpGaugeState: normalizedExtra,
+      brokeFinalGauge: false,
+      brokeGauge: false,
+      breakTurnId: previousBreakTurnId,
+    };
+  }
+
+  const overflow = damage - before;
+  const nextExtra = decrementEnemyExtraDpGaugeState(normalizedExtra);
+  const nextMax = getEnemyExtraDpGaugeCurrentMax(nextExtra);
+  if (nextExtra && Number(nextExtra.remaining ?? 0) > 0 && Number.isFinite(nextMax) && nextMax > 0) {
+    return {
+      dp: Math.max(1, nextMax - overflow),
+      maxDp: nextMax,
+      extraDpGaugeState: nextExtra,
+      brokeFinalGauge: false,
+      brokeGauge: true,
+      breakTurnId: currentTurnId,
+    };
+  }
+
+  return {
+    dp: 0,
+    maxDp: resolveCurrentEnemyDpGaugeMax(normalizedExtra, fallbackMax),
+    extraDpGaugeState: nextExtra ?? normalizedExtra,
+    brokeFinalGauge: true,
+    brokeGauge: true,
+    breakTurnId: currentTurnId,
+  };
+}
+
+// 追撃の破壊率計算は前衛行動と別に解決する。通常の追撃バフ非適用規則を維持しつつ、
+// calculateDestruction の通常攻撃・追撃専用の超越例外だけを追撃元へ適用する独立ブロック。
+function applyPursuitDestructionRateFromAction(state, actionEntry) {
+  const pursuedHitCount = Math.max(0, Number(actionEntry?.pursuedHitCount ?? 0));
+  const pursuitSourceCharacterId = String(actionEntry?.pursuitSourceCharacterId ?? '');
+  const targetIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
+    ? Number(actionEntry.pursuedTargetEnemyIndex)
+    : Number(actionEntry?.targetEnemyIndex ?? NaN);
+  if (pursuedHitCount <= 0 || !pursuitSourceCharacterId || !Number.isInteger(targetIndex)) {
+    return;
+  }
+
+  const pursuitActor = findMemberByCharacterId(state, pursuitSourceCharacterId);
+  const pursuitSkill = pursuitActor?.getSkill?.(Number(actionEntry?.pursuitSourceSkillId ?? 0));
+  if (
+    !pursuitActor ||
+    !pursuitSkill ||
+    !isEnemyAlive(state?.turnState, targetIndex) ||
+    isEnemyEShieldActive(getEnemyEShieldStateByTarget(state?.turnState, targetIndex)) ||
+    !hasEnemyStatus(state?.turnState, targetIndex, ENEMY_STATUS_BREAK)
+  ) {
+    return;
+  }
+
+  const effectiveParts = resolveEffectiveSkillParts(pursuitSkill, state, pursuitActor);
+  const attackPart = findAttackPart({ parts: effectiveParts });
+  if (!attackPart) {
+    return;
+  }
+
+  const currentRatePercent = getEnemyDestructionRatePercent(state.turnState, targetIndex);
+  const capPercent = getEnemyDestructionRateCapPercent(state.turnState, targetIndex, pursuitActor);
+  const rawDestructionMultiplier = Number(
+    state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? DEFAULT_ENEMY_D_RATE_RAW
+  );
+  const transcendenceBurstModifiers = resolveTranscendenceBurstModifiersForMember(state, pursuitActor);
+  const result = calculateDestruction(
+    {
+      attacker: {
+        styleId: Number(pursuitActor.styleId ?? 0),
+        statusEffects: normalizeDestructionUpStatusEffectsForCalculation(pursuitActor.statusEffects),
+        accessoryDestructionRateBonus: Number(pursuitActor?.blastPiercePercent ?? 0) / 100,
+        flatDestructionRateBonus: Number(pursuitActor?.chainDestructionRateBonus ?? 0),
+        transcendenceBurstDestructionRateGainBonusRate: Number(
+          transcendenceBurstModifiers.destructionRateGainBonusRate ?? 0
+        ),
+        resonanceDestructionRateBonus: 0,
+      },
+      defender: {
+        enemyId: null,
+        destructionRate: currentRatePercent / 100,
+        destructionLimit: capPercent / 100,
+        destructionMultiplier: rawDestructionMultiplier,
+        dp: 0,
+      },
+      skill: {
+        skillId: Number(pursuitSkill.skillId ?? pursuitSkill.id ?? 0),
+        name: String(pursuitSkill.name ?? '追撃'),
+        isPursuit: true,
+        spCostOverride: Number(pursuitSkill.spCost ?? pursuitSkill.sp_cost ?? 0),
+        baseHitCount: pursuedHitCount,
+        attackPart,
+        parts: effectiveParts,
+      },
+      hits: buildDestructionHitsForAction(pursuedHitCount, 0),
+      autoBreak: false,
+    },
+    DESTRUCTION_CALCULATION_DATA_FALLBACK
+  );
+  const nextRatePercent = Math.min(capPercent, Number(result?.destructionRate ?? currentRatePercent / 100) * 100);
+  if (!Number.isFinite(nextRatePercent) || nextRatePercent <= currentRatePercent) {
+    return;
+  }
+
+  if (!actionEntry.pursuitDestructionBreakdownByEnemy) {
+    actionEntry.pursuitDestructionBreakdownByEnemy = {};
+  }
+  actionEntry.pursuitDestructionBreakdownByEnemy[String(targetIndex)] = {
+    characterId: pursuitActor.characterId,
+    characterName: pursuitActor.characterName,
+    skillId: Number(pursuitSkill.skillId ?? pursuitSkill.id ?? 0),
+    skillName: String(pursuitSkill.name ?? '追撃'),
+    targetIndex,
+    rateBefore: currentRatePercent,
+    rateAfter: nextRatePercent,
+    appliedGainPercent: nextRatePercent - currentRatePercent,
+    hitCount: pursuedHitCount,
+    breakdown: result?.breakdown ?? null,
+  };
+  setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
+}
+
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
@@ -4784,11 +5159,21 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   // 初期値は前ターンから引き継いだ remainingDpByEnemy、なければ enemyDpByEnemy（最大DP）を使用。
   const initEnemyState = getEnemyState(preActionTurnState);
   const maxDpByEnemy = initEnemyState.enemyDpByEnemy ?? {};
+  const extraDpGaugeStateByEnemy = initEnemyState.extraDpGaugeStateByEnemy ?? {};
+  const breakTurnByEnemy = getEnemyState(state.turnState).dpGaugeBreakTurnByEnemy ?? {};
   const inheritedRemaining = getEnemyState(state.turnState).remainingDpByEnemy ?? {};
   const runningDp = {};
+  const runningMaxDp = {};
+  const runningExtraDpGaugeState = {};
+  const runningBreakTurnByEnemy = { ...breakTurnByEnemy };
   for (let i = 0; i < enemyCount; i++) {
     const key = String(i);
-    const maxDp = Number(maxDpByEnemy[key] ?? 0);
+    const extraDpGaugeState = cloneEnemyExtraDpGaugeState(extraDpGaugeStateByEnemy[key]);
+    const maxDp = resolveCurrentEnemyDpGaugeMax(extraDpGaugeState, maxDpByEnemy[key]);
+    if (extraDpGaugeState) {
+      runningExtraDpGaugeState[key] = extraDpGaugeState;
+    }
+    runningMaxDp[key] = maxDp;
     if (key in inheritedRemaining) {
       const remaining = Number(inheritedRemaining[key]);
       // ブレイク状態でないのに残DPが0以下の場合はブレイク解除済みとみなし、
@@ -4797,10 +5182,11 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         remaining <= 0 && maxDp > 0 && !hasEnemyStatus(state.turnState, i, ENEMY_STATUS_BREAK)
           ? maxDp
           : remaining;
-    } else if (key in maxDpByEnemy) {
+    } else if (key in maxDpByEnemy || maxDp > 0) {
       runningDp[key] = maxDp;
     }
   }
+  const currentDpGaugeBreakTurnId = resolveEnemyDpGaugeBreakTurnId(state.turnState);
 
   for (const actionEntry of previewRecord.actions ?? []) {
     const actor = findMemberByCharacterId(state, actionEntry.characterId);
@@ -4818,6 +5204,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
 
     const effectiveParts = resolveEffectiveSkillParts(skill, state, actor);
     if (!hasDamagePartInParts(effectiveParts)) {
+      applyPursuitDestructionRateFromAction(state, actionEntry);
       continue;
     }
     const destructionAttackPart = findAttackPart({ parts: effectiveParts });
@@ -4856,7 +5243,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
       const wasBroken = hasEnemyStatus(preActionTurnState, targetIndex, ENEMY_STATUS_BREAK);
       // DPゲージを持たない敵（DP未設定・DP0でブレイク状態のまま行動する敵）は
       // DP消費・自動ブレイクの対象外。
-      const hasDpGauge = Number(maxDpByEnemy[String(targetIndex)] ?? 0) > 0;
+      const hasDpGauge = Number(runningMaxDp[String(targetIndex)] ?? 0) > 0;
       const isManualBreakTarget = manualBreakEnemyIndexes.includes(Number(targetIndex));
       const targetKey = String(targetIndex);
       const perHitDpDamage = Number(actionEntry?.perHitDpDamageByEnemy?.[targetKey] ?? 0);
@@ -4877,8 +5264,24 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             totalDpDamage > 0 && Number.isFinite(totalDpDamage)
               ? totalDpDamage
               : hitCount * perHitDpDamage;
-          const dpConsumed = Math.min(dpBeforeThisAction, dpDamage);
-          newDp = Math.max(0, dpBeforeThisAction - dpConsumed);
+          const consumed = consumeEnemyDpGaugeForAction({
+            dpBefore: dpBeforeThisAction,
+            dpDamage,
+            extraDpGaugeState: runningExtraDpGaugeState[targetKey],
+            currentTurnId: currentDpGaugeBreakTurnId,
+            previousBreakTurnId: runningBreakTurnByEnemy[targetKey],
+            fallbackMax: runningMaxDp[targetKey],
+          });
+          newDp = consumed.dp;
+          runningMaxDp[targetKey] = consumed.maxDp;
+          if (consumed.extraDpGaugeState) {
+            runningExtraDpGaugeState[targetKey] = consumed.extraDpGaugeState;
+          } else {
+            delete runningExtraDpGaugeState[targetKey];
+          }
+          if (consumed.brokeGauge) {
+            runningBreakTurnByEnemy[targetKey] = consumed.breakTurnId;
+          }
         }
         runningDp[targetKey] = newDp;
         if (newDp <= 0 && !hasEnemyStatus(state.turnState, targetIndex, ENEMY_STATUS_BREAK)) {
@@ -5146,16 +5549,24 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         breakdown: result?.breakdown ?? null,
       };
       if (Number.isFinite(nextRatePercent)) {
-        setEnemyDestructionRatePercent(state.turnState, targetIndex, nextRatePercent);
+        setEnemyDestructionRatePercent(
+          state.turnState,
+          targetIndex,
+          Math.max(getEnemyDestructionRatePercent(state.turnState, targetIndex), nextRatePercent)
+        );
       }
     }
+    applyPursuitDestructionRateFromAction(state, actionEntry);
   }
 
   // DP 残量をターン状態に永続化（ターンをまたいだ引き継ぎのため）
   if (!state.turnState.enemyState) {
     state.turnState.enemyState = { enemyCount, statuses: [] };
   }
+  state.turnState.enemyState.enemyDpByEnemy = { ...runningMaxDp };
   state.turnState.enemyState.remainingDpByEnemy = { ...runningDp };
+  state.turnState.enemyState.extraDpGaugeStateByEnemy = structuredClone(runningExtraDpGaugeState);
+  state.turnState.enemyState.dpGaugeBreakTurnByEnemy = { ...runningBreakTurnByEnemy };
 
   return events;
 }
@@ -5166,7 +5577,8 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
  * - 初期値は前ターンから引き継いだ remainingHpByEnemy、なければ enemyHpByEnemy（最大HP）。
  * - perHitHpDamageByEnemy（manager 層 enrichment が付与する派生値）× hit 数を消費。
  * - HP0 到達で source:'auto' の Dead を付与（手動討伐指定が最優先）。
- * - extra HP gauge（多段ゲージ）搭載敵は既存のHpBreak管理に委ね、追跡対象外。
+ * - extra HP gauge（多段ゲージ）搭載敵は現在セグメントHPを remainingHpByEnemy に保持し、
+ *   HP0 到達時に source:'auto' の HpBreak / Dead を付与する。
  * - remainingHpByEnemy は turnState 内の派生値であり、replay JSON へ保存してはならない。
  */
 function applyEnemyHpFromActions(state, previewRecord, options = {}) {
@@ -5182,12 +5594,15 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
   const runningHp = {};
   for (let i = 0; i < enemyCount; i++) {
     const key = String(i);
-    // 多段HPゲージ搭載敵は対象外（HpBreak での段階管理が正）
-    if (getEnemyExtraHpGaugeStateByTarget(state.turnState, i)) {
-      continue;
-    }
     if (key in inheritedRemaining && Number.isFinite(Number(inheritedRemaining[key]))) {
       runningHp[key] = Number(inheritedRemaining[key]);
+      continue;
+    }
+    const extraHpSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+      getEnemyExtraHpGaugeStateByTarget(state.turnState, i)
+    );
+    if (extraHpSegmentMax !== null) {
+      runningHp[key] = extraHpSegmentMax;
     } else if (Number(maxHpByEnemy[key] ?? 0) > 0) {
       runningHp[key] = Number(maxHpByEnemy[key]);
     }
@@ -5222,6 +5637,16 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
     for (const targetIndex of targetEnemyIndexes) {
       const key = String(targetIndex);
       if (!(key in runningHp)) {
+        continue;
+      }
+      const manualHpBreakEnemyIndexes = normalizeManualHpBreakEnemyIndexes(actionEntry, enemyCount);
+      if (manualHpBreakEnemyIndexes.includes(Number(targetIndex))) {
+        const nextSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+          getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex)
+        );
+        if (nextSegmentMax !== null) {
+          runningHp[key] = nextSegmentMax;
+        }
         continue;
       }
       // 手動討伐指定はHP枯渇として扱う（DP版の手動ブレイク優先と同型）。
@@ -5259,21 +5684,48 @@ function applyEnemyHpFromActions(state, previewRecord, options = {}) {
       const newHp = Math.max(0, hpBefore - Math.min(hpBefore, hpDamage));
       runningHp[key] = newHp;
       if (newHp <= 0) {
-        const applied = applyManualEnemyKill(state.turnState, targetIndex);
-        if (applied) {
-          // HP枯渇による自動討伐も手動討伐と同様にイベントへ記録する
+        const extraHpGaugeState = getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex);
+        if (canEnemyHpBreak(extraHpGaugeState)) {
+          const applied = applyManualEnemyHpBreak(state.turnState, targetIndex);
+          if (!applied) {
+            continue;
+          }
+          const nextSegmentMax = getEnemyExtraHpGaugeCurrentSegmentMax(
+            getEnemyExtraHpGaugeStateByTarget(state.turnState, targetIndex)
+          );
+          if (nextSegmentMax !== null) {
+            runningHp[key] = nextSegmentMax;
+          }
           events.push(
             buildActionScopedEvent(actionEntry, {
               actorCharacterId: String(actionEntry.characterId ?? ''),
               skillId: Number(actionEntry.skillId ?? 0),
               skillName: String(actionEntry.skillName ?? ''),
-              mode: 'Dead',
+              mode: 'HpBreak',
               targetIndex: Number(applied.targetIndex),
-              statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
+              statusType: String(applied.statusType ?? 'HpBreak'),
+              remainingExtraHpGaugeCount: Number(applied.remainingExtraHpGaugeCount ?? 0),
               source: 'auto',
             })
           );
+          continue;
         }
+        const applied = applyManualEnemyKill(state.turnState, targetIndex);
+        if (!applied) {
+          continue;
+        }
+        // HP枯渇による自動討伐も手動討伐と同様にイベントへ記録する
+        events.push(
+          buildActionScopedEvent(actionEntry, {
+            actorCharacterId: String(actionEntry.characterId ?? ''),
+            skillId: Number(actionEntry.skillId ?? 0),
+            skillName: String(actionEntry.skillName ?? ''),
+            mode: 'Dead',
+            targetIndex: Number(applied.targetIndex),
+            statusType: String(applied.statusType ?? ENEMY_STATUS_DEAD),
+            source: 'auto',
+          })
+        );
       }
     }
   }
@@ -7053,6 +7505,8 @@ function tickEnemyStatusDurations(turnState, timing = 'EnemyTurnEnd') {
     absorbElementsByEnemy: enemyState.absorbElementsByEnemy,
     odRateByEnemy: enemyState.odRateByEnemy,
     eShieldStateByEnemy: enemyState.eShieldStateByEnemy,
+    extraDpGaugeStateByEnemy: enemyState.extraDpGaugeStateByEnemy,
+    dpGaugeBreakTurnByEnemy: enemyState.dpGaugeBreakTurnByEnemy,
     extraHpGaugeStateByEnemy: enemyState.extraHpGaugeStateByEnemy,
     breakStateByEnemy: enemyState.breakStateByEnemy,
     enemyNamesByEnemy: enemyState.enemyNamesByEnemy,
@@ -7973,6 +8427,16 @@ function resolveActiveBuffStatusModifiersForAction(state, member, skill) {
   };
 }
 
+function resolveFightingSpiritBonus(member) {
+  if (typeof member?.getStatusEffectsByType !== 'function') return 0;
+  const effects = member.getStatusEffectsByType('FightingSpirit', { activeOnly: true });
+  if (!Array.isArray(effects) || effects.length === 0) return 0;
+  return effects.reduce((max, effect) => {
+    const power = Number(effect?.power ?? 0);
+    return Number.isFinite(power) ? Math.max(max, power) : max;
+  }, 0);
+}
+
 function isCountConsumableActiveBuffStatusEffect(effect) {
   return (
     ACTIVE_BUFF_STATUS_SKILL_TYPES.has(String(effect?.statusType ?? '')) &&
@@ -8131,6 +8595,35 @@ function resolveCombinedDrivePierceOdBonusPercent(state, effectiveHitCount, driv
 function resolveBabiedOdGaugeGainBonusPercent(actionEntry) {
   return truncateToTwoDecimals(
     Number(actionEntry?.specialPassiveModifiers?.babiedOdGaugeGainUpRate ?? 0) * 100
+  );
+}
+
+const OD_GAUGE_GAIN_SCOPES = Object.freeze(new Set(['skill', 'normalAttack', 'pursuit']));
+
+function normalizeOdGaugeGainScopes(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return [...new Set(value.map((scope) => String(scope ?? '').trim()).filter((scope) => OD_GAUGE_GAIN_SCOPES.has(scope)))];
+}
+
+function resolveOdGaugeGainBonusPercent(state, member, scope) {
+  if (!state || !member || !OD_GAUGE_GAIN_SCOPES.has(scope)) {
+    return 0;
+  }
+  const effects = typeof member.getStatusEffectsByType === 'function'
+    ? member.getStatusEffectsByType('OverDriveRateUp', { activeOnly: true })
+    : [];
+  return truncateToTwoDecimals(
+    effects.reduce((sum, effect) => {
+      const scopes = normalizeOdGaugeGainScopes(effect?.metadata?.odGaugeGainScopes);
+      const appliesToScope = scopes.length === 0 ? scope === 'skill' : scopes.includes(scope);
+      if (!appliesToScope) {
+        return sum;
+      }
+      const rate = Number(effect?.power ?? 0) * 100;
+      return Number.isFinite(rate) ? sum + rate : sum;
+    }, 0)
   );
 }
 
@@ -8385,7 +8878,7 @@ function computeOverDrivePointUpGainPercent(
     state,
     baseHitCount,
     member?.drivePiercePercent ?? 0
-  );
+  ) + resolveOdGaugeGainBonusPercent(state, member, 'skill');
   const driveMultiplier = 1 + driveBonusPercent / 100;
 
   let total = 0;
@@ -8478,12 +8971,15 @@ function computeOdGaugeGainPercentBySkill(
   let attackGain = 0;
   if (hasDamage && targetEnemyIndexes.length > 0) {
     if (isNormalAttackSkill(skill)) {
+      const bonusPercent = resolveOdGaugeGainBonusPercent(state, member, 'normalAttack');
+      const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
         targetEnemyIndexes.reduce((sum, targetEnemyIndex) => {
           const perHitGain = truncateToTwoDecimals(
             OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state?.turnState, targetEnemyIndex)
           );
-          return sum + truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+          const baseGain = truncateToTwoDecimals(perHitGain * hitCountPerEnemy);
+          return sum + truncateToTwoDecimals(baseGain * multiplier);
         }, 0)
       );
     } else {
@@ -8492,7 +8988,9 @@ function computeOdGaugeGainPercentBySkill(
           state,
           baseHitCount,
           member?.drivePiercePercent ?? 0
-        ) + resolveBabiedOdGaugeGainBonusPercent(actionEntry)
+        ) +
+          resolveBabiedOdGaugeGainBonusPercent(actionEntry) +
+          resolveOdGaugeGainBonusPercent(state, member, 'skill')
       );
       const multiplier = 1 + bonusPercent / 100;
       attackGain = truncateToTwoDecimals(
@@ -8624,10 +9122,14 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
     const pursuedTargetEnemyIndex = Number.isFinite(Number(actionEntry?.pursuedTargetEnemyIndex))
       ? Number(actionEntry.pursuedTargetEnemyIndex)
       : (Number.isFinite(Number(actionEntry?.targetEnemyIndex)) ? Number(actionEntry.targetEnemyIndex) : null);
+    const pursuitSourceMember = findMemberByCharacterId(state, actionEntry?.pursuitSourceCharacterId);
+    const pursuitMultiplier = 1 + resolveOdGaugeGainBonusPercent(state, pursuitSourceMember, 'pursuit') / 100;
     const pursuitPerHitGain =
       Number.isInteger(pursuedTargetEnemyIndex) && isEnemyAlive(state?.turnState, pursuedTargetEnemyIndex)
         ? truncateToTwoDecimals(
-            OD_GAUGE_PER_HIT_PERCENT * resolveEnemyOdRateMultiplier(state.turnState, pursuedTargetEnemyIndex)
+            OD_GAUGE_PER_HIT_PERCENT *
+              pursuitMultiplier *
+              resolveEnemyOdRateMultiplier(state.turnState, pursuedTargetEnemyIndex)
           )
         : 0;
     const pursuitOdGain =
@@ -8784,6 +9286,10 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         effectiveDamageRatesByEnemy: odEnemyAnalysis?.effectiveDamageRatesByEnemy,
         enemyParamBorderByEnemy: getEnemyState(state.turnState).paramBorderByEnemy,
         enemyDpByEnemy: getEnemyState(state.turnState).enemyDpByEnemy,
+        remainingDpByEnemy: getEnemyState(state.turnState).remainingDpByEnemy,
+        enemyHpByEnemy: getEnemyState(state.turnState).enemyHpByEnemy,
+        remainingHpByEnemy: getEnemyState(state.turnState).remainingHpByEnemy,
+        extraHpGaugeStateByEnemy: getEnemyState(state.turnState).extraHpGaugeStateByEnemy,
         enemyNamesByEnemy: getEnemyState(state.turnState).enemyNamesByEnemy,
         destructionRateByEnemy: getEnemyState(state.turnState).destructionRateByEnemy,
         destructionRateCapByEnemy: buildEnemyDestructionRateCapMapForAction(state.turnState, enemyCount, member),
@@ -8804,6 +9310,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         ),
         highBoostSkillAtkRate: Number(actionEntry?.specialPassiveModifiers?.highBoostSkillAtkRate ?? 0),
         attackUpRate: Number(actionEntry?.specialPassiveModifiers?.attackUpRate ?? 0),
+        fightingSpiritBonusValue: Number(actionEntry?.specialPassiveModifiers?.fightingSpiritBonusValue ?? 0),
         defenseUpRate: Number(actionEntry?.specialPassiveModifiers?.defenseUpRate ?? 0),
         criticalRateUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalRateUpRate ?? 0),
         criticalDamageUpRate: Number(actionEntry?.specialPassiveModifiers?.criticalDamageUpRate ?? 0),
@@ -9327,11 +9834,12 @@ function addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart 
     sourceCharacterId: String(actor?.characterId ?? ''),
     sourceCharacterName: String(actor?.characterName ?? ''),
     sourceSkillDesc: String(skill?.desc ?? ''),
-    metadata: {
-      activeBuffStatus: true,
-      effectName,
-      includeNormalAttack: skillType === 'AttackUpIncludeNormal',
-      onlyGroupKey: `${statusType}|${effectName}|${normalizeStatusEffectElements(part?.elements).join(',')}`,
+      metadata: {
+        activeBuffStatus: true,
+        effectName,
+        includeNormalAttack: skillType === 'AttackUpIncludeNormal',
+        odGaugeGainScopes: normalizeOdGaugeGainScopes(part?.odGaugeGainScopes),
+        onlyGroupKey: `${statusType}|${effectName}|${normalizeStatusEffectElements(part?.elements).join(',')}`,
       targetType: String(part?.target_type ?? ''),
       sourceSkillType: skillType,
     },
@@ -9789,6 +10297,39 @@ function applyGuardEffectsFromActions(state, previewRecord) {
   return events;
 }
 
+// T02: SpecialStatusCountByType 状態保持チェックヘルパー
+const IMPLEMENTED_SPECIAL_STATUS_TYPES = new Set([
+  25,
+  78,
+  79,
+  122,
+  124,
+  125,
+  SPECIAL_STATUS_TYPE_DIVA,
+  146,
+  155,
+  164,
+  SPECIAL_STATUS_TYPE_BABIED,
+  SPECIAL_STATUS_TYPE_CURRY,
+  SPECIAL_STATUS_TYPE_SHCHI,
+  SPECIAL_STATUS_TYPE_MOCKTAIL,
+  SPECIAL_STATUS_TYPE_STEAK,
+  SPECIAL_STATUS_TYPE_GELATO,
+]);
+
+function hasSpecialStatus(member, typeId) {
+  if (!Array.isArray(member?.statusEffects)) return false;
+  const id = Number(typeId);
+  return member.statusEffects.some((e) => {
+    if (Number(e.metadata?.specialStatusTypeId) !== id) return false;
+    if (id === BUFF_SKILL_TYPE_TO_STATUS_ID.BIYamawakiServant && String(e.statusType ?? '') === 'BIYamawakiServant') {
+      return true;
+    }
+    // Eternal 状態は remaining=0 でも有効
+    if (String(e.exitCond ?? '') === 'Eternal') return true;
+    return Number(e.remaining ?? 0) > 0;
+  });
+}
 function applyShreddingEffectsFromActions(state, previewRecord) {
   const events = [];
   for (const actionEntry of previewRecord.actions ?? []) {
@@ -9842,6 +10383,7 @@ const BUFF_SKILL_TYPE_TO_STATUS_ID = Object.freeze({
   ShadowClone: 125,
   Diva: SPECIAL_STATUS_TYPE_DIVA,
   NegativeMind: 146,
+  FightingSpirit: 185,
   Makeup: 164,
   Babied: SPECIAL_STATUS_TYPE_BABIED,
   Curry: SPECIAL_STATUS_TYPE_CURRY,
@@ -11440,6 +11982,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     member,
     effectiveSkill
   );
+  const fightingSpiritBonusValue = resolveFightingSpiritBonus(member);
   const foodBuffModifiers = resolveFoodBuffModifiersForAction(state, member, effectiveSkill);
   const babiedModifiers = resolveBabiedModifiersForAction(state, member, effectiveSkill);
   const divaModifiers = resolveDivaModifiersForAction(state, member, effectiveSkill);
@@ -11551,6 +12094,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     ],
     specialPassiveModifiers: {
       highBoostSkillAtkRate: Number(highBoostModifiers.skillAtkRate ?? 0),
+      fightingSpiritBonusValue,
       consumedCountEffectIds: [...(activeBuffStatusModifiers.consumedCountEffectIds ?? [])],
       attackUpRate:
         Number(activeBuffStatusModifiers.attackUpRate ?? 0) +
@@ -11982,6 +12526,7 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
       actionEntry.manualHpBreakEnemyIndexes = [...new Set(derivedHpBreakEnemyIndexes)];
     }
   }
+  const hasEnemyHpBreak = derivedHpBreakEnemyIndexes.length > 0;
   const derivedBreakEnemyIndexes = enemyBreakEvents
     .filter(
       (event) =>
@@ -11997,6 +12542,45 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
     if (normalizeManualBreakEnemyIndexes(actionEntry).length === 0) {
       actionEntry.manualBreakEnemyIndexes = [...new Set(derivedBreakEnemyIndexes)];
     }
+  }
+  if (hasEnemyHpBreak) {
+    applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+    const odGaugeGain = applyOdGaugeFromActions(state, singleRecord, {
+      buffMetadataValidation,
+    });
+    member.incrementSkillUseById(actionEntry.skillId);
+    return {
+      removeDebuffEvents,
+      epSkillEvents,
+      skillSpEvents,
+      actionDpEvents,
+      dpHealMotivationEvents,
+      tokenEvents,
+      moraleEvents: moraleResult.moraleEvents,
+      spPassiveEvents: moraleResult.spPassiveEvents,
+      additionalTurnPassiveGrantedIds: moraleResult.additionalTurnPassiveGrantedIds,
+      dpPassiveEvents: moraleResult.dpPassiveEvents,
+      dpPassiveMotivationEvents: applyMotivationFromDpHealEvents(state, moraleResult.dpPassiveEvents),
+      passiveTriggerEvents: [
+        ...moraleResult.passiveTriggerEvents,
+        ...supportBreakOdEvents,
+      ],
+      motivationEvents,
+      markEvents,
+      fieldStateEvents: [...fieldStateEvents, ...moraleResult.fieldStateEvents, ...talismanFieldEvents],
+      doubleActionStatusEvents,
+      funnelEvents,
+      activeBuffStatusEvents,
+      buffStatusEvents,
+      guardEvents,
+      shreddingEvents,
+      enemyStatusEvents,
+      enemyBreakEvents,
+      enemyHpBreakEvents,
+      enemyKillEvents: [],
+      breakDownTurnUpEvents: [],
+      odGaugeGain,
+    };
   }
   const dpAutoBreakEvents = applyDestructionRateFromActions(state, singleRecord, { preActionTurnState });
   enemyBreakEvents.push(...dpAutoBreakEvents);
@@ -12021,8 +12605,19 @@ function applyCommittedActionSideEffects(state, actionEntry, options = {}) {
   }
   // HP累積消費とHP0自動討伐（手動討伐の後に呼ぶことで applyManualEnemyKill の
   // 二重適用が自然に抑止され、手動優先になる）。autoのDeadは killCount 導出に含めない。
-  const hpAutoKillEvents = applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+  const hpAutoEvents = applyEnemyHpFromActions(state, singleRecord, { preActionTurnState });
+  const hpAutoBreakEvents = hpAutoEvents.filter((event) => String(event?.mode ?? event?.statusType ?? '') === 'HpBreak');
+  const hpAutoKillEvents = hpAutoEvents.filter((event) => String(event?.mode ?? event?.statusType ?? '') !== 'HpBreak');
+  enemyHpBreakEvents.push(...hpAutoBreakEvents);
   enemyKillEvents.push(...hpAutoKillEvents);
+  if (hpAutoBreakEvents.length > 0) {
+    const autoHpBreakEnemyIndexes = hpAutoBreakEvents
+      .map((event) => Number(event?.targetIndex))
+      .filter((targetIndex) => Number.isInteger(targetIndex) && targetIndex >= 0);
+    if (!Number.isFinite(Number(actionEntry?.hpBreakCount)) || Number(actionEntry.hpBreakCount) <= 0) {
+      actionEntry.hpBreakCount = autoHpBreakEnemyIndexes.length;
+    }
+  }
   const stageSetupKillSpEvents = applyStageSetupSpOnEnemyKill(
     state,
     actionEntry,
@@ -12665,6 +13260,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType !== 'EpLimitOverwrite' &&
           skillType !== 'TokenSet' &&
           skillType !== 'OverDrivePointUp' &&
+          skillType !== 'OverDriveRateUp' &&
           skillType !== 'DebuffGuard' &&
           skillType !== 'BreakGuard' &&
           skillType !== 'Funnel' &&
@@ -12910,6 +13506,33 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           );
           matched = true;
           totalOdGaugeDelta += Number(amount);
+          continue;
+        }
+
+        if (skillType === 'OverDriveRateUp') {
+          const targets = resolvePassiveTargetMembers(
+            state,
+            member,
+            part,
+            options.targetCharacterId ?? null
+          );
+          for (const target of targets) {
+            if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
+              continue;
+            }
+            const added = addActiveBuffStatusEffect(state, member, target, passive, part);
+            if (!added) {
+              continue;
+            }
+            appliedStatusEffects.push({
+              characterId: target.characterId,
+              effectId: Number(added.effectId ?? 0),
+              statusType: String(added.statusType ?? skillType),
+              exitCond: String(added.exitCond ?? ''),
+              remaining: Number(added.remaining ?? 0),
+            });
+            matched = true;
+          }
           continue;
         }
 
@@ -14735,7 +15358,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
     fieldStateEvents.push(...actionResult.fieldStateEvents);
     doubleActionStatusEvents.push(...actionResult.doubleActionStatusEvents);
     funnelEvents.push(...actionResult.funnelEvents);
-    sprightlyEvents.push(...actionResult.sprightlyEvents);
+    sprightlyEvents.push(...(actionResult.sprightlyEvents ?? []));
     activeBuffStatusEvents.push(...actionResult.activeBuffStatusEvents);
     buffStatusEvents.push(...actionResult.buffStatusEvents);
     guardEvents.push(...actionResult.guardEvents);
@@ -15172,6 +15795,13 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
         })
       ),
       ...enemyBreakEvents.filter((ev) =>
+        eventBelongsToActionEntry(entry, ev, {
+          actorKey: 'actorCharacterId',
+          skillKey: 'skillId',
+          actionEntries: previewRecord.actions,
+        })
+      ),
+      ...enemyHpBreakEvents.filter((ev) =>
         eventBelongsToActionEntry(entry, ev, {
           actorKey: 'actorCharacterId',
           skillKey: 'skillId',

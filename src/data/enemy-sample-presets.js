@@ -36,15 +36,8 @@ export const SUMMON_SAMPLE_ENEMIES = Object.freeze([
 
 export const DEFAULT_SUMMON_SAMPLE_ENEMY = DEATH_SLUG_WHITE_BIT_SAMPLE_ENEMY;
 
-export const SKULL_FEATHER_FINAL_SAMPLE_ENEMY = Object.freeze({
-  id: 13420081,
-  label: 'Hard_SkullFeatherHead2nd_MC04BDay14',
-  name: '異時層 スカルフェザー 最終形態',
-});
-
 export const ALWAYS_VISIBLE_ENEMY_PRESET_IDS = Object.freeze([
   PINNED_INITIAL_SETUP_ENEMY.id,
   E_SHIELD_SAMPLE_ENEMY.id,
-  SKULL_FEATHER_FINAL_SAMPLE_ENEMY.id,
   ...SUMMON_SAMPLE_ENEMIES.map((enemy) => enemy.id),
 ]);

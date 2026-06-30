@@ -786,6 +786,46 @@ function formatDamageCalculatorNumber(value, digits = 0) {
   return Number.isFinite(numeric) ? numeric.toLocaleString('ja-JP', { maximumFractionDigits: digits }) : '-';
 }
 
+function sumPositiveHitBreakdownField(rows, fieldName) {
+  if (!Array.isArray(rows)) {
+    return null;
+  }
+  let hasFiniteValue = false;
+  let total = 0;
+  for (const row of rows) {
+    const value = Number(row?.[fieldName]);
+    if (!Number.isFinite(value)) {
+      continue;
+    }
+    hasFiniteValue = true;
+    total += Math.max(0, value);
+  }
+  return hasFiniteValue ? total : null;
+}
+
+function buildActualDamageSummaryHtml(action, enemyKey) {
+  const hitBreakdown = action?.destructionBreakdownByEnemy?.[enemyKey]?.hitBreakdown;
+  const breakdownDpDamage = sumPositiveHitBreakdownField(hitBreakdown, 'dpConsumed');
+  const breakdownHpDamage = sumPositiveHitBreakdownField(hitBreakdown, 'hpApplied');
+  const totalDpDamage = Number(action?.totalDpDamageByEnemy?.[enemyKey]);
+  const totalHpDamage = Number(action?.totalHpDamageByEnemy?.[enemyKey]);
+  const dpDamage = breakdownDpDamage !== null ? breakdownDpDamage : totalDpDamage;
+  const hpDamage = breakdownHpDamage !== null && breakdownHpDamage > 0 ? breakdownHpDamage : totalHpDamage;
+  const parts = [];
+  if (Number.isFinite(dpDamage)) {
+    parts.push(`<span>DP ${esc(formatDamageCalculatorNumber(dpDamage))}</span>`);
+  }
+  if (Number.isFinite(hpDamage)) {
+    parts.push(`<span>HP ${esc(formatDamageCalculatorNumber(hpDamage))}</span>`);
+  }
+  if (Number.isFinite(dpDamage) || Number.isFinite(hpDamage)) {
+    parts.push(`<span class="char-popup-damage-calc-actual-total">Total ${esc(formatDamageCalculatorNumber(
+      (Number.isFinite(dpDamage) ? dpDamage : 0) + (Number.isFinite(hpDamage) ? hpDamage : 0)
+    ))}</span>`);
+  }
+  return parts.length > 0 ? parts.join('<span class="char-popup-damage-calc-actual-separator"> / </span>') : '-';
+}
+
 function formatDamageCalculatorMultiplier(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? `${numeric.toFixed(2)}x` : '-';
@@ -849,10 +889,18 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
   );
   return (
     `<aside class="char-popup-damage-calc" data-role="damage-calc-pane" data-action-key="${esc(actionKey)}">` +
-    `<div class="char-popup-damage-calc-tabs" data-role="damage-calc-enemy-tabs">${buildDamageCalculatorTargetTabsHtml(targetBreakdowns)}</div>` +
+    `<div class="char-popup-damage-calc-tabs" data-role="damage-calc-enemy-tabs">` +
+    `<div class="char-popup-damage-calc-targets">${buildDamageCalculatorTargetTabsHtml(targetBreakdowns)}</div>` +
+    `<div class="char-popup-damage-calc-actual" data-role="damage-calc-actual-damage-wrap">` +
+    `<span>実ダメージ</span>` +
+    `<strong data-role="damage-calc-actual-damage">-</strong>` +
+    `</div>` +
+    `</div>` +
     `<div class="char-popup-damage-calc-summary" data-role="damage-calc-result">` +
     `<div class="char-popup-damage-calc-summary-row"><span>DP</span><strong data-role="damage-calc-dp-status">-</strong></div>` +
+    `<div class="char-popup-enemy-gauge-wrap" data-role="damage-calc-dp-gauge"></div>` +
     `<div class="char-popup-damage-calc-summary-row"><span>HP</span><strong data-role="damage-calc-hp-status">N/A</strong></div>` +
+    `<div class="char-popup-enemy-gauge-wrap" data-role="damage-calc-hp-gauge"></div>` +
     `<div class="char-popup-damage-calc-summary-row"><span>破壊率</span><strong data-role="damage-calc-destruction-rate">100.00% / 300.00%</strong></div>` +
     `</div>` +
     `<div class="char-popup-damage-calc-damage-list">` +
@@ -868,22 +916,23 @@ function buildDamageCalculatorPaneHtml(actionKey, damageContext, targetBreakdown
     `<div class="char-popup-damage-calc-body">` +
     `<section class="char-popup-damage-calc-section">` +
     `<div class="char-popup-damage-calc-section-title">攻撃側</div>` +
+    `<div class="char-popup-stat-with-note">` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-attacker-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'attacker') +
+    `</div>` +
+    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-attacker-note" rows="2" readonly></textarea>` +
     `</div>` +
     `</section>` +
     `<section class="char-popup-damage-calc-section">` +
     `<div class="char-popup-damage-calc-section-header">` +
     `<span class="char-popup-damage-calc-section-title">敵</span>` +
-    `<div class="char-popup-damage-calc-enemy-meta">` +
-    `<span data-role="damage-calc-enemy-name">-</span>` +
-    `<span>境界 <strong data-role="damage-calc-enemy-border">${DAMAGE_CALC_DEFAULT_ENEMY_BORDER}</strong></span>` +
     `</div>` +
-    `</div>` +
+    `<div class="char-popup-stat-with-note">` +
     `<div class="char-popup-damage-calc-stat-grid" data-role="damage-calc-enemy-stats">` +
     buildDamageCalculatorStatRowsHtml(statViewModel, 'enemy') +
     `</div>` +
-    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-note" rows="3" placeholder="補足"></textarea>` +
+    `<textarea class="char-popup-damage-calc-note" data-role="damage-calc-note" rows="2" readonly></textarea>` +
+    `</div>` +
     `</section>` +
     `</div>` +
     `<div class="char-popup-damage-calc-message" data-role="damage-calc-message"></div>` +
@@ -1221,6 +1270,22 @@ function resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) {
   return candidates.length > 0 ? Math.max(...candidates) : 300;
 }
 
+function hasExplicitDestructionRateCap(model, enemyKey) {
+  // storedCap = turn終了後の明示キャップ（破壊ブレイク時にセットされる）
+  const storedCap = Number(model?.enemyDestructionState?.destructionRateCapByEnemy?.[enemyKey]);
+  if (Number.isFinite(storedCap) && storedCap > 0) return true;
+  // contextCap はデフォルト式 Math.max(300, rate) を含むため、
+  // 明示キャップと見なせるのは「現在レートより高くかつデフォルト300を超える」場合のみ
+  const contextCap = Number(model?.damageContext?.destructionRateCapByEnemy?.[enemyKey]);
+  const contextRate = Number(model?.damageContext?.destructionRateByEnemy?.[enemyKey]);
+  return (
+    Number.isFinite(contextCap) &&
+    Number.isFinite(contextRate) &&
+    contextCap > contextRate &&
+    contextCap > 300
+  );
+}
+
 async function updateDestructionRateDisplay(pane) {
   const actionKey = pane?.dataset?.actionKey;
   const model = damageCalculationActionModels.get(actionKey);
@@ -1245,7 +1310,11 @@ async function updateDestructionRateDisplay(pane) {
   const capPercent = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey);
 
   if (capNoteEl) {
-    capNoteEl.textContent = `${capPercent}%`;
+    if (hasExplicitDestructionRateCap(model, enemyKey)) {
+      capNoteEl.textContent = `${capPercent}%`;
+    } else {
+      capNoteEl.textContent = `${capPercent}% (デフォルト)`;
+    }
   }
 
   const actionBreakdown = getActionDestructionBreakdown(model, enemyKey);
@@ -1280,6 +1349,76 @@ function loadDamageCalculationDataForPopup() {
   return loadDamageCalculationData();
 }
 
+function buildEnemyGaugeRowHtml(ratio, type, label, depleted = false) {
+  const pct = Math.min(100, Math.max(0, Math.round(ratio * 100)));
+  const depletedClass = depleted ? ' is-depleted' : '';
+  return (
+    `<div class="char-popup-enemy-gauge__row${depletedClass}">` +
+    `<div class="char-popup-enemy-gauge__bar-track">` +
+    `<div class="char-popup-enemy-gauge__bar char-popup-enemy-gauge__bar--${type}" style="width:${pct}%"></div>` +
+    `</div>` +
+    `<span class="char-popup-enemy-gauge__row-label">${label}</span>` +
+    `</div>`
+  );
+}
+
+function updateEnemyDpGauge(pane, enemyAdapter) {
+  const wrapper = pane.querySelector('[data-role="damage-calc-dp-gauge"]');
+  if (!wrapper) return;
+  const { dpCurrent, dpMax } = enemyAdapter;
+  if (!Number.isFinite(dpMax) || dpMax <= 0) {
+    wrapper.innerHTML = '';
+    return;
+  }
+  const ratio = Number.isFinite(dpCurrent) ? dpCurrent / dpMax : 1;
+  const label = Number.isFinite(dpCurrent)
+    ? `${Math.round(dpCurrent).toLocaleString()} / ${Math.round(dpMax).toLocaleString()}`
+    : `- / ${Math.round(dpMax).toLocaleString()}`;
+  wrapper.innerHTML = buildEnemyGaugeRowHtml(ratio, 'dp', label);
+}
+
+function updateEnemyHpGauge(pane, enemyAdapter) {
+  const wrapper = pane.querySelector('[data-role="damage-calc-hp-gauge"]');
+  if (!wrapper) return;
+  const { hpCurrent, hpMax, extraHpGaugeState } = enemyAdapter;
+
+  if (extraHpGaugeState && Array.isArray(extraHpGaugeState.values) && extraHpGaugeState.total > 0) {
+    const { total, remaining, values } = extraHpGaugeState;
+    const totalInt = Math.round(total);
+    const remainingInt = Math.round(remaining);
+    const currentIdx = totalInt - remainingInt;
+    const rows = values.map((segHp, i) => {
+      if (i < currentIdx) {
+        const label = `0 / ${Math.round(segHp).toLocaleString()}`;
+        return buildEnemyGaugeRowHtml(0, 'hp', label, true);
+      } else if (i === currentIdx && remainingInt > 0) {
+        if (Number.isFinite(hpCurrent)) {
+          const r = segHp > 0 ? hpCurrent / segHp : 1;
+          const label = `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`;
+          return buildEnemyGaugeRowHtml(r, 'hp', label, false);
+        } else {
+          return buildEnemyGaugeRowHtml(1, 'hp', `${Math.round(segHp).toLocaleString()}`, false);
+        }
+      } else {
+        const label = `${Math.round(segHp).toLocaleString()} / ${Math.round(segHp).toLocaleString()}`;
+        return buildEnemyGaugeRowHtml(1, 'hp', label, false);
+      }
+    });
+    wrapper.innerHTML = rows.join('');
+    return;
+  }
+
+  if (!Number.isFinite(hpMax) || hpMax <= 0) {
+    wrapper.innerHTML = '';
+    return;
+  }
+  const ratio = Number.isFinite(hpCurrent) ? hpCurrent / hpMax : 1;
+  const label = Number.isFinite(hpCurrent)
+    ? `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(hpMax).toLocaleString()}`
+    : `- / ${Math.round(hpMax).toLocaleString()}`;
+  wrapper.innerHTML = buildEnemyGaugeRowHtml(ratio, 'hp', label);
+}
+
 function resolveDamageCalculatorEnemyAdapter(model, pane) {
   const activeTab = pane.querySelector('[data-role="damage-calc-enemy-tab"].active')
     ?? pane.querySelector('[data-role="damage-calc-enemy-tab"]');
@@ -1294,6 +1433,26 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     ? destructionRatePercent / 100
     : 1;
   const enemyKey = String(Number(targetEnemyIndex));
+  const dpMax = resolveFiniteNumber(
+    model.damageContext?.enemyDpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.enemyDpByEnemy?.[enemyKey]
+  );
+  const dpCurrent = resolveFiniteNumber(
+    model.damageContext?.remainingDpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.remainingDpByEnemy?.[enemyKey]
+  );
+  const hpMax = resolveFiniteNumber(
+    model.damageContext?.enemyHpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.enemyHpByEnemy?.[enemyKey]
+  );
+  const hpCurrent = resolveFiniteNumber(
+    model.damageContext?.remainingHpByEnemy?.[enemyKey],
+    model.enemyDestructionState?.remainingHpByEnemy?.[enemyKey]
+  );
+  const extraHpGaugeState = resolveDamageCalculatorExtraHpGaugeState(model, enemyKey);
+  const resolvedHpCurrent = Number.isFinite(hpCurrent)
+    ? hpCurrent
+    : resolveActionExtraHpGaugeCurrent(model?.action, enemyKey, extraHpGaugeState);
   return {
     targetEnemyIndex,
     enemyName: getDamageTargetLabel(targetBreakdown),
@@ -1303,21 +1462,59 @@ function resolveDamageCalculatorEnemyAdapter(model, pane) {
     destructionRate,
     destructionRatePercent: destructionRate * 100,
     affinityRate: Number.isFinite(affinityRate) ? affinityRate / 100 : undefined,
-    dpMax: Number.isFinite(Number(model.enemyDestructionState?.enemyDpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.enemyDpByEnemy[enemyKey])
-      : null,
-    dpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingDpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.remainingDpByEnemy[enemyKey])
-      : null,
-    hpMax: Number.isFinite(Number(model.enemyDestructionState?.enemyHpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.enemyHpByEnemy[enemyKey])
-      : null,
-    hpCurrent: Number.isFinite(Number(model.enemyDestructionState?.remainingHpByEnemy?.[enemyKey]))
-      ? Number(model.enemyDestructionState.remainingHpByEnemy[enemyKey])
-      : null,
-    extraHpGaugeState: model.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ?? null,
+    dpMax,
+    dpCurrent,
+    hpMax,
+    hpCurrent: resolvedHpCurrent,
+    extraHpGaugeState,
     destructionRateCapPercent: resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey),
   };
+}
+
+function resolveDamageCalculatorExtraHpGaugeState(model, enemyKey) {
+  const hpBreakEnemyIndexes = new Set(
+    (Array.isArray(model?.action?.manualHpBreakEnemyIndexes) ? model.action.manualHpBreakEnemyIndexes : [])
+      .map((value) => String(Number(value)))
+  );
+  if (hpBreakEnemyIndexes.has(String(Number(enemyKey)))) {
+    return (
+      model?.enemyDestructionState?.before?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      model?.damageContext?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      model?.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+      null
+    );
+  }
+  return (
+    model?.damageContext?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+    model?.enemyDestructionState?.extraHpGaugeStateByEnemy?.[enemyKey] ??
+    null
+  );
+}
+
+function resolveActionExtraHpGaugeCurrent(action, enemyKey, extraHpGaugeState) {
+  if (!extraHpGaugeState || typeof extraHpGaugeState !== 'object') {
+    return null;
+  }
+  const values = Array.isArray(extraHpGaugeState.values) ? extraHpGaugeState.values : [];
+  const totalInt = Math.round(Number(extraHpGaugeState.total ?? values.length ?? 0));
+  const remainingInt = Math.round(Number(extraHpGaugeState.remaining ?? 0));
+  const currentIdx = totalInt - remainingInt;
+  const segMax = Number(values[currentIdx] ?? 0);
+  if (!(segMax > 0) || !Number.isFinite(segMax)) {
+    return null;
+  }
+  const hpBreakEnemyIndexes = new Set(
+    (Array.isArray(action?.manualHpBreakEnemyIndexes) ? action.manualHpBreakEnemyIndexes : [])
+      .map((value) => String(Number(value)))
+  );
+  if (hpBreakEnemyIndexes.has(String(Number(enemyKey)))) {
+    return 0;
+  }
+  const hpDamage = Number(action?.totalHpDamageByEnemy?.[enemyKey]);
+  if (!Number.isFinite(hpDamage) || hpDamage <= 0) {
+    return null;
+  }
+  return Math.max(0, segMax - Math.min(segMax, hpDamage));
 }
 
 export function resolveDamageCalculatorStoredDestructionRatePercent(model, enemyKey) {
@@ -1368,36 +1565,6 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
     summaryEl.replaceChildren();
     return;
   }
-  const contactHitCount = Number(breakdown.contactHitCount ?? breakdown.hitCount ?? model?.action?.skillHitCount ?? 0);
-  const calculationHitCount = Number(breakdown.calculationHitCount ?? breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
-  const baseHitCount = Number(breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
-  const funnelHitCount = Number(breakdown.funnelHitCount ?? model?.action?.skillFunnelHitBonus ?? 0);
-  const destructionFunnelHitCount = Number(breakdown.destructionFunnelHitCount ?? funnelHitCount);
-  const funnelMultiplier = Number(breakdown.funnelMultiplier);
-  const breakHitNumber = Number(breakdown.breakHitNumber);
-  const destructionHitCount = Number(breakdown.destructionHitCount);
-  const totalDestructionWeight = Number(breakdown.totalDestructionWeight);
-  const appliedDestructionWeight = Number(breakdown.appliedDestructionWeight);
-  const hitRatios = Array.isArray(breakdown.hitRatios) ? breakdown.hitRatios : [];
-  const parts = [
-    `接触hit ${Number.isFinite(contactHitCount) ? contactHitCount : '-'}`,
-    `計算hit ${Number.isFinite(calculationHitCount) ? calculationHitCount : '-'}`,
-    `base ${Number.isFinite(baseHitCount) ? baseHitCount : '-'}`,
-    `連撃 +${Number.isFinite(funnelHitCount) ? funnelHitCount : '-'}`,
-    `破壊率連撃 +${Number.isFinite(destructionFunnelHitCount) ? destructionFunnelHitCount : '-'}`,
-    `連撃倍率 ${Number.isFinite(funnelMultiplier) ? `x${funnelMultiplier.toFixed(2)}` : '-'}`,
-    `hit ratio [${hitRatios.map((ratio) => formatDamageCalculatorOptionalRatio(ratio)).join(',')}]`,
-    `Break hit ${Number.isFinite(breakHitNumber) ? breakHitNumber : '-'}`,
-    `HP適用 ${Number.isFinite(destructionHitCount) ? destructionHitCount : '-'}hit`,
-    `破壊率weight ${
-      Number.isFinite(appliedDestructionWeight) && Number.isFinite(totalDestructionWeight)
-        ? `${formatDamageCalculatorOptionalRatio(appliedDestructionWeight)}/${formatDamageCalculatorOptionalRatio(totalDestructionWeight)}`
-        : '-'
-    }`,
-    `DP ${formatDamageCalculatorOptionalNumber(breakdown.totalDpDamage)}`,
-    `HP ${formatDamageCalculatorOptionalNumber(breakdown.totalHpDamage)}`,
-    `破壊率 +${formatDamageCalculatorOptionalPercent(breakdown.appliedGainPercent)}`,
-  ];
   const rows = Array.isArray(breakdown.hitBreakdown) ? breakdown.hitBreakdown : [];
   const tableHtml = rows.length > 0
     ? '<table class="char-popup-destruction-hit-table"><thead><tr>' +
@@ -1420,7 +1587,75 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
       )).join('') +
       '</tbody></table>'
     : '';
-  summaryEl.innerHTML = `<div>${esc(parts.join(' / '))}</div>${tableHtml}`;
+  const detailsHtml = tableHtml
+    ? `<details class="char-popup-destruction-hit-details" open>` +
+      `<summary>▶ hit 内訳詳細</summary>` +
+      `<div class="char-popup-destruction-hit-table-wrapper">${tableHtml}</div>` +
+      `</details>`
+    : '';
+  summaryEl.innerHTML = detailsHtml;
+}
+
+function formatStatDeltaSourceText(source = {}) {
+  const label = String(source?.label ?? '').trim();
+  const delta = Number(source?.delta);
+  if (!label || !Number.isFinite(delta) || delta === 0) {
+    return '';
+  }
+  const statKeys = Array.isArray(source?.statKeys) ? source.statKeys : [];
+  const scope = DAMAGE_CALC_STAT_KEYS.every((statKey) => statKeys.includes(statKey))
+    ? '全ステータス'
+    : statKeys
+        .map((statKey) => DAMAGE_CALC_STAT_LABELS[statKey] ?? statKey)
+        .filter(Boolean)
+        .join('/');
+  const deltaText = `${delta > 0 ? '+' : ''}${Math.round(delta)}`;
+  const text = `${label} ${scope ? `${scope}${deltaText}` : deltaText}`;
+  const sourceName = String(source?.sourceName ?? '').trim();
+  return sourceName ? `${sourceName}[${text}]` : `${label}[${scope ? `${scope}${deltaText}` : deltaText}]`;
+}
+
+function buildSelfStatEffectText(statViewModel = {}) {
+  const seen = new Set();
+  const lines = [];
+  const rows = statViewModel?.attacker ?? {};
+  for (const row of Object.values(rows)) {
+    const delta = Number(row?.buffDelta ?? 0) - Number(row?.debuffDelta ?? 0);
+    if (!Number.isFinite(delta) || delta === 0) {
+      continue;
+    }
+    for (const source of row?.sources ?? []) {
+      const text = formatStatDeltaSourceText(source);
+      if (!text) {
+        continue;
+      }
+      const key = String(source?.id ?? text);
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      lines.push(text);
+    }
+  }
+  return lines.join(' / ');
+}
+
+function buildEnemyStatEffectText(model, enemyKey) {
+  const damageCtx = model?.damageContext ?? {};
+  const targetEnemyIndex = Number(enemyKey);
+  const parts = [];
+  const enemyStatuses = Array.isArray(damageCtx.enemyStatusEffects) ? damageCtx.enemyStatusEffects : [];
+  const hasHacking = enemyStatuses.some(
+    (e) => String(e?.statusType ?? '') === 'Hacking' &&
+            (e?.targetIndex == null || Number(e.targetIndex) === targetEnemyIndex)
+  );
+  const enemyAllDown = Number(damageCtx.enemyAllAbilityDownByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  if (hasHacking) parts.push(`ハッキング[全ステータス-${enemyAllDown}]`);
+  const disasterLevel = Number(damageCtx.enemyDisasterLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  const talismanLevel = Number(damageCtx.enemyTalismanLevelByEnemy?.[String(targetEnemyIndex)] ?? 0);
+  if (disasterLevel > 0) parts.push(`禍[Lv.${disasterLevel}]`);
+  if (talismanLevel > 0) parts.push(`霊符[Lv.${talismanLevel}]`);
+  return parts.join(' / ');
 }
 
 function updateDamageCalculatorStatGrid(pane, statViewModel) {
@@ -1446,19 +1681,28 @@ async function updateDamageCalculatorPane(pane) {
 
   const attackerInput = model.attackerInput;
   const enemyAdapter = resolveDamageCalculatorEnemyAdapter(model, pane);
+  const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const statViewModel = buildDamageStatDeltaViewModel(model.damageContext, attackerInput, enemyAdapter);
   updateDamageCalculatorStatGrid(pane, statViewModel);
-  pane.querySelector('[data-role="damage-calc-enemy-name"]').textContent = enemyAdapter.enemyName;
-  pane.querySelector('[data-role="damage-calc-enemy-border"]').textContent = String(enemyAdapter.paramBorder);
-  pane.querySelector('[data-role="damage-calc-destruction-rate"]').textContent = `${enemyAdapter.destructionRatePercent.toFixed(2)}% / ${enemyAdapter.destructionRateCapPercent.toFixed(2)}%`;
+  const enemyNameEl = pane.querySelector('[data-role="damage-calc-enemy-name"]');
+  if (enemyNameEl) enemyNameEl.textContent = enemyAdapter.enemyName;
+  const actualDamageEl = pane.querySelector('[data-role="damage-calc-actual-damage"]');
+  if (actualDamageEl) actualDamageEl.innerHTML = buildActualDamageSummaryHtml(model.action, enemyKey);
+  const enemyBorderEl = pane.querySelector('[data-role="damage-calc-enemy-border"]');
+  if (enemyBorderEl) enemyBorderEl.textContent = String(enemyAdapter.paramBorder);
+  const capSuffix = hasExplicitDestructionRateCap(model, enemyKey)
+    ? ` / ${enemyAdapter.destructionRateCapPercent.toFixed(2)}%`
+    : '';
+  pane.querySelector('[data-role="damage-calc-destruction-rate"]').textContent =
+    `${enemyAdapter.destructionRatePercent.toFixed(2)}%${capSuffix}`;
 
   const dpStatusEl = pane.querySelector('[data-role="damage-calc-dp-status"]');
   if (dpStatusEl) {
     const { dpCurrent, dpMax } = enemyAdapter;
     if (Number.isFinite(dpCurrent) && Number.isFinite(dpMax)) {
-      dpStatusEl.textContent = `${dpCurrent} / ${dpMax}`;
+      dpStatusEl.textContent = `${Math.round(dpCurrent).toLocaleString()} / ${Math.round(dpMax).toLocaleString()}`;
     } else if (Number.isFinite(dpMax)) {
-      dpStatusEl.textContent = `- / ${dpMax}`;
+      dpStatusEl.textContent = `- / ${Math.round(dpMax).toLocaleString()}`;
     } else {
       dpStatusEl.textContent = '-';
     }
@@ -1467,15 +1711,28 @@ async function updateDamageCalculatorPane(pane) {
   if (hpStatusEl) {
     const { extraHpGaugeState, hpCurrent, hpMax } = enemyAdapter;
     if (extraHpGaugeState) {
-      hpStatusEl.textContent = `${Number(extraHpGaugeState.remaining ?? 0)} / ${Number(extraHpGaugeState.total ?? 0)}`;
+      const { total, remaining, values } = extraHpGaugeState;
+      const totalInt = Math.round(total ?? 0);
+      const remainingInt = Math.round(remaining ?? 0);
+      const currentIdx = totalInt - remainingInt;
+      const segMax = values?.[currentIdx] ?? 0;
+      if (Number.isFinite(hpCurrent)) {
+        hpStatusEl.textContent =
+          `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(segMax).toLocaleString()} (${remainingInt}/${totalInt})`;
+      } else {
+        hpStatusEl.textContent =
+          `${Math.round(segMax).toLocaleString()} HP (${remainingInt}/${totalInt})`;
+      }
     } else if (Number.isFinite(hpCurrent) && Number.isFinite(hpMax)) {
-      hpStatusEl.textContent = `${hpCurrent} / ${hpMax}`;
+      hpStatusEl.textContent = `${Math.round(hpCurrent).toLocaleString()} / ${Math.round(hpMax).toLocaleString()}`;
     } else if (Number.isFinite(hpMax) && hpMax > 0) {
-      hpStatusEl.textContent = `- / ${hpMax}`;
+      hpStatusEl.textContent = `- / ${Math.round(hpMax).toLocaleString()}`;
     } else {
       hpStatusEl.textContent = 'N/A';
     }
   }
+  updateEnemyDpGauge(pane, enemyAdapter);
+  updateEnemyHpGauge(pane, enemyAdapter);
   try {
     const dpInput = buildDamageCalculationInput(model.damageContext, attackerInput, {
       ...enemyAdapter,
@@ -1500,9 +1757,13 @@ async function updateDamageCalculatorPane(pane) {
     pane.querySelector('[data-role="damage-calc-message"]').textContent = `計算データを読み込めません: ${error?.message ?? error}`;
   }
 
-  const enemyKey = String(Number(enemyAdapter.targetEnemyIndex));
   const previewScopeKey = `${pane.dataset?.actionKey ?? ''}:${enemyKey}`;
   updateDestructionHitSummary(pane, model, enemyKey);
+
+  const attackerNoteEl = pane.querySelector('[data-role="damage-calc-attacker-note"]');
+  if (attackerNoteEl) attackerNoteEl.value = buildSelfStatEffectText(statViewModel);
+  const enemyNoteEl = pane.querySelector('[data-role="damage-calc-note"]');
+  if (enemyNoteEl) enemyNoteEl.value = buildEnemyStatEffectText(model, enemyKey);
 
   // 破壊率セクション: targetEnemyIndex が確定した後に初期値を設定してから計算。
   // ターン内の一時入力（preview-input-store）があればそれを優先復元する。

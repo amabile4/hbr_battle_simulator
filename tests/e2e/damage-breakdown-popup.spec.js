@@ -108,7 +108,7 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(popup).toContainText('クリティカル確定');
     await expect(popup.locator('[data-role="char-popup-damage-target"]')).toHaveCount(2);
     await expect(popup.locator('[data-role="char-popup-damage-target"]').first().locator('[data-role="char-popup-damage-row"]')).toHaveCount(6);
-    await expect(popup.locator('[data-role="damage-calc-enemy-border"]').first()).toHaveText('770');
+    await expect(popup.locator('[data-role="damage-calc-actual-damage-wrap"]').first()).toContainText('実ダメージ');
     await expect(popup).toContainText('攻撃バフ枠');
     await expect(popup).toContainText('火属性耐性ダウン');
     await expect(popup).not.toContainText('属性耐性ダウン枠');
@@ -226,17 +226,20 @@ test.describe('Damage breakdown popup tab', () => {
     await expect(pane.locator('[data-role="damage-calc-stat-resolved"][data-stat="str"]').first()).toHaveText('700');
     await expect(pane.locator('.char-popup-damage-calc-damage-row').first()).toContainText('DPダメージ');
     await expect(pane.locator('.char-popup-damage-calc-damage-row').nth(1)).toContainText('HPダメージ');
+    await expect(pane.locator('.char-popup-damage-calc-damage-row')).toHaveCount(2);
+    await expect(pane.locator('[data-role="damage-calc-enemy-tabs"] [data-role="damage-calc-actual-damage-wrap"]')).toContainText('実ダメージ');
+    await expect(pane.locator('[data-role="damage-calc-actual-damage"]')).toHaveText('-');
     await expect(pane.locator('[data-role="damage-calc-critical-expected"]')).not.toHaveText('-');
     await expect(pane.locator('[data-role="damage-calc-result"]')).toContainText('破壊率');
-    await expect(pane.locator('[data-role="damage-calc-hp-status"]')).toHaveText('12345678 / 156000000');
+    await expect(pane.locator('[data-role="damage-calc-hp-status"]')).toHaveText('12,345,678 / 156,000,000');
     await expect(pane.locator('[data-role="damage-calc-normal-hp-expected"]')).not.toHaveText('-');
     await expect.poll(async () => {
       const hp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-hp-expected"]').textContent());
       const dp = parseDamageText(await pane.locator('[data-role="damage-calc-critical-expected"]').textContent());
       return hp > dp;
     }).toBe(true);
-    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00% / 300.00%');
-    await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('812');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('120.00%');
+    await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveCount(0);
     await expect(
       pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')
     ).toHaveText('-50');
@@ -249,15 +252,15 @@ test.describe('Damage breakdown popup tab', () => {
     );
 
     await pane.locator('[data-role="damage-calc-enemy-tab"][data-target-enemy-index="1"]').click();
-    await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveText('強敵ベータ');
-    await expect(pane.locator('[data-role="damage-calc-enemy-border"]')).toHaveText('923');
+    await expect(pane.locator('[data-role="damage-calc-enemy-name"]')).toHaveCount(0);
+    await expect(pane.locator('[data-role="damage-calc-enemy-tab"].active')).toContainText('強敵ベータ');
     await expect.poll(async () => {
       const secondEnemyCriticalDp = parseDamageText(
         await pane.locator('[data-role="damage-calc-critical-expected"]').textContent()
       );
       return secondEnemyCriticalDp !== firstEnemyCriticalDp;
     }).toBe(true);
-    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00% / 300.00%');
+    await expect(pane.locator('[data-role="damage-calc-destruction-rate"]')).toHaveText('150.00%');
     await expect(pane.locator('[data-role="damage-calc-stat-base"][data-stat="str"]').first()).toHaveText('700');
     await expect(
       pane.locator('[data-role="damage-calc-enemy-stats"] [data-role="damage-calc-stat-delta"][data-stat="str"]')

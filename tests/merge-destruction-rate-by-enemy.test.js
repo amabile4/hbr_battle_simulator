@@ -113,6 +113,36 @@ test('Without forceDestructionRateKeys, behaves as pure monotonic merge', () => 
   assert.equal(turnState.enemyState.destructionRateByEnemy['0'], 311.46);
 });
 
+test('applyEnemyStateOverrideSnapshot preserves current destruction cap when replay snapshot is empty', () => {
+  const turnState = createTurnStateWithEnemies({ 0: 600 });
+  turnState.enemyState.destructionRateCapByEnemy = { 0: 600 };
+  const snapshot = {
+    enemyDestructionRates: { 0: 100 },
+    enemyDestructionRateCaps: {},
+  };
+
+  applyEnemyStateOverrideSnapshot(turnState, snapshot);
+
+  assert.equal(turnState.enemyState.destructionRateByEnemy['0'], 600);
+  assert.equal(turnState.enemyState.destructionRateCapByEnemy['0'], 600);
+});
+
+test('applyEnemyStateOverrideSnapshot force-resets destruction cap for replaced enemy slot', () => {
+  const turnState = createTurnStateWithEnemies({ 0: 600 });
+  turnState.enemyState.destructionRateCapByEnemy = { 0: 600 };
+  const snapshot = {
+    enemyDestructionRates: { 0: DEFAULT_DESTRUCTION_RATE_PERCENT },
+    enemyDestructionRateCaps: {},
+  };
+
+  applyEnemyStateOverrideSnapshot(turnState, snapshot, {
+    forceDestructionRateKeys: new Set(['0']),
+  });
+
+  assert.equal(turnState.enemyState.destructionRateByEnemy['0'], DEFAULT_DESTRUCTION_RATE_PERCENT);
+  assert.equal(turnState.enemyState.destructionRateCapByEnemy['0'], undefined);
+});
+
 // --- Edge: forceDestructionRateKeys with multiple keys ---
 test('forceDestructionRateKeys with multiple keys resets only those slots', () => {
   const turnState = createTurnStateWithEnemies({ 0: 500, 1: 400, 2: 300 });

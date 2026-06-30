@@ -742,6 +742,9 @@ export class TurnEngineManager {
         if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_BREAK_STATES) {
           return [];
         }
+        if (type === REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_EXTRA_HP_GAUGES) {
+          return [];
+        }
         if (type !== REPLAY_OVERRIDE_ENTRY_TYPES.ENEMY_STATUSES) {
           return [structuredClone(entry)];
         }
@@ -2502,7 +2505,21 @@ export class TurnEngineManager {
       return;
     }
     const enemyDpByEnemy = state?.turnState?.enemyState?.enemyDpByEnemy ?? {};
-    const enemyHpByEnemy = state?.turnState?.enemyState?.enemyHpByEnemy ?? {};
+    const enemyHpByEnemy = { ...(state?.turnState?.enemyState?.enemyHpByEnemy ?? {}) };
+    const extraHpGaugeStateByEnemy = state?.turnState?.enemyState?.extraHpGaugeStateByEnemy ?? {};
+    for (const [enemyKey, gaugeState] of Object.entries(extraHpGaugeStateByEnemy)) {
+      if (!gaugeState || typeof gaugeState !== 'object') {
+        continue;
+      }
+      const values = Array.isArray(gaugeState.values) ? gaugeState.values : [];
+      const totalInt = Math.round(Number(gaugeState.total ?? values.length ?? 0));
+      const remainingInt = Math.round(Number(gaugeState.remaining ?? 0));
+      const currentIdx = totalInt - remainingInt;
+      const currentSegmentHp = Number(values[currentIdx] ?? 0);
+      if (currentSegmentHp > 0 && Number.isFinite(currentSegmentHp)) {
+        enemyHpByEnemy[String(enemyKey)] = currentSegmentHp;
+      }
+    }
     const hasDpGauge = Object.values(enemyDpByEnemy).some((value) => Number(value) > 0);
     const hasHpTracking = Object.values(enemyHpByEnemy).some((value) => Number(value) > 0);
     if (!hasDpGauge && !hasHpTracking) {

@@ -5681,6 +5681,7 @@ export class TurnRowController {
                 destructionRateByEnemy: this.#stateBefore?.turnState?.enemyState?.destructionRateByEnemy ?? {},
                 remainingDpByEnemy: this.#stateBefore?.turnState?.enemyState?.remainingDpByEnemy ?? {},
                 enemyDpByEnemy: this.#stateBefore?.turnState?.enemyState?.enemyDpByEnemy ?? {},
+                extraHpGaugeStateByEnemy: this.#stateBefore?.turnState?.enemyState?.extraHpGaugeStateByEnemy ?? {},
                 statuses: this.#stateBefore?.turnState?.enemyState?.statuses ?? [],
               },
             },

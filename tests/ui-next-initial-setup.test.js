@@ -1037,8 +1037,8 @@ test('InitialSetupController auto-recalculates active battle when enemy preset c
         {
           id: 13420081,
           name: '異時層 スカルフェザー 最終形態',
-          categoryKey: 'template',
-          categoryLabel: 'テンプレート',
+          categoryKey: 'normal:dimension-hard',
+          categoryLabel: '異時層',
           param_border: 500,
           od_rate: 1,
           max_d_rate: 999,
@@ -1076,6 +1076,11 @@ test('InitialSetupController auto-recalculates active battle when enemy preset c
     root
       .querySelector('[role="tab"][data-tab="enemy"]')
       .dispatchEvent(new win.MouseEvent('click', { bubbles: true }));
+    const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+    categorySelect.value = 'normal:dimension-hard';
+    categorySelect.dispatchEvent(new win.Event('change', { bubbles: true }));
+    recalculations.length = 0;
+
     const presetSelect = root.querySelector('[data-action="select-enemy"]');
     presetSelect.value = '13420081';
     presetSelect.dispatchEvent(new win.Event('change', { bubbles: true }));

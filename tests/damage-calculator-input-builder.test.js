@@ -154,6 +154,57 @@ test('buildDamageCalculationInput applies enemy all ability down as absolute par
   assert.ok(result.critical.expected > baselineResult.critical.expected);
 });
 
+test('buildDamageCalculationInput applies FightingSpirit as flat attacker stat bonus', () => {
+  const damageContext = {
+    actorStyleId: 1010103,
+    skillId: 46001107,
+    skillName: '星火燎原',
+    fightingSpiritBonusValue: 2,
+    effectiveDamageRatesByEnemy: { 0: 100 },
+    destructionRateByEnemy: { 0: 100 },
+    damageBreakdown: {
+      targetBreakdowns: [{ targetEnemyIndex: 0, targetLabel: 'E1', groups: [] }],
+    },
+  };
+  const attackerStats = { role: 'Attacker', str: 820, dex: 810, wis: 800, spr: 790, luk: 780, con: 770 };
+  const enemyAdapter = { targetEnemyIndex: 0, paramBorder: 800, isHpTarget: false };
+  const input = buildDamageCalculationInput(damageContext, attackerStats, enemyAdapter);
+  const baselineInput = buildDamageCalculationInput(
+    { ...damageContext, fightingSpiritBonusValue: 0 },
+    attackerStats,
+    enemyAdapter
+  );
+  const viewModel = buildDamageStatDeltaViewModel(damageContext, attackerStats, enemyAdapter);
+
+  assert.deepEqual(input.attacker.stats, {
+    str: 822,
+    dex: 812,
+    wis: 802,
+    spr: 792,
+    luk: 782,
+    con: 772,
+  });
+  assert.deepEqual(viewModel.attacker.str, {
+    base: 820,
+    buffDelta: 2,
+    debuffDelta: 0,
+    resolved: 822,
+    sources: [
+      {
+        id: 'fightingSpirit',
+        label: '闘志',
+        delta: 2,
+        statKeys: ['str', 'dex', 'wis', 'spr', 'luk', 'con'],
+      },
+    ],
+  });
+
+  const data = loadDamageCalculationData();
+  const result = calculateDamage(input, data);
+  const baselineResult = calculateDamage(baselineInput, data);
+  assert.ok(result.critical.expected > baselineResult.critical.expected);
+});
+
 test('buildDamageCalculationInput falls back per stat when actual stats are missing or zero', () => {
   const input = buildDamageCalculationInput(
     {},
@@ -267,6 +318,7 @@ test('buildDamageStatDeltaViewModel exposes base, delta and resolved lanes witho
     buffDelta: 0,
     debuffDelta: 0,
     resolved: 777,
+    sources: [],
   });
   assert.deepEqual(viewModel.enemy.str, {
     base: 810,

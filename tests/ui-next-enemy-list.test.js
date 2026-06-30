@@ -502,3 +502,136 @@ test('buildEnemyList places 異時層EX after templates and keeps EX battle vari
   assert.equal(dimensionExEntries.every((enemy) => enemy.categoryKey === 'normal:dimension-ex'), true);
   assert.equal(result.some((enemy) => enemy.id === 514), false);
 });
+
+test('buildEnemyList exposes 異時層 category with Hard battle enemies', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      in_date: '2023-06-24',
+    }),
+    makeEnemy({
+      id: 610,
+      name: 'デススラッグ',
+      label: 'Hard_DeathSlug1st',
+      in_date: '2022-08-05',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 611,
+      name: 'デススラッグ',
+      label: 'Hard_DeathSlug2nd',
+      in_date: '2022-08-05',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 612,
+      name: 'レッドクリムゾン',
+      label: 'Hard_RedCrimson',
+      in_date: '2022-08-19',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 13420081,
+      name: 'スカルフェザー',
+      label: 'Hard_SkullFeatherHead2nd_MC04BDay14',
+      in_date: '2025-05-02',
+      is_boss: false,
+    }),
+    makeEnemy({
+      id: 613,
+      name: '4月ボス',
+      in_date: '2026-04-05',
+    }),
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'));
+  const categoryLabels = [...new Set(result.map((enemy) => enemy.categoryLabel))];
+  const dimensionHardEntries = result.filter((enemy) => enemy.categoryLabel === '異時層');
+
+  assert.deepEqual(categoryLabels.slice(0, 3), ['テンプレート', '異時層', '2026年4月']);
+  assert.deepEqual(
+    dimensionHardEntries.map((enemy) => [enemy.id, enemy.name, enemy.categoryKey]),
+    [
+      [610, '異時層 デススラッグ 第一形態', 'normal:dimension-hard'],
+      [611, '異時層 デススラッグ 第二形態', 'normal:dimension-hard'],
+      [612, '異時層 レッドクリムゾン', 'normal:dimension-hard'],
+      [13420081, '異時層 スカルフェザー 最終形態', 'normal:dimension-hard'],
+    ],
+  );
+});
+
+test('buildEnemyList exposes オーブボス category with the four Lv.4 orb bosses from battles', () => {
+  const enemies = [
+    makeEnemy({
+      id: PINNED_INITIAL_SETUP_ENEMY.id,
+      name: PINNED_INITIAL_SETUP_ENEMY.name,
+      in_date: '2023-06-24',
+    }),
+  ];
+  const battles = [
+    {
+      id: 8022604,
+      enemy_list: [
+        {
+          label: 'ExoWatcherDefault01_04',
+          name: 'エグゾウォッチャーΩ : Lv.4',
+          base_param: { dp: 2_100_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [
+            ['Fire', -300],
+            ['Ice', -300],
+            ['Thunder', -300],
+            ['Light', -300],
+            ['Dark', -300],
+            ['AbsorbElementList', null],
+          ],
+        },
+      ],
+    },
+    {
+      id: 8022704,
+      enemy_list: [
+        { label: 'IgnoredOrbSupport', name: '除外敵', base_param: { dp: 1 } },
+        {
+          label: 'DiamondEyeballRectusDefault01_04',
+          name: 'レクタス・ニールΩ : Lv.4',
+          base_param: { dp: 800_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [['Fire', -300]],
+        },
+        {
+          label: 'DiamondEyeballSinisterDefault01_04',
+          name: 'シニスター・ニールΩ : Lv.4',
+          base_param: { dp: 800_000, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [['Fire', -300]],
+        },
+      ],
+    },
+    {
+      id: 8022804,
+      enemy_list: [
+        {
+          label: 'BigotryGateAmonDefault01_04',
+          name: 'アモンΩ : Lv.4',
+          base_param: { dp: 0, param_border: 610, od_rate: 0, param_def: 0 },
+          resist: [['Dark', -300]],
+        },
+      ],
+    },
+  ];
+
+  const result = buildEnemyList(enemies, new Date('2026-04-30T00:00:00+09:00'), { battles });
+  const orbBossEntries = result.filter((enemy) => enemy.categoryLabel === 'オーブボス');
+
+  assert.deepEqual(
+    orbBossEntries.map((enemy) => [enemy.id, enemy.name, enemy.dp, enemy.categoryKey]),
+    [
+      [-80226041, 'エグゾウォッチャーΩ : Lv.4', 2_100_000, 'normal:orb-boss'],
+      [-80227042, 'レクタス・ニールΩ : Lv.4', 800_000, 'normal:orb-boss'],
+      [-80227043, 'シニスター・ニールΩ : Lv.4', 800_000, 'normal:orb-boss'],
+      [-80228041, 'アモンΩ : Lv.4', 0, 'normal:orb-boss'],
+    ],
+  );
+  assert.equal(orbBossEntries[0].param_border, 610);
+  assert.equal(orbBossEntries[0].resistances.element.fire, 400);
+  assert.equal(orbBossEntries[0].resistances.element.slash, 100);
+});
