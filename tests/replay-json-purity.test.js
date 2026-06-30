@@ -32,7 +32,6 @@ import {
   normalizeLightweightReplayTurn,
 } from '../src/ui/lightweight-replay-script.js';
 import {
-  normalizeSessionSnapshot,
   serializeSessionSnapshot,
 } from '../ui-next/utils/session-snapshot.js';
 import { DEFAULT_SUMMON_SAMPLE_ENEMY } from '../src/data/enemy-sample-presets.js';

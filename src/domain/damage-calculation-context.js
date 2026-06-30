@@ -7,6 +7,15 @@ export function buildDamageCalculationContext(input = {}) {
     skillName: String(input.skillName ?? ''),
     targetType: String(input.targetType ?? ''),
     isNormalAttack: input.isNormalAttack === true,
+    isPursuit: input.isPursuit === true,
+    destructionAttackPart:
+      input.destructionAttackPart && typeof input.destructionAttackPart === 'object'
+        ? structuredClone(input.destructionAttackPart)
+        : null,
+    destructionConditionResultsByEnemy:
+      input.destructionConditionResultsByEnemy && typeof input.destructionConditionResultsByEnemy === 'object'
+        ? structuredClone(input.destructionConditionResultsByEnemy)
+        : {},
     enemyCount: Number(input.enemyCount ?? 1),
     targetEnemyIndex:
       input.targetEnemyIndex === null || input.targetEnemyIndex === undefined
@@ -145,6 +154,7 @@ export function buildDamageCalculationContext(input = {}) {
     transcendenceBurstDestructionRateGainBonusRate: Number(
       input.transcendenceBurstDestructionRateGainBonusRate ?? 0
     ),
+    resonanceDestructionRateBonus: Number(input.resonanceDestructionRateBonus ?? 0),
     transcendenceBurstAttackBuffSkillEffectUpRate: Number(
       input.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
     ),
@@ -159,6 +169,12 @@ export function buildDamageCalculationContext(input = {}) {
     accessoryContributions: Array.isArray(input.accessoryContributions)
       ? structuredClone(input.accessoryContributions)
       : [],
+    chainDestructionRateBonus: Number(input.chainDestructionRateBonus ?? 0),
+    // ピアス装備（ヒット数解決済み ratio）: attack=対HPダメージ乗数 / break=対DPダメージ乗数
+    attackPierceUpRate: Number(input.attackPierceUpRate ?? 0),
+    breakPierceUpRate: Number(input.breakPierceUpRate ?? 0),
+    // ブラストピアス（raw ratio・傾斜は destruction-calculator 側）
+    blastPierceDestructionRateBonus: Number(input.blastPierceDestructionRateBonus ?? 0),
     overDrivePointUpByTokenPerToken: Number(input.overDrivePointUpByTokenPerToken ?? 0),
     overDrivePointUpByTokenTokenCount: Number(input.overDrivePointUpByTokenTokenCount ?? 0),
     overDrivePointUpByTokenTotalPercent: Number(input.overDrivePointUpByTokenTotalPercent ?? 0),

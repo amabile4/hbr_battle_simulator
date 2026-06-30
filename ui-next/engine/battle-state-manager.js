@@ -33,6 +33,7 @@ const UI_TO_ENGINE_ELEMENT_KEY = Object.freeze({
 });
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_D_RATE_RAW = 5;
 const ENEMY_OD_RATE_NO_CORRECTION = 0;
 const DEFAULT_ENEMY_NAME = '';
 const MIN_ENEMY_COUNT = 1;
@@ -285,6 +286,17 @@ function resolveEnemySlotHp(slot = {}, dataStore = null) {
   return Number.isFinite(baseHp) && baseHp >= 0 ? baseHp : 0;
 }
 
+function resolveEnemySlotDestructionMultiplierRaw(slot = {}, dataStore = null) {
+  const direct = Number(slot?.d_rate);
+  if (Number.isFinite(direct)) {
+    return direct;
+  }
+  const selectedEnemyId = Number(slot?.selectedEnemyId);
+  const enemy = resolveEnemyById(dataStore, selectedEnemyId);
+  const baseRate = Number(enemy?.base_param?.d_rate ?? enemy?.d_rate);
+  return Number.isFinite(baseRate) ? baseRate : DEFAULT_D_RATE_RAW;
+}
+
 function resolveEnemyById(dataStore = null, selectedEnemyId = null) {
   if (!Number.isFinite(selectedEnemyId)) {
     return null;
@@ -314,9 +326,7 @@ function buildEnemyStateOverrides(enemySetup = {}, dataStore = null) {
     const rawOdRate = Number.isFinite(Number(slot?.od_rate))
       ? Number(slot.od_rate)
       : ENEMY_OD_RATE_NO_CORRECTION;
-    const rawDestructionMultiplier = Number.isFinite(Number(slot?.d_rate))
-      ? Number(slot.d_rate)
-      : 100;
+    const rawDestructionMultiplier = resolveEnemySlotDestructionMultiplierRaw(slot, dataStore);
     return {
       enemyId: slot?.selectedEnemyId ?? null,
       enemyName,
@@ -495,10 +505,31 @@ export class BattleStateManager {
     const drivePierceByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [newIdx, snapshot.drivePierceByPartyIndex[srcIdx] ?? 0])
     );
+    const pierceByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => {
+        const entry =
+          snapshot.pierceByPartyIndex?.[srcIdx] ??
+          snapshot.pierceByPartyIndex?.[String(srcIdx)] ??
+          null;
+        if (entry && typeof entry === 'object') {
+          return [newIdx, { type: String(entry.type ?? 'none'), percent: Number(entry.percent ?? 0) }];
+        }
+        // 旧 snapshot 互換: drivePierce のみの場合はドライブピアスとして扱う
+        const drivePierce = Number(snapshot.drivePierceByPartyIndex?.[srcIdx] ?? 0);
+        return [newIdx, drivePierce > 0 ? { type: 'drive', percent: drivePierce } : { type: 'none', percent: 0 }];
+      })
+    );
     const startSpEquipByPartyIndex = Object.fromEntries(
       filledIndices.map((srcIdx, newIdx) => [
         newIdx,
         Number(snapshot.startSpEquipByPartyIndex[srcIdx] ?? 0) + Number(stageSetup.initialSpBonusAll ?? 0),
+      ])
+    );
+    const chainEquipByPartyIndex = Object.fromEntries(
+      filledIndices.map((srcIdx, newIdx) => [
+        newIdx,
+        snapshot.chainEquipByPartyIndex?.[srcIdx] === true ||
+          snapshot.chainEquipByPartyIndex?.[String(srcIdx)] === true,
       ])
     );
     const normalAttackElementsByPartyIndex = Object.fromEntries(
@@ -536,6 +567,8 @@ export class BattleStateManager {
       styleIds,
       limitBreakLevelsByPartyIndex,
       drivePierceByPartyIndex,
+      pierceByPartyIndex,
+      chainEquipByPartyIndex,
       startSpEquipByPartyIndex,
       supportStyleIdsByPartyIndex,
       supportLimitBreakLevelsByPartyIndex,

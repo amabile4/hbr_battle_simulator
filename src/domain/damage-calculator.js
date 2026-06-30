@@ -364,7 +364,6 @@ export function calculateDamage(input, data) {
   const funnelMultiplier = 1 + funnelBuffsResolved.reduce((sum, buff) => sum + toNumber(buff.resolvedPower), 0) / 100;
   const tokenMultiplier = 1 + tokenRatio;
   const destructionRate = isHpTarget ? toNumber(defender.destructionRate, 1) : DEFAULT_DESTRUCTION_RATE;
-
   // ピアス装備（減衰型・ヒット数解決済み ratio）: アタック=対HPのみ / ブレイク=対DPのみ。
   // スキル攻撃力カテゴリのため通常攻撃・追撃には適用しない。
   const pierceUpRate = isHpTarget
@@ -442,4 +441,5 @@ export {
   ATTACK_PART_TYPES,
   flattenSkillParts,
   resolveEffectPower,
+  resolveEffectPowerFromPart,
 } from './calculator-helpers.js';

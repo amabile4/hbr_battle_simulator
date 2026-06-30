@@ -48,6 +48,7 @@ export {
   calculateDamage,
   flattenSkillParts,
   resolveEffectPower,
+  resolveEffectPowerFromPart,
 } from './domain/damage-calculator.js';
 export {
   buildDamageCalculationInput,

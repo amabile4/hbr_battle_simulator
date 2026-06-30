@@ -3427,7 +3427,7 @@ test('迅雷風烈 records DefenseDown enemy status in real data', () => {
   assert.equal(event.mode, 'EnemyStatus');
   assert.equal(event.targetIndex, 0);
   assert.equal(event.remainingTurns, 1);
-  assert.equal(event.power, 0.45);
+  assert.equal(event.power, 0.3);
 });
 
 test('まだまだ行くで！ applies Fragile enemy status in real data', () => {
@@ -3441,7 +3441,7 @@ test('まだまだ行くで！ applies Fragile enemy status in real data', () =>
   );
 
   assert.ok(fragile);
-  assert.equal(fragile.power, 0.4);
+  assert.equal(fragile.power, 0.3);
   assert.equal(fragile.exitCond, 'Eternal');
 });
 
@@ -3481,7 +3481,7 @@ test('今宵、快楽ナイトメア stores eternal Dark ResistDown statuses in 
   assert.ok(resistStatus);
   assert.equal(resistStatus.exitCond, 'Eternal');
   assert.deepEqual(resistStatus.elements, ['Dark']);
-  assert.equal(resistStatus.power, 0.6);
+  assert.equal(resistStatus.power, 0.45);
 });
 
 test('今宵、快楽ナイトメア grants 5-hit Funnel only to frontline Dark styles in real data', () => {
@@ -3787,7 +3787,7 @@ test('ハードブレード applies DefenseDown in real data despite top-level D
   const enemyStatus = action.enemyStatusChanges.find((status) => status.statusType === 'DefenseDown');
 
   assert.ok(enemyStatus);
-  assert.equal(enemyStatus.power, 0.45);
+  assert.equal(enemyStatus.power, 0.3);
   assert.equal(enemyStatus.exitCond, 'EnemyTurnEnd');
 });
 
@@ -6117,6 +6117,7 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {
     0: { characterId: 'TC1', skillId: 15220, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
@@ -6128,7 +6129,9 @@ test('transcendence burst raises destruction gain and cap without stacking with 
   const committedAction = findActionByCharacterId(committedRecord, 'TC1');
   assert.equal(committedAction.damageContext?.destructionRateCapByEnemy?.['0'], 600);
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
-  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
+  // SP二重掛け修正後は dr=1 の基礎上昇が 10% ではなく 4%。
+  // 超越バースト破壊率+10%は blaster slope と同じ上昇量補正として解決されるため 590% + 4.22%。
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 594.22);
 });
 
 test('transcendence burst destruction cap is actor-element gated and does not add to higher stored cap', () => {
@@ -6155,6 +6158,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
     ];
     state.turnState.enemyState.destructionRateByEnemy = { 0: storedRate };
     state.turnState.enemyState.destructionRateCapByEnemy = { 0: storedCap };
+    state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
     return state;
   };
 
@@ -6164,7 +6168,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
   });
   const nonMatchingCommitted = commitTurn(nonMatchingState, nonMatchingPreview);
   assert.ok(
-    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 300) < 1e-9
+    Math.abs(nonMatchingCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 294) < 1e-9
   );
 
   const highStoredCapState = createState('TC_ICE_CAP', ['Ice'], 690, 700);
@@ -6173,7 +6177,7 @@ test('transcendence burst destruction cap is actor-element gated and does not ad
   });
   const highStoredCapCommitted = commitTurn(highStoredCapState, highStoredCapPreview);
   assert.ok(
-    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 700) < 1e-9
+    Math.abs(highStoredCapCommitted.nextState.turnState.enemyState.destructionRateByEnemy['0'] - 694.22) < 1e-9
   );
 });
 
@@ -17573,6 +17577,77 @@ test('AttackUpPerToken + AttackUp の合算: specialPassiveModifiers.attackUpRat
   );
 });
 
+test('support DamageRateUp resolves as resonanceDestructionRateBonus without merging AttackUp', () => {
+  const members = Array.from({ length: 6 }, (_, idx) =>
+    new CharacterStyle({
+      characterId: `DR${idx + 1}`,
+      characterName: `DR${idx + 1}`,
+      styleId: 3600 + idx,
+      styleName: `DRS${idx + 1}`,
+      partyIndex: idx,
+      position: idx,
+      initialSP: 20,
+      passives:
+        idx === 0
+          ? [
+              {
+                id: 272000151,
+                name: 'Fly High!',
+                desc: '自身のスキル攻撃時の破壊率上昇量+30% かつ スキル攻撃力+30%',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                sourceType: 'support',
+                parts: [
+                  { skill_type: 'DamageRateUp', target_type: 'Self', power: [0.3, 0] },
+                  { skill_type: 'AttackUp', target_type: 'Self', power: [0.3, 0] },
+                ],
+              },
+              {
+                id: 272000999,
+                name: '通常枠DamageRateUp',
+                desc: 'support 以外の DamageRateUp は共鳴破壊率として扱わない',
+                timing: 'OnPlayerTurnStart',
+                condition: 'IsFront()',
+                parts: [{ skill_type: 'DamageRateUp', target_type: 'Self', power: [0.9, 0] }],
+              },
+            ]
+          : [],
+      skills: [
+        {
+          id: 30600 + idx,
+          name: 'Act',
+          label: `DRSkill${idx + 1}`,
+          sp_cost: 4,
+          parts: [{ skill_type: 'AttackSkill', target_type: 'Single', type: 'Slash', multipliers: { dr: 10 } }],
+        },
+      ],
+    })
+  );
+  const state = createBattleStateFromParty(new Party(members));
+
+  const preview = previewTurn(state, {
+    0: { characterId: 'DR1', skillId: 30600, targetEnemyIndex: 0 },
+  });
+  const action = preview.actions[0];
+
+  assert.equal(action.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(action.specialPassiveModifiers.attackUpRate, 0);
+  assert.ok(
+    (action.specialPassiveEvents ?? []).some(
+      (event) =>
+        event.passiveName === 'Fly High!' &&
+        event.effectType === 'DamageRateUp' &&
+        event.resonanceDestructionRateBonus === 0.3
+    ),
+    'specialPassiveEvents に共鳴 DamageRateUp が記録されている'
+  );
+
+  const { committedRecord } = commitTurn(state, preview);
+  const committedAction = committedRecord.actions[0];
+  assert.equal(committedAction.specialPassiveModifiers.resonanceDestructionRateBonus, 0.3);
+  assert.equal(committedAction.damageContext?.resonanceDestructionRateBonus, 0.3);
+});
+
 // ─────────────────────────────────────────────────────────────
 // SP条件スキル（cond: Sp()...）テスト
 // 仕様: docs/specs/sp_condition_skill_spec.md
@@ -21137,7 +21212,7 @@ test('DoubleActionExtraSkill: 李映夏Funnel付きフグリングクラッシ�
   const LI_CHARACTER_ID = 'LShanhua';
   const KAREN_CHARACTER_ID = 'KAsakura';
   const FUNNEL_POWER = 5;
-  const ATTACK_UP_POWER = 0.75;
+  const ATTACK_UP_POWER = 1.1238084;
   const EX_SP_COST = 14;
   const PARTY_MEMBER_COUNT = 6;
   const REAL_DATA_TEST_INITIAL_SP = 30;
@@ -24081,6 +24156,7 @@ test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用す�
   state.turnState.enemyState.damageRatesByEnemy = { 0: { Slash: 150 } };
   state.turnState.enemyState.destructionRateByEnemy = { 0: 590 };
   state.turnState.enemyState.destructionRateCapByEnemy = { 0: 300 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { 0: 1 };
 
   const preview = previewTurn(state, {
     0: { characterId: 'DEST_SUPER', skillId: 99183, targetEnemyIndex: 0, manualBreakEnemyIndexes: [0] },
@@ -24088,7 +24164,8 @@ test('same-action SuperBreak 後の破壊率上昇は拡張後 cap を使用す�
   const { nextState } = commitTurn(state, preview);
 
   assert.equal(nextState.turnState.enemyState.destructionRateCapByEnemy['0'], 600);
-  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 600);
+  // SP二重掛け修正後は dr=1 の same-action SuperBreak 加算が 10% ではなく 4%。
+  assert.equal(nextState.turnState.enemyState.destructionRateByEnemy['0'], 594);
 });
 
 test('Eシールド auto-break on all-target action updates breakHitCount and triggers AdditionalHitOnBreaking', () => {
@@ -24518,6 +24595,7 @@ test('手動ブレイク指定はperHitDpDamageのDP残量より優先され、D
   state.turnState.enemyState.enemyDpByEnemy = { '0': 2000000 };
   state.turnState.enemyState.destructionRateByEnemy = { '0': 100 };
   state.turnState.enemyState.destructionRateCapByEnemy = { '0': 500 };
+  state.turnState.enemyState.destructionMultiplierByEnemy = { '0': 1 };
 
   const preview = previewTurn(state, {
     0: {
@@ -24543,8 +24621,11 @@ test('手動ブレイク指定はperHitDpDamageのDP残量より優先され、D
     '手動ブレイク指定によりDP残量が0になること'
   );
   const dr = nextState.turnState.enemyState.destructionRateByEnemy['0'];
-  // DP_A(+100%) + DP_B(ブレイク後 +100%) で最低でも300%に到達する
-  assert.ok(dr >= 300, `手動ブレイクのDR加算が反映されること（DR=${dr}）`);
+  // SP二重掛け修正後は dr=10 の加算が各40%。DP_A(+40%) + DP_B(ブレイク後 +40%)。
+  assert.ok(
+    Math.abs(dr - 180) < 1e-9,
+    `手動ブレイクのDR加算が反映されること（DR=${dr}）`
+  );
 });
 
 test('DPゲージ未設定の敵はperHitDpDamageがあっても自動ブレイクしない', () => {

@@ -162,8 +162,6 @@ test.describe('DPダメージガイド', () => {
     // damage calc data が正しく注入されてDP消費が計算された場合のみ表示される
     const dpAutoBreakChip = committedRow.locator('[data-role="dp-auto-break-chip"]');
     const autoBreakChip = committedRow.locator('[data-role="auto-break-chip"]');
-    const anyBreakChip = committedRow.locator('[data-role="dp-auto-break-chip"], [data-role="auto-break-chip"]');
-
     // damage calc data が注入されてDP自動ブレイクが機能した場合にチップが表示される。
     // deferred task の完了タイミングによっては表示されないこともあるため、
     // チップ数が0以上であることを緩く検証する（表示されれば (DP) ラベルを確認）。

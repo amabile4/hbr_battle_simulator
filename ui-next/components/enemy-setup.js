@@ -38,6 +38,9 @@ const E_SHIELD_ELEMENT_VALUE_SET = new Set(
 
 const DEFAULT_OD_RATE    = 1;
 const DEFAULT_MAX_D_RATE = 999;
+const DEFAULT_D_RATE_RAW = 5;
+// 実在するd_rate値の全一覧（0=破壊不可、50=外れ値1体）
+const D_RATE_OPTIONS = [0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 50];
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
 const DESTRUCTION_RATE_PERCENT_SCALE = 100;
 const DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT = 100;
@@ -72,6 +75,11 @@ function normalizeElementRatePercent(value) {
 function normalizeDestructionRate(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : DEFAULT_CURRENT_DESTRUCTION_RATE;
+}
+
+function normalizeDestructionMultiplierRaw(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
 }
 
 function resolveEnemyParamBorder(enemy = null) {
@@ -250,6 +258,7 @@ function cloneManual(manual = {}) {
   return {
     od_rate: normalizeEnemyOdRateMultiplier(manual.od_rate ?? DEFAULT_OD_RATE),
     max_d_rate: Number(manual.max_d_rate ?? DEFAULT_MAX_D_RATE),
+    d_rate: normalizeDestructionMultiplierRaw(manual.d_rate),
     destructionRate: normalizeDestructionRate(manual.destructionRate),
     element: Object.fromEntries(
       ELEMENTS.map((element) => [element.key, normalizeElementRatePercent(manual.element?.[element.key])])
@@ -268,6 +277,7 @@ function defaultManual() {
   return {
     od_rate: DEFAULT_OD_RATE,
     max_d_rate: DEFAULT_MAX_D_RATE,
+    d_rate: DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: defaultElement(),
     absorbElementList: [],
@@ -279,8 +289,9 @@ function enemyToManual(enemy) {
   const eShield = cloneEnemyEShield(enemy.e_shield);
   const extraHpGauge = cloneEnemyExtraHpGauge(enemy.extra_hp_gauge);
   return cloneManual({
-    od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? DEFAULT_OD_RATE),
-    max_d_rate: enemy.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    od_rate: normalizeEnemyOdRateMultiplier(enemy.od_rate ?? enemy.base_param?.od_rate ?? DEFAULT_OD_RATE),
+    max_d_rate: enemy.max_d_rate ?? enemy.base_param?.max_d_rate ?? DEFAULT_MAX_D_RATE,
+    d_rate: enemy.d_rate ?? enemy.base_param?.d_rate ?? DEFAULT_D_RATE_RAW,
     destructionRate: DEFAULT_CURRENT_DESTRUCTION_RATE,
     element: Object.fromEntries(
       ELEMENTS.map((element) => [
@@ -309,6 +320,7 @@ function snapshotToManual(snapshot = {}) {
   return cloneManual({
     od_rate: normalizeEnemyOdRateMultiplier(snapshot.od_rate),
     max_d_rate: snapshot.max_d_rate,
+    d_rate: snapshot.d_rate,
     destructionRate: snapshot.destructionRate,
     element: snapshot.resistances?.element,
     absorbElementList: snapshot.absorbElementList,
@@ -686,6 +698,7 @@ export class EnemySetupController {
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
         od_rate: effective.od_rate,
         max_d_rate: effective.max_d_rate,
+        d_rate: effective.d_rate,
         destructionRate: normalizeDestructionRate(effective.destructionRate),
         resistances: { element: { ...effective.element } },
         absorbElementList: [...effective.absorbElementList],
@@ -711,6 +724,7 @@ export class EnemySetupController {
       manual: cloneManual(slot0.manual),
       od_rate: slot0.od_rate,
       max_d_rate: slot0.max_d_rate,
+      d_rate: slot0.d_rate,
       destructionRate: slot0.destructionRate,
       resistances: { element: { ...slot0.resistances.element } },
       absorbElementList: [...slot0.absorbElementList],
@@ -738,6 +752,7 @@ export class EnemySetupController {
           (slot?.manual && typeof slot.manual === 'object') ||
           slot?.od_rate != null ||
           slot?.max_d_rate != null ||
+          slot?.d_rate != null ||
           (slot?.resistances && typeof slot.resistances === 'object') ||
           Array.isArray(slot?.absorbElementList) ||
           (slot?.e_shield && typeof slot.e_shield === 'object') ||
@@ -766,6 +781,7 @@ export class EnemySetupController {
       (snapshot.manual && typeof snapshot.manual === 'object') ||
       snapshot.od_rate != null ||
       snapshot.max_d_rate != null ||
+      snapshot.d_rate != null ||
       (snapshot.resistances && typeof snapshot.resistances === 'object') ||
       Array.isArray(snapshot.absorbElementList) ||
       (snapshot?.e_shield && typeof snapshot.e_shield === 'object')
@@ -1038,10 +1054,12 @@ export class EnemySetupController {
           </div>
 
           <div class="p-2 space-y-2 ${hasSelectedEnemy ? '' : 'pointer-events-none'}">
-            <!-- オーバードライブ上昇量 / 現在破壊率 / 最大破壊率 -->
-            <div class="grid grid-cols-3 gap-1.5">
+            <!-- オーバードライブ上昇量 / 破壊率上昇率 / 現在破壊率 / 最大破壊率 -->
+            <div class="grid grid-cols-2 gap-1.5">
               ${this.#numFieldHtml('od_rate',    'オーバードライブ上昇量', vals.od_rate,    isManual,
                 (v) => formatEnemyOdRatePercent(v))}
+              ${this.#selectFieldHtml('d_rate', '破壊率上昇率', vals.d_rate, isManual,
+                D_RATE_OPTIONS, (v) => v === 0 ? '0%（破壊不可）' : `${v * 20}%`)}
               ${this.#readOnlyFieldHtml('現在破壊率', formatDestructionRatePercent(currentDestructionRate), 'enemy-current-destruction-rate')}
               ${this.#numFieldHtml('max_d_rate', '最大破壊率',             vals.max_d_rate, isManual,
                 (v) => `${v}%`)}
@@ -1084,6 +1102,26 @@ export class EnemySetupController {
       <div class="flex flex-col gap-0.5">
         <span class="text-xs text-gray-500">${label}</span>
         <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${formatter ? formatter(value) : value}</span>
+      </div>`;
+  }
+
+  #selectFieldHtml(key, label, value, editable, options, labelFn = (v) => String(v)) {
+    if (editable) {
+      const optionsHtml = options.map((v) =>
+        `<option value="${v}"${v === value ? ' selected' : ''}>${labelFn(v)}</option>`
+      ).join('');
+      return `
+        <label class="flex flex-col gap-0.5">
+          <span class="text-xs text-gray-500">${label}</span>
+          <select data-edit-field="${key}"
+                  class="text-xs rounded border border-gray-300 px-1 py-0.5 w-full
+                         focus:outline-none focus:ring-1 focus:ring-blue-400">${optionsHtml}</select>
+        </label>`;
+    }
+    return `
+      <div class="flex flex-col gap-0.5">
+        <span class="text-xs text-gray-500">${label}</span>
+        <span class="text-xs font-mono font-medium ${value !== 0 ? 'text-blue-700' : 'text-gray-500'}">${labelFn(value)}</span>
       </div>`;
   }
 

@@ -44,6 +44,8 @@ test('Enemy Setup manual edit shows prefilled Eシールド editor for the sampl
   await expect(editButton).toBeVisible({ timeout: 5000 });
   await editButton.click();
 
+  await expect(page.locator('[data-edit-field="d_rate"]')).toHaveValue('5');
+
   const editor = page.locator('#enemy-setup-root [data-role="enemy-e-shield-editor"]');
   await expect(editor).toBeVisible({ timeout: 5000 });
   await expect(page.locator('[data-edit-eshield-field="count"]')).toHaveValue('30');

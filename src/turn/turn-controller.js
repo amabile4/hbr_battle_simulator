@@ -14,6 +14,13 @@ import { fromSnapshot, commitRecord, buildTurnContext } from '../records/record-
 import { buildDamageCalculationContext } from '../domain/damage-calculation-context.js';
 import { buildCriticalRateBreakdown, buildDamageBreakdown } from '../domain/damage-breakdown.js';
 import { calculateDestruction } from '../domain/destruction-calculator.js';
+import {
+  DEFAULT_ENEMY_BORDER,
+  findAttackPart,
+  resolveEffectPowerFromPart,
+} from '../domain/calculator-helpers.js';
+import { normalizeCharacterStats, resolveStatsWithSupport } from '../domain/character-stats.js';
+import { resolveDefaultStats } from '../domain/damage-calculator-input-builder.js';
 import { cloneDpState, getDpRate } from '../domain/dp-state.js';
 import {
   cloneEnemyEShieldState,
@@ -39,6 +46,10 @@ import { isExSkillByLabel, isNormalAttackSkill, isPursuitOnlySkill } from '../do
 import { SHREDDING_SP_MIN, shouldConsume, validateBuffMetadata } from '../domain/character-style.js';
 import { isFormEntryActive } from '../domain/form-change.js';
 import {
+  resolveAttackOrBreakPierceBonusPercent,
+  resolveBlastOrDrivePierceBonusPercent,
+} from '../domain/pierce-correction.js';
+import {
   STAGE_SETUP_ENCHANT_EFFECT_SCOPES,
   STAGE_SETUP_ENCHANT_EFFECT_TYPES,
   buildStageSetupEnchantEffectLabel,
@@ -57,10 +68,8 @@ import {
   DEFAULT_DESTRUCTION_RATE_CAP_PERCENT,
   SPECIAL_BREAK_CAP_BONUS_PERCENT,
   OD_LEVELS,
-  DRIVE_PIERCE_OPTION_VALUES,
-  DRIVE_PIERCE_BASE_BONUS_AT_HIT_1,
-  DRIVE_PIERCE_MAX_REFERENCE_HIT,
   INTRINSIC_MARK_EFFECTS_BY_ELEMENT,
+  ANCIENT_CHAIN_CONTRIBUTION_LABEL,
   getOdGaugeRequirement,
   clampEnemyCount,
 } from '../config/battle-defaults.js';
@@ -183,6 +192,9 @@ const ENEMY_STATUS_SKILL_TYPES = Object.freeze(
 const ENEMY_STATUS_POWER_DURATION_SKILL_TYPES = Object.freeze(
   new Set([ENEMY_STATUS_PROVOKE, ENEMY_STATUS_ATTENTION, 'Misfortune', 'Cover'])
 );
+const ENEMY_DEBUFF_EFFECT_POWER_SKILL_TYPES = Object.freeze(
+  new Set(['DefenseDown', 'Fragile', 'ResistDown', 'ResistDownOverwrite'])
+);
 const HIGH_BOOST_ENEMY_DEBUFF_SKILL_TYPES = Object.freeze(
   new Set([
     'DefenseDown',
@@ -218,6 +230,7 @@ const ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE = Object.freeze({
 const ACTIVE_BUFF_STATUS_SKILL_TYPES = Object.freeze(
   new Set(Object.keys(ACTIVE_BUFF_STATUS_SKILL_TYPE_TO_STATUS_TYPE))
 );
+const EFFECT_POWER_PERCENT_TO_RATIO = 1 / 100;
 const SPECIAL_STATUS_TYPE_NEGATIVE_STATE = 146;
 const REMOVABLE_PLAYER_DEBUFF_STATUS_TYPES = Object.freeze(
   new Set([
@@ -1273,6 +1286,126 @@ function scaleHighBoostEnemyDebuffPower(state, actor, skillType, power) {
   return applyHighBoostMultiplier(power, multiplier);
 }
 
+function getMemberEffectProviderStats(member) {
+  if (!member) {
+    return null;
+  }
+  const role = String(member?.role ?? 'Attacker');
+  const limitBreakCount = Number(member?.limitBreakLevel ?? 0);
+  return (
+    normalizeCharacterStats(member?.stats) ??
+    resolveStatsWithSupport(resolveDefaultStats(role, limitBreakCount), member?.supportStats)
+  );
+}
+
+function shouldResolveEffectPowerFromStats(part) {
+  return Number(part?.diff_for_max ?? 0) > 0;
+}
+
+function normalizeEffectPowerStatusType(statusType) {
+  const normalized = String(statusType ?? '').trim();
+  if (normalized === 'AttackUpIncludeNormal') {
+    return 'AttackUp';
+  }
+  if (normalized === 'ResistDown' || normalized === 'ResistDownOverwrite') {
+    return 'ElementResistDown';
+  }
+  return normalized;
+}
+
+function getEffectPowerLevelOptions(part) {
+  const options = {};
+  const skillLevel = Number(part?.skillLevel ?? part?.skill_level ?? part?.level);
+  if (Number.isFinite(skillLevel)) {
+    options.skillLevel = skillLevel;
+  }
+  const orbLevel = Number(part?.orbLevel ?? part?.orb_level);
+  if (Number.isFinite(orbLevel)) {
+    options.orbLevel = orbLevel;
+  }
+  return options;
+}
+
+function resolveEffectPowerRatioFromPart(part, options = {}) {
+  const fallbackRatio = Number(options.fallbackRatio ?? part?.power?.[0] ?? 0);
+  if (!shouldResolveEffectPowerFromStats(part)) {
+    return Number.isFinite(fallbackRatio) ? fallbackRatio : 0;
+  }
+  const providerStats = getMemberEffectProviderStats(options.providerMember);
+  const resolved = resolveEffectPowerFromPart(part, {
+    providerStats,
+    statusType: normalizeEffectPowerStatusType(options.statusType),
+    isEnemyDebuff: Boolean(options.isEnemyDebuff),
+    ...(Number.isFinite(Number(options.enemyBorder)) ? { enemyBorder: Number(options.enemyBorder) } : {}),
+    ...getEffectPowerLevelOptions(part),
+  });
+  const ratio = Number(resolved?.power ?? 0) * EFFECT_POWER_PERCENT_TO_RATIO;
+  return Number.isFinite(ratio) ? ratio : (Number.isFinite(fallbackRatio) ? fallbackRatio : 0);
+}
+
+function resolveEnemyBorderForEffectPower(turnState, targetIndex) {
+  const enemyState = getEnemyState(turnState);
+  const direct = Number(enemyState?.paramBorderByEnemy?.[String(targetIndex)]);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+  return DEFAULT_ENEMY_BORDER;
+}
+
+function resolveActiveBuffEffectPowerRatio(state, actor, skillType, statusType, part) {
+  const basePower = resolveEffectPowerRatioFromPart(part, {
+    providerMember: actor,
+    statusType,
+    fallbackRatio: Number(part?.power?.[0] ?? 0),
+  });
+  return scaleHighBoostAttackBuffPower(state, actor, skillType, basePower);
+}
+
+function resolveEnemyStatusEffectPowerRatio(state, actor, skillType, part, targetIndex) {
+  const fallbackRatio = getEnemyStatusPowerValue(part);
+  if (
+    ENEMY_STATUS_POWER_DURATION_SKILL_TYPES.has(String(skillType ?? '')) ||
+    !ENEMY_DEBUFF_EFFECT_POWER_SKILL_TYPES.has(String(skillType ?? ''))
+  ) {
+    return scaleHighBoostEnemyDebuffPower(state, actor, skillType, fallbackRatio);
+  }
+  const basePower = resolveEffectPowerRatioFromPart(part, {
+    providerMember: actor,
+    statusType: skillType,
+    isEnemyDebuff: true,
+    enemyBorder: resolveEnemyBorderForEffectPower(state?.turnState, targetIndex),
+    fallbackRatio,
+  });
+  return scaleHighBoostEnemyDebuffPower(state, actor, skillType, basePower);
+}
+
+function resolveSourceEffectPowerPart(sourceSkill, effectivePart, partIndex) {
+  const sourceParts = Array.isArray(sourceSkill?.parts) ? sourceSkill.parts : [];
+  const indexed = sourceParts[Number(partIndex)];
+  if (indexed && String(indexed?.skill_type ?? '') === String(effectivePart?.skill_type ?? '')) {
+    return indexed;
+  }
+  return (
+    sourceParts.find(
+      (part) =>
+        String(part?.skill_type ?? '') === String(effectivePart?.skill_type ?? '') &&
+        String(part?.target_type ?? '') === String(effectivePart?.target_type ?? '')
+    ) ?? effectivePart
+  );
+}
+
+function normalizeDestructionUpStatusEffectsForCalculation(statusEffects) {
+  return (Array.isArray(statusEffects) ? statusEffects : [])
+    .filter((effect) => effect?.statusType === 'DestructionUp')
+    .map((effect) => {
+      const power = Number(effect?.power ?? 0);
+      return {
+        ...effect,
+        power: Number.isFinite(power) && Math.abs(power) <= 1 ? power * 100 : power,
+      };
+    });
+}
+
 function isOverDriveActive(turnState) {
   const type = String(turnState?.turnType ?? '');
   if (type === 'od') {
@@ -2059,6 +2192,47 @@ function cloneEnemySlotObjectMap(value, fallback = {}) {
   return structuredClone(value);
 }
 
+/**
+ * 破壊率マップをマージする。スナップショット値は新規敵スロットまたは現在値より大きい場合のみ採用する。
+ * 破壊率は単調増加が保証されるゲーム仕様であり、過去の記録値で減少方向への上書きを防ぐ。
+ *
+ * 召喚敵など「スロット差し替え」で初期値へのリセットが必要なケースでは、
+ * forceOverwriteKeys に該当キーを渡すことで Math.max をバイパスし、スナップショット値を強制適用する。
+ *
+ * @param {Object} currentMap 現在の destructionRateByEnemy
+ * @param {Object} snapshotMap スナップショットの enemyDestructionRates
+ * @param {Set<string>} [forceOverwriteKeys] スナップショット値を強制上書きする敵スロットキー
+ * @returns {Object} マージ後の destructionRateByEnemy
+ */
+function mergeDestructionRateByEnemy(currentMap, snapshotMap, forceOverwriteKeys = null) {
+  const current = currentMap && typeof currentMap === 'object'
+    ? structuredClone(currentMap)
+    : {};
+  const snapshot = snapshotMap && typeof snapshotMap === 'object'
+    ? snapshotMap
+    : {};
+  for (const [key, snapshotValue] of Object.entries(snapshot)) {
+    const snapshotNum = Number(snapshotValue);
+    if (!Number.isFinite(snapshotNum)) {
+      continue;
+    }
+    if (forceOverwriteKeys && forceOverwriteKeys.has(key)) {
+      // 召喚によるスロット差し替え: スナップショット値を強制適用（リセットを許可）
+      current[key] = snapshotNum;
+      continue;
+    }
+    const currentNum = Number(current[key]);
+    if (!Number.isFinite(currentNum)) {
+      // 新規敵スロット: スナップショット値をそのまま採用
+      current[key] = snapshotNum;
+    } else {
+      // 既存スロット: 現在値とスナップショット値の大きい方を採用（単調増加を保証）
+      current[key] = Math.max(currentNum, snapshotNum);
+    }
+  }
+  return current;
+}
+
 function normalizeEnemyEShieldStateEntry(value) {
   return cloneEnemyEShieldState(value);
 }
@@ -2293,7 +2467,7 @@ export function applyEnemyStateOverrideSnapshot(turnState, snapshot = {}, option
       ? cloneEnemySlotObjectMap(snapshot.enemyDamageRates)
       : structuredClone(current.damageRatesByEnemy),
     destructionRateByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRates')
-      ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRates)
+      ? mergeDestructionRateByEnemy(current.destructionRateByEnemy, snapshot.enemyDestructionRates, options?.forceDestructionRateKeys ?? null)
       : structuredClone(current.destructionRateByEnemy),
     destructionRateCapByEnemy: hasOwnEnemyOverrideField(snapshot, 'enemyDestructionRateCaps')
       ? cloneEnemySlotObjectMap(snapshot.enemyDestructionRateCaps)
@@ -2994,6 +3168,38 @@ export function isHitWeakBySkillContext(state, member, skill, actionEntry) {
     known: true,
     value: elements.some((element) => isEnemyWeakToElement(state?.turnState, targetIndex, element)) ? 1 : 0,
   };
+}
+
+function isHitWeakForTarget(state, member, skill, actionEntry, targetIndex) {
+  const normalizedTargetIndex = Number(targetIndex);
+  if (!Number.isInteger(normalizedTargetIndex) || normalizedTargetIndex < 0) {
+    return false;
+  }
+  if (actionTreatsEShieldAsWeakHit(state, member, skill, actionEntry, [normalizedTargetIndex])) {
+    return true;
+  }
+  const elements = getConditionSkillElements(skill, member).filter((element) => element && element !== 'None');
+  return elements.some((element) => isEnemyWeakToElement(state?.turnState, normalizedTargetIndex, element));
+}
+
+function buildDestructionConditionResultsForTarget(state, member, skill, actionEntry, targetIndex) {
+  return {
+    'IsHitWeak()': isHitWeakForTarget(state, member, skill, actionEntry, targetIndex),
+  };
+}
+
+function buildDestructionConditionResultsByEnemy(state, member, skill, actionEntry, enemyCount) {
+  const results = {};
+  for (let targetIndex = 0; targetIndex < enemyCount; targetIndex += 1) {
+    results[String(targetIndex)] = buildDestructionConditionResultsForTarget(
+      state,
+      member,
+      skill,
+      actionEntry,
+      targetIndex
+    );
+  }
+  return results;
 }
 
 function resolveWeakHitTargetEnemyIndexes(state, skill, actionEntry) {
@@ -4283,6 +4489,23 @@ function buildDestructionHitsForAction(hitCount, breakHitIndex) {
   }));
 }
 
+export function buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpDamage) {
+  const normalizedHitCount = Math.max(1, Number(hitCount ?? 1));
+  const perHit = Number(perHitDpDamage ?? 0);
+  const exactTotal =
+    Number.isFinite(Number(totalDpDamage)) && Number(totalDpDamage) > 0
+      ? Number(totalDpDamage)
+      : perHit * normalizedHitCount;
+  // per-hit 切り捨てで失われる端数を最終ヒットへ加算し、DP消費（exact total）と
+  // calculateDestruction(autoBreak) の累積判定が同じ合計を見るようにする
+  return Array.from({ length: normalizedHitCount }, (_, hitIndex) => ({
+    damage:
+      hitIndex === normalizedHitCount - 1
+        ? Math.max(0, exactTotal - perHit * (normalizedHitCount - 1))
+        : perHit,
+  }));
+}
+
 function applyDestructionRateFromActions(state, previewRecord, options = {}) {
   const events = [];
   const preActionTurnState = options.preActionTurnState ?? state?.turnState ?? null;
@@ -4317,10 +4540,11 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
@@ -4329,6 +4553,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
     if (!hasDamagePartInParts(effectiveParts)) {
       continue;
     }
+    const destructionAttackPart = findAttackPart({ parts: effectiveParts });
 
     const targetEnemyIndexes = getActionTargetEnemyIndexes(state, actionEntry, skill);
     if (targetEnemyIndexes.length === 0) {
@@ -4417,7 +4642,7 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         useAutoBreak = false;
       } else if (hasDpGauge && !isManualBreakTarget && perHitDpDamage > 0 && Number.isFinite(perHitDpDamage)) {
         // per-hit DP ダメージが提供されている: dpBeforeThisAction を起点に autoBreak でブレイクヒットを特定
-        destructionHits = Array.from({ length: hitCount }, () => ({ damage: perHitDpDamage }));
+        destructionHits = buildAutoBreakDestructionHits(hitCount, perHitDpDamage, totalDpDamage);
         defenderDp = dpBeforeThisAction > 0 ? dpBeforeThisAction : 0;
         useAutoBreak = true;
       } else {
@@ -4431,16 +4656,24 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
         {
           attacker: {
             styleId: Number(actor.styleId ?? actionEntry?.styleId ?? 0),
-            statusEffects: (actor.statusEffects ?? []).filter((effect) => effect?.statusType === 'DestructionUp'),
-            accessoryDestructionRateBonus: Number(
-              actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+            statusEffects: normalizeDestructionUpStatusEffectsForCalculation(actor.statusEffects),
+            // ブラストピアスは raw ratio を渡し、calculateDestruction 内の
+            // ヒット数傾斜（上昇型・仕様式Bと同一）でスケールさせる（二重傾斜防止）
+            accessoryDestructionRateBonus:
+              Number(
+                actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
+              ) + Number(actor?.blastPiercePercent ?? 0) / 100,
+            // エンシェントチェーンの破壊率上昇量+はヒット数非依存のフラット加算
+            flatDestructionRateBonus: Number(actor?.chainDestructionRateBonus ?? 0),
+            resonanceDestructionRateBonus: Number(
+              actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
             ),
           },
           defender: {
             enemyId: null,
             destructionRate: currentRatePercent / 100,
             destructionLimit: capPercent / 100,
-            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 100) / 100,
+            destructionMultiplier: Number(state.turnState?.enemyState?.destructionMultiplierByEnemy?.[String(targetIndex)] ?? 5),
             dp: defenderDp,
           },
           skill: {
@@ -4450,6 +4683,14 @@ function applyDestructionRateFromActions(state, previewRecord, options = {}) {
             isPursuit: isPursuitOnlySkill(skill),
             spCostOverride: Number(actionEntry?.spCost ?? skill?.spCost ?? skill?.sp_cost ?? 0),
             parts: effectiveParts,
+            attackPart: destructionAttackPart,
+            conditionResults: buildDestructionConditionResultsForTarget(
+              state,
+              actor,
+              skill,
+              actionEntry,
+              targetIndex
+            ),
           },
           hits: destructionHits,
           autoBreak: useAutoBreak,
@@ -5561,7 +5802,11 @@ function applyMoralePassiveTriggerEffects(state, actor, skill, actionEntry) {
       }
 
       if (effectType === 'AttackUp') {
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'AttackUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -6736,7 +6981,11 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
         if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
           continue;
         }
-        const amount = Number(part?.power?.[0] ?? 0);
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'AttackUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
         if (!Number.isFinite(amount) || amount === 0) {
           continue;
         }
@@ -6759,6 +7008,77 @@ function resolvePassiveAttackUpForMember(state, targetMember, timings = []) {
           targetCharacterName: String(targetMember?.characterName ?? ''),
           effectType: 'AttackUp',
           attackUpRate: passiveRate,
+        });
+      }
+    }
+  }
+
+  return { totalRate, matchedPassives };
+}
+
+function resolvePassiveResonanceDestructionRateBonusForMember(state, targetMember, timings = []) {
+  if (!state || !targetMember) {
+    return { totalRate: 0, matchedPassives: [] };
+  }
+  const timingSet = new Set((Array.isArray(timings) ? timings : [timings]).map((value) => String(value)));
+  let totalRate = 0;
+  const matchedPassives = [];
+
+  for (const actor of state.party ?? []) {
+    for (const passive of getPassiveEntriesForMember(actor)) {
+      if (String(passive?.sourceType ?? '') !== 'support') {
+        continue;
+      }
+      if (!timingSet.has(String(passive?.timing ?? ''))) {
+        continue;
+      }
+      let passiveRate = 0;
+      for (const part of resolvePassiveEffectiveParts(passive, state, actor)) {
+        if (String(part?.skill_type ?? '') !== 'DamageRateUp') {
+          continue;
+        }
+        if (!evaluatePassiveSelfConditions(passive, part, state, actor)) {
+          continue;
+        }
+        const targetCharacterIds = resolveSupportTargetCharacterIds(
+          state,
+          actor,
+          part?.target_type,
+          targetMember.characterId
+        );
+        if (!targetCharacterIds.includes(targetMember.characterId)) {
+          continue;
+        }
+        if (!isTargetConditionSatisfiedByMember(targetMember, part?.target_condition, state)) {
+          continue;
+        }
+        const amount = resolveEffectPowerRatioFromPart(part, {
+          providerMember: actor,
+          statusType: 'DamageRateUp',
+          fallbackRatio: Number(part?.power?.[0] ?? 0),
+        });
+        if (!Number.isFinite(amount) || amount === 0) {
+          continue;
+        }
+        passiveRate += amount;
+        totalRate += amount;
+      }
+      if (passiveRate !== 0) {
+        matchedPassives.push({
+          characterId: String(actor?.characterId ?? ''),
+          characterName: String(actor?.characterName ?? ''),
+          shortCharacterName: String(actor?.shortCharacterName ?? actor?.characterName ?? ''),
+          styleId: Number(actor?.styleId ?? 0),
+          styleName: String(actor?.styleName ?? ''),
+          passiveId: Number(passive?.passiveId ?? passive?.id ?? 0),
+          passiveName: String(passive?.name ?? ''),
+          passiveDesc: String(passive?.desc ?? ''),
+          timing: String(passive?.timing ?? ''),
+          source: 'action_selection',
+          targetCharacterId: String(targetMember?.characterId ?? ''),
+          targetCharacterName: String(targetMember?.characterName ?? ''),
+          effectType: 'DamageRateUp',
+          resonanceDestructionRateBonus: passiveRate,
         });
       }
     }
@@ -7328,18 +7648,8 @@ function resolveEffectiveSkillParts(skill, state, member) {
 }
 
 function resolveDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent) {
-  const p = Number(drivePiercePercent ?? 0);
-  if (!DRIVE_PIERCE_OPTION_VALUES.includes(p) || p === 0) {
-    return 0;
-  }
-
-  const hit = Math.max(1, Number(effectiveHitCount ?? 1));
-  const clamped = Math.min(DRIVE_PIERCE_MAX_REFERENCE_HIT, hit);
-
   // 今回仕様: 役割で分岐せず、ドライブピアス列のみを使用する。
-  const step = (p - DRIVE_PIERCE_BASE_BONUS_AT_HIT_1) / (DRIVE_PIERCE_MAX_REFERENCE_HIT - 1);
-  const bonus = DRIVE_PIERCE_BASE_BONUS_AT_HIT_1 + step * (clamped - 1);
-  return Number(bonus.toFixed(4));
+  return resolveBlastOrDrivePierceBonusPercent(effectiveHitCount, drivePiercePercent);
 }
 
 function getStageSetupEnchantEffects(state) {
@@ -7937,6 +8247,22 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
       const isNormalAttack = isNormalAttackSkill(skill);
       // WIP: 将来の破壊率追跡実装時に damageBreakdownInput / damageContext へ渡す
       const isDestructionRateGainSkill = hasDestructionRateGainPartInParts(effectiveParts); // eslint-disable-line no-unused-vars
+      const destructionAttackPart = findAttackPart({ parts: effectiveParts });
+      const destructionConditionResultsByEnemy = buildDestructionConditionResultsByEnemy(
+        state,
+        member,
+        skillWithTarget,
+        actionEntry,
+        enemyCount
+      );
+      const chainSkillAttackUpRate = Number(member?.chainSkillAttackUpRate ?? 0);
+      const chainAccessoryContributions = chainSkillAttackUpRate > 0
+        ? [{
+            label: ANCIENT_CHAIN_CONTRIBUTION_LABEL,
+            value: chainSkillAttackUpRate,
+            iconStatusType: 'AttackUp',
+          }]
+        : [];
       const damageBreakdownInput = hasDamage ? {
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         isNormalAttack,
@@ -7970,6 +8296,7 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         transcendenceBurstCriticalDamageUpRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstCriticalDamageUpRate ?? 0
         ),
+        accessoryContributions: chainAccessoryContributions,
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
         attackUpPerTokenRate: Number(actionEntry?.specialPassiveModifiers?.attackUpPerTokenRate ?? 0),
@@ -7989,6 +8316,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         skillName: skill.name,
         targetType: skill.targetType,
         isNormalAttack,
+        isPursuit: isPursuitOnlySkill(skill),
+        destructionAttackPart,
+        destructionConditionResultsByEnemy,
         enemyCount,
         targetEnemyIndex: odEnemyAnalysis?.targetEnemyIndex,
         baseHitCount,
@@ -8037,6 +8367,9 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         transcendenceBurstDestructionRateGainBonusRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstDestructionRateGainBonusRate ?? 0
         ),
+        resonanceDestructionRateBonus: Number(
+          actionEntry?.specialPassiveModifiers?.resonanceDestructionRateBonus ?? 0
+        ),
         transcendenceBurstAttackBuffSkillEffectUpRate: Number(
           actionEntry?.specialPassiveModifiers?.transcendenceBurstAttackBuffSkillEffectUpRate ?? 0
         ),
@@ -8051,8 +8384,16 @@ function applyOdGaugeFromActions(state, previewRecord, options = {}) {
         ),
         markCriticalRateUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalRateUp ?? 0),
         markCriticalDamageUp: Number(actionEntry?.specialPassiveModifiers?.markCriticalDamageUp ?? 0),
-        accessoryAttackUpRate: 0,
-        accessoryContributions: [],
+        accessoryAttackUpRate: chainSkillAttackUpRate,
+        accessoryContributions: chainAccessoryContributions,
+        chainDestructionRateBonus: Number(member?.chainDestructionRateBonus ?? 0),
+        // ピアス装備（減衰型）: 行動スキルの hit 数に基づき解決済みの ratio を渡す
+        attackPierceUpRate:
+          resolveAttackOrBreakPierceBonusPercent(baseHitCount, member?.attackPiercePercent ?? 0) / 100,
+        breakPierceUpRate:
+          resolveAttackOrBreakPierceBonusPercent(baseHitCount, member?.breakPiercePercent ?? 0) / 100,
+        // ブラストピアス: raw ratio（ヒット数傾斜は calculateDestruction 側で適用）
+        blastPierceDestructionRateBonus: Number(member?.blastPiercePercent ?? 0) / 100,
         overDrivePointUpByTokenPerToken: effectiveParts
           .filter((part) => String(part?.skill_type ?? '') === 'OverDrivePointUpByToken')
           .reduce((sum, part) => sum + Number(part?.power?.[0] ?? 0), 0),
@@ -8466,13 +8807,13 @@ function isTimedActiveBuffPart(part) {
   return (exitCond && exitCond !== 'None') || (limitType && limitType !== 'None');
 }
 
-function addActiveBuffStatusEffect(state, actor, target, skill, part) {
+function addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart = part) {
   const skillType = String(part?.skill_type ?? '').trim();
   const statusType = resolveActiveBuffStatusType(skillType);
   if (!statusType) {
     return null;
   }
-  const power = scaleHighBoostAttackBuffPower(state, actor, skillType, Number(part?.power?.[0] ?? 0));
+  const power = resolveActiveBuffEffectPowerRatio(state, actor, skillType, statusType, powerPart);
   if (!Number.isFinite(power) || power === 0) {
     return null;
   }
@@ -8521,16 +8862,17 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
 
     const effectiveParts = Array.isArray(skill.parts) ? skill.parts : resolveEffectiveSkillParts(skill, state, actor);
-    for (const part of effectiveParts) {
+    for (const [partIndex, part] of effectiveParts.entries()) {
       if (!isTimedActiveBuffPart(part)) {
         continue;
       }
@@ -8552,7 +8894,8 @@ function applyActiveBuffStatusEffectsFromActions(state, previewRecord) {
         if (!isTargetConditionSatisfiedByMember(target, part?.target_condition, state)) {
           continue;
         }
-        const added = addActiveBuffStatusEffect(state, actor, target, skill, part);
+        const powerPart = resolveSourceEffectPowerPart(sourceSkill, part, partIndex);
+        const added = addActiveBuffStatusEffect(state, actor, target, skill, part, powerPart);
         if (!added) {
           continue;
         }
@@ -9158,14 +9501,15 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
     if (!actor) {
       continue;
     }
+    const sourceSkill = actor.getSkill(actionEntry.skillId);
     const skill =
       actionEntry?._effectiveSkillSnapshot && typeof actionEntry._effectiveSkillSnapshot === 'object'
         ? structuredClone(actionEntry._effectiveSkillSnapshot)
-        : actor.getSkill(actionEntry.skillId);
+        : sourceSkill;
     if (!skill) {
       continue;
     }
-    for (const part of collectEnemyStatusActionParts(skill, state, actor)) {
+    for (const [partIndex, part] of collectEnemyStatusActionParts(skill, state, actor).entries()) {
       const skillType = String(part?.skill_type ?? '').trim();
       const targetType = String(part?.target_type ?? '').trim();
       if (!ENEMY_STATUS_SKILL_TYPES.has(skillType) || !isEnemyStatusTargetType(targetType)) {
@@ -9195,12 +9539,13 @@ function applyEnemyStatusEffectsFromActions(state, previewRecord) {
         if (!condSatisfied) {
           continue;
         }
+        const powerPart = resolveSourceEffectPowerPart(sourceSkill, part, partIndex);
         const appliedStatus = normalizeEnemyStatus(
           {
             statusType: skillType,
             targetIndex,
             remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-            power: scaleHighBoostEnemyDebuffPower(state, actor, skillType, getEnemyStatusPowerValue(part)),
+            power: resolveEnemyStatusEffectPowerRatio(state, actor, skillType, powerPart, targetIndex),
             elements: normalizeEnemyStatusElements(part?.elements),
             limitType: String(part?.effect?.limitType ?? ''),
             exitCond: String(part?.effect?.exitCond ?? ''),
@@ -10561,6 +10906,11 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
     attackUpTimings.push('OnOverdriveStart');
   }
   const specialAttackUp = resolvePassiveAttackUpForMember(state, member, attackUpTimings);
+  const resonanceDestructionRateBonus = resolvePassiveResonanceDestructionRateBonusForMember(
+    state,
+    member,
+    'OnPlayerTurnStart'
+  );
   const damageRateUpPerToken = resolvePassiveDamageRateUpPerTokenForMember(
     state,
     member,
@@ -10729,6 +11079,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       transcendenceBurstDestructionRateGainBonusRate: Number(
         transcendenceBurstModifiers.destructionRateGainBonusRate ?? 0
       ),
+      resonanceDestructionRateBonus: Number(resonanceDestructionRateBonus.totalRate ?? 0),
       transcendenceBurstAttackBuffSkillEffectUpRate: Number(
         transcendenceBurstModifiers.attackBuffSkillEffectUpRate ?? 0
       ),
@@ -10770,6 +11121,7 @@ function buildPreviewActionEntry(state, member, position, effectiveSkill, action
       ...attackUpPerToken.matchedPassives,
       ...defenseUpPerToken.matchedPassives,
       ...damageRateUpPerToken.matchedPassives,
+      ...resonanceDestructionRateBonus.matchedPassives,
     ],
     breakHitCount:
       Number.isFinite(Number(action?.breakHitCount))
@@ -11763,7 +12115,7 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
               statusType: skillType,
               targetIndex,
               remainingTurns: getEnemyStatusRemainingTurnsFromPart(skillType, part),
-              power: scaleHighBoostEnemyDebuffPower(state, member, skillType, getEnemyStatusPowerValue(part)),
+              power: resolveEnemyStatusEffectPowerRatio(state, member, skillType, part, targetIndex),
               elements: normalizeEnemyStatusElements(part?.elements),
               limitType: String(part?.effect?.limitType ?? ''),
                 exitCond: String(part?.effect?.exitCond ?? ''),
@@ -12010,7 +12362,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
         }
 
         if (skillType === 'AttackUp') {
-          const amount = Number(part?.power?.[0] ?? 0);
+          const amount = resolveEffectPowerRatioFromPart(part, {
+            providerMember: member,
+            statusType: 'AttackUp',
+            fallbackRatio: Number(part?.power?.[0] ?? 0),
+          });
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }
@@ -12143,7 +12499,11 @@ function applyPassiveTimingInternal(state, timings = [], options = {}) {
           skillType === 'GiveAttackBuffUp' ||
           skillType === 'GiveHealUp'
         ) {
-          const amount = Number(part?.power?.[0] ?? 0);
+          const amount = resolveEffectPowerRatioFromPart(part, {
+            providerMember: member,
+            statusType: skillType,
+            fallbackRatio: Number(part?.power?.[0] ?? 0),
+          });
           if (!Number.isFinite(amount) || amount === 0) {
             continue;
           }

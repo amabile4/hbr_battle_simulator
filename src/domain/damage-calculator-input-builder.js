@@ -221,6 +221,8 @@ export function buildDamageCalculationInput(damageContext = {}, attackerStatsInp
       stats,
       tokenCount: toFiniteNumber(attackerStatsInput?.tokenCount, damageContext?.tokenAttackTokenCount ?? 0),
       tokenRatio,
+      attackPierceUpRate: toFiniteNumber(damageContext?.attackPierceUpRate, 0),
+      breakPierceUpRate: toFiniteNumber(damageContext?.breakPierceUpRate, 0),
       statusEffects: buildSyntheticAttackerEffects(damageContext, targetBreakdown),
     },
     defender: {

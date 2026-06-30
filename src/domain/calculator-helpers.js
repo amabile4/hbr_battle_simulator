@@ -211,28 +211,17 @@ export function resolveProviderStat(effect) {
   return DEFAULT_PROVIDER_STAT;
 }
 
-export function resolveEffectPower(effect, skills, options = {}) {
-  if (hasValue(effect?.power)) {
-    return Number(effect.power);
-  }
-
-  const statusType = effect?.statusType;
-  const targetTypes = EFFECT_PART_TYPES_BY_STATUS[statusType] ?? [statusType];
-  const part = findEffectPart(skills, effect?.sourceSkillId, effect?.skillName, targetTypes);
-  if (!part) {
-    return 0;
-  }
-
-  const powers = part.power ?? DEFAULT_EFFECT_POWER;
+export function resolveEffectPowerFromPart(part, options = {}) {
+  const powers = part?.power ?? DEFAULT_EFFECT_POWER;
   const vMin = toNumber(powers[0]) * 100;
   const vMax = toNumber(powers[1], vMin / 100) * 100;
-  const threshold = toNumber(part.diff_for_max);
-  const growths = part.growth ?? DEFAULT_GROWTHS;
+  const threshold = toNumber(part?.diff_for_max);
+  const growths = part?.growth ?? DEFAULT_GROWTHS;
   const gMin = toNumber(growths[0], DEFAULT_GROWTHS[0]);
   const gMax = toNumber(growths[1], gMin);
 
-  let providerStatVal = DEFAULT_PROVIDER_STAT;
-  const providerStats = effect?.providerStats ?? effect?.stats;
+  let providerStatVal;
+  const providerStats = options.providerStats;
   if (providerStats && typeof providerStats === 'object') {
     const normStats = {};
     for (const [k, v] of Object.entries(providerStats)) {
@@ -248,7 +237,7 @@ export function resolveEffectPower(effect, skills, options = {}) {
     
     let weightedSum = 0;
     let weightSum = 0;
-    const weights = part.parameters ?? {};
+    const weights = part?.parameters ?? {};
     for (const [k, w] of Object.entries(weights)) {
       const numericWeight = Number(w);
       if (numericWeight > 0) {
@@ -257,42 +246,51 @@ export function resolveEffectPower(effect, skills, options = {}) {
         weightSum += numericWeight;
       }
     }
-    providerStatVal = weightSum > 0 ? (weightedSum / weightSum) : DEFAULT_PROVIDER_STAT;
+    providerStatVal = weightSum > 0 ? (weightedSum / weightSum) : (options.defaultStat ?? DEFAULT_PROVIDER_STAT);
   } else {
-    if (hasValue(effect?.providerWis)) {
-      providerStatVal = toNumber(effect.providerWis);
-    } else if (hasValue(effect?.providerWisOrLuk)) {
-      providerStatVal = toNumber(effect.providerWisOrLuk);
+    if (hasValue(options.providerWis)) {
+      providerStatVal = toNumber(options.providerWis);
+    } else if (hasValue(options.providerWisOrLuk)) {
+      providerStatVal = toNumber(options.providerWisOrLuk);
     } else {
-      providerStatVal = DEFAULT_PROVIDER_STAT;
+      providerStatVal = options.defaultStat ?? DEFAULT_PROVIDER_STAT;
     }
   }
 
-  const skillLevel = toNumber(effect?.skillLevel, options.defaultLevel ?? DEFAULT_LEVEL);
-  const orbLevel = toNumber(effect?.orbLevel, options.defaultOrbLevel ?? DEFAULT_ORB_LEVEL);
+  const skillLevel = toNumber(options.skillLevel, DEFAULT_LEVEL);
+  const orbLevel = toNumber(options.orbLevel, DEFAULT_ORB_LEVEL);
 
   const minAtLevel = vMin * (1 + gMin * (skillLevel - 1));
   const maxAtLevel = vMax * (1 + gMax * (skillLevel - 1));
   
-  const isDebuff = ['DefenseDown', 'ElementResistDown', 'Fragile'].includes(statusType);
-  let resolvedPower = 0;
+  const statusType = options.statusType;
+  const isDebuff = options.isEnemyDebuff !== undefined
+    ? Boolean(options.isEnemyDebuff)
+    : ['DefenseDown', 'ElementResistDown', 'Fragile'].includes(statusType);
   
+  let resolvedPower = 0;
+  let regime = 'belowMin';
+  let jewelAddition = 0;
+  let statDiff = 0;
+
   if (isDebuff) {
     const enemyBorder = toNumber(options.enemyBorder ?? DEFAULT_ENEMY_BORDER);
-    const statDiff = providerStatVal - enemyBorder;
+    statDiff = providerStatVal - enemyBorder;
     if (statDiff < 0) {
       resolvedPower = minAtLevel;
+      regime = 'belowMin';
     } else if (statDiff < threshold) {
       resolvedPower = ((maxAtLevel - minAtLevel) / threshold) * statDiff + minAtLevel;
+      regime = 'linear';
     } else {
       resolvedPower = maxAtLevel * (1 + 0.001 * (statDiff - threshold));
+      regime = 'overCap';
     }
     
     if (orbLevel > 0) {
       const tOrb = 20 * orbLevel;
       const tJewel = threshold + tOrb;
       
-      let jewelAddition = 0;
       if (statDiff < 0) {
         jewelAddition = vMin * orbLevel * 0.02;
       } else if (statDiff < tJewel) {
@@ -307,19 +305,22 @@ export function resolveEffectPower(effect, skills, options = {}) {
   } else {
     if (threshold <= 0) {
       resolvedPower = maxAtLevel;
+      regime = 'overCap';
     } else if (providerStatVal >= threshold) {
       resolvedPower = maxAtLevel * (1 + 0.0002 * (providerStatVal - threshold));
+      regime = 'overCap';
     } else if (providerStatVal < 0) {
       resolvedPower = minAtLevel;
+      regime = 'belowMin';
     } else {
       resolvedPower = ((maxAtLevel - minAtLevel) / threshold) * providerStatVal + minAtLevel;
+      regime = 'linear';
     }
     
     if (orbLevel > 0) {
       const tOrb = 60 * orbLevel;
       const tJewel = threshold + tOrb;
       
-      let jewelAddition = 0;
       if (providerStatVal >= tJewel) {
         jewelAddition = vMax * orbLevel * 0.04;
       } else {
@@ -329,5 +330,45 @@ export function resolveEffectPower(effect, skills, options = {}) {
     }
   }
   
-  return Math.max(0, resolvedPower);
+  const power = Math.max(0, resolvedPower);
+  const breakdown = {
+    providerStatVal,
+    threshold,
+    minAtLevel,
+    maxAtLevel,
+    regime,
+    jewelAddition,
+  };
+  if (isDebuff) {
+    breakdown.statDiff = statDiff;
+  }
+
+  return { power, breakdown };
+}
+
+export function resolveEffectPower(effect, skills, options = {}) {
+  if (hasValue(effect?.power)) {
+    return Number(effect.power);
+  }
+
+  const statusType = effect?.statusType;
+  const targetTypes = EFFECT_PART_TYPES_BY_STATUS[statusType] ?? [statusType];
+  const part = findEffectPart(skills, effect?.sourceSkillId, effect?.skillName, targetTypes);
+  if (!part) {
+    return 0;
+  }
+
+  const resolvedOptions = {
+    providerStats: effect?.providerStats ?? effect?.stats,
+    providerWis: effect?.providerWis,
+    providerWisOrLuk: effect?.providerWisOrLuk,
+    statusType,
+    enemyBorder: options.enemyBorder,
+    skillLevel: effect?.skillLevel ?? options.defaultLevel,
+    orbLevel: effect?.orbLevel ?? options.defaultOrbLevel,
+    defaultStat: options.defaultStat,
+  };
+
+  const { power } = resolveEffectPowerFromPart(part, resolvedOptions);
+  return power;
 }

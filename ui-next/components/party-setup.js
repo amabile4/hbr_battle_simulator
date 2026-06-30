@@ -1,5 +1,9 @@
 import { resolveStyleImageUrl } from '../../src/ui/style-asset-url.js';
-import { DRIVE_PIERCE_OPTIONS } from '../../src/config/battle-defaults.js';
+import {
+  ANCIENT_CHAIN_EQUIP_ID,
+  ANCIENT_CHAIN_START_SP_BONUS,
+  PIERCE_EQUIP_OPTIONS,
+} from '../../src/config/battle-defaults.js';
 import { StylePickerController } from './style-picker.js';
 import {
   isRequiredSkillSetting,
@@ -38,7 +42,56 @@ const SP_EQUIP_OPTIONS = [
   { value: '1', label: 'SP +1' },
   { value: '2', label: 'SP +2' },
   { value: '3', label: 'SP +3' },
+  { value: ANCIENT_CHAIN_EQUIP_ID, label: 'エンシェントチェーン（攻+10%/破壊+10%/SP+3）' },
 ];
+
+// ピアス select 値は 'type:percent'（例 'drive:10'）、なしは ''
+const PIERCE_SELECT_OPTIONS = PIERCE_EQUIP_OPTIONS.map((option) => ({
+  value: option.type === 'none' ? '' : `${option.type}:${option.percent}`,
+  label: option.label
+    .replace('ドライブピアス +', 'DP +')
+    .replace('アタックピアス +', 'アタック +')
+    .replace('ブレイクピアス +', 'ブレイク +')
+    .replace('ブラストピアス +', 'ブラスト +'),
+}));
+const VALID_PIERCE_TYPES = Object.freeze(new Set(['drive', 'attack', 'break', 'blast']));
+
+// percent は select 上は 10/12/15 のみ提示するが、snapshot 由来の任意正数も
+// ラウンドトリップ保持する（補正計算側で 10/12/15 以外は 0 扱いになる）
+function encodePierceId(pierceType, piercePercent) {
+  const type = String(pierceType ?? 'none');
+  const percent = Number(piercePercent ?? 0);
+  if (!VALID_PIERCE_TYPES.has(type) || !Number.isFinite(percent) || percent <= 0) {
+    return '';
+  }
+  return `${type}:${percent}`;
+}
+
+function decodePierceId(pierceId) {
+  const id = String(pierceId ?? '');
+  const [type, rawPercent] = id.split(':');
+  const percent = Number(rawPercent);
+  if (!VALID_PIERCE_TYPES.has(type) || !Number.isFinite(percent) || percent <= 0) {
+    return { pierceType: 'none', piercePercent: 0 };
+  }
+  return { pierceType: type, piercePercent: percent };
+}
+
+function normalizePierceId(pierceId) {
+  const { pierceType, piercePercent } = decodePierceId(pierceId);
+  return encodePierceId(pierceType, piercePercent);
+}
+
+function resolveSnapshotPierce(snapshot = {}, index) {
+  const pierceByPartyIndex = snapshot?.pierceByPartyIndex;
+  const entry = pierceByPartyIndex?.[index] ?? pierceByPartyIndex?.[String(index)];
+  if (entry && typeof entry === 'object') {
+    return decodePierceId(encodePierceId(entry.type, entry.percent));
+  }
+  // 旧 snapshot 互換: drivePierceByPartyIndex のみの場合はドライブピアスとして扱う
+  const drivePierce = Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0);
+  return decodePierceId(encodePierceId('drive', drivePierce));
+}
 
 const MORALE_OPTIONS = [
   { value: 'normal', label: '標準' },
@@ -66,7 +119,8 @@ function createEmptySlotState() {
     supportLb: 0,
     characterLevel: 180,
     styleLevel: 20,
-    drivePierce: 0,
+    pierceType: 'none',
+    piercePercent: 0,
     spEquipId: DEFAULT_SP_EQUIP_ID,
     belt: '',
     morale: 'normal',
@@ -138,6 +192,10 @@ function selectHtml(dataField, slotIndex, options, currentValue, cls = '') {
 }
 
 function resolveSnapshotSpEquipId(snapshot = {}, index) {
+  const chainEquipByPartyIndex = snapshot?.chainEquipByPartyIndex;
+  if (chainEquipByPartyIndex?.[index] === true || chainEquipByPartyIndex?.[String(index)] === true) {
+    return ANCIENT_CHAIN_EQUIP_ID;
+  }
   const startSpEquipByPartyIndex = snapshot?.startSpEquipByPartyIndex;
   if (
     startSpEquipByPartyIndex &&
@@ -148,6 +206,13 @@ function resolveSnapshotSpEquipId(snapshot = {}, index) {
     return bonus > 0 ? String(bonus) : EMPTY_SP_EQUIP_ID;
   }
   return DEFAULT_SP_EQUIP_ID;
+}
+
+function resolveStartSpEquipBonus(spEquipId) {
+  if (spEquipId === ANCIENT_CHAIN_EQUIP_ID) {
+    return ANCIENT_CHAIN_START_SP_BONUS;
+  }
+  return spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(spEquipId);
 }
 
 function normalizeBeltValue(value) {
@@ -379,12 +444,22 @@ export class PartySetupController {
           })
           .filter(Boolean)
       ),
+      // drivePierceByPartyIndex は旧形式互換（ドライブピアス時のみ値、他種別は 0）
       drivePierceByPartyIndex: Object.fromEntries(
-        this.#slots.map((s, i) => [i, s.drivePierce])
+        this.#slots.map((s, i) => [i, s.pierceType === 'drive' ? Number(s.piercePercent ?? 0) : 0])
       ),
-      // '' = SP装備なし → bonus 0、'1'/'2'/'3' → 数値変換
+      pierceByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [
+          i,
+          { type: s.pierceType ?? 'none', percent: Number(s.piercePercent ?? 0) },
+        ])
+      ),
+      chainEquipByPartyIndex: Object.fromEntries(
+        this.#slots.map((s, i) => [i, s.spEquipId === ANCIENT_CHAIN_EQUIP_ID])
+      ),
+      // '' = SP装備なし → bonus 0、エンシェントチェーンも旧互換のため bonus 3 として出力
       startSpEquipByPartyIndex: Object.fromEntries(
-        this.#slots.map((s, i) => [i, s.spEquipId === EMPTY_SP_EQUIP_ID ? 0 : Number(s.spEquipId)])
+        this.#slots.map((s, i) => [i, resolveStartSpEquipBonus(s.spEquipId)])
       ),
       normalAttackElementsByPartyIndex: Object.fromEntries(
         this.#slots
@@ -512,7 +587,7 @@ export class PartySetupController {
         supportLb: Number(snapshot?.supportLimitBreakLevelsByPartyIndex?.[index] ?? 0),
         characterLevel: Number(snapshot?.characterLevelsByPartyIndex?.[index] ?? 180),
         styleLevel: Number(snapshot?.styleLevelsByPartyIndex?.[index] ?? 20),
-        drivePierce: Number(snapshot?.drivePierceByPartyIndex?.[index] ?? 0),
+        ...resolveSnapshotPierce(snapshot, index),
         spEquipId: resolveSnapshotSpEquipId(snapshot, index),
         belt: resolveSnapshotBeltValue(snapshot, index),
         morale: 'normal',
@@ -700,7 +775,10 @@ export class PartySetupController {
           supportStats: normalizeCharacterStats(slot.supportStats),
           lb: Number(slot.lb ?? 0),
           supportLb: Number(slot.supportLb ?? 0),
-          drivePierce: Number(slot.drivePierce ?? 0),
+          // 旧プリセット互換: pierceId が無ければ drivePierce をドライブピアスとして扱う
+          pierceId: typeof slot.pierceId === 'string'
+            ? normalizePierceId(slot.pierceId)
+            : encodePierceId('drive', slot.drivePierce),
           spEquipId: String(slot.spEquipId ?? DEFAULT_SP_EQUIP_ID),
           belt: String(slot.belt ?? ''),
           morale: String(slot.morale ?? 'normal'),
@@ -753,7 +831,7 @@ export class PartySetupController {
         supportStats: normalizeCharacterStats(s.supportStats),
         lb: s.lb,
         supportLb: s.supportLb ?? 0,
-        drivePierce: s.drivePierce,
+        pierceId: encodePierceId(s.pierceType, s.piercePercent),
         spEquipId: s.spEquipId,
         belt: s.belt,
         morale: s.morale,
@@ -785,7 +863,9 @@ export class PartySetupController {
         supportStats: null,
         lb: s.lb ?? 0,
         supportLb: s.supportLb ?? 0,
-        drivePierce: s.drivePierce ?? 0,
+        ...(typeof s.pierceId === 'string'
+          ? decodePierceId(s.pierceId)
+          : decodePierceId(encodePierceId('drive', s.drivePierce))),
         spEquipId: s.spEquipId ?? DEFAULT_SP_EQUIP_ID,
         belt: s.belt ?? '',
         morale: s.morale ?? 'normal',
@@ -1292,7 +1372,7 @@ export class PartySetupController {
             slot.supportDefaultStats = this.#resolveAutomaticStats(idx, 'support');
           }
         }
-        else if (field === 'drivePierce') this.#slots[idx].drivePierce = Number(val);
+        else if (field === 'pierce') Object.assign(this.#slots[idx], decodePierceId(val));
         else if (field === 'spEquip') this.#slots[idx].spEquipId = val;
         else if (field === 'belt') this.#slots[idx].belt = normalizeBeltValue(val);
         else if (field === 'morale') this.#slots[idx].morale = val;
@@ -1330,8 +1410,8 @@ export class PartySetupController {
               } else {
                 slot.supportLb = 0;
               }
-            } else if (field === 'drivePierce') {
-              slot.drivePierce = Number(val);
+            } else if (field === 'pierce') {
+              Object.assign(slot, decodePierceId(val));
             } else if (field === 'spEquip') {
               slot.spEquipId = val;
             } else if (field === 'belt') {
@@ -1583,10 +1663,7 @@ export class PartySetupController {
         <!-- listbox 群 -->
         <div class="flex flex-col gap-px px-1 py-1 bg-gray-50 border-y border-gray-100">
           ${selectHtml('lb', index, lbOptions, slot.lb)}
-          ${selectHtml('drivePierce', index,
-            DRIVE_PIERCE_OPTIONS.map(o => ({ value: o.value, label: o.label.replace('ドライブピアスなし', 'DPなし').replace('ドライブピアス +', 'DP +') })),
-            slot.drivePierce
-          )}
+          ${selectHtml('pierce', index, PIERCE_SELECT_OPTIONS, encodePierceId(slot.pierceType, slot.piercePercent))}
           ${selectHtml('spEquip', index, SP_EQUIP_OPTIONS, slot.spEquipId)}
           ${selectHtml('belt', index, BELT_OPTIONS, slot.belt)}
           ${moraleVisible ? selectHtml('morale', index, MORALE_OPTIONS, slot.morale) : ''}

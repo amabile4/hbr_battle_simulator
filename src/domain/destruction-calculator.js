@@ -2,9 +2,8 @@ import {
   toNumber,
   clonePlainObject,
   cleanSkillName,
-  flattenSkillParts,
   findSkill,
-  ATTACK_PART_TYPE_SET,
+  findAttackPart,
   resolveEffectPower,
 } from './calculator-helpers.js';
 
@@ -28,7 +27,7 @@ export function calculateDestruction(input, data) {
   const style = styles.find((s) => Number(s.id) === Number(styleId)) ?? null;
   const role = style ? (style.role ?? 'Attacker') : 'Attacker';
 
-  // 2. Look up skill
+  // 2. Look up skill and attack part
   const skillId = skillInput.skillId;
   const skillName = skillInput.name;
   let cleanName = skillName;
@@ -39,7 +38,14 @@ export function calculateDestruction(input, data) {
     Array.isArray(skillInput?.parts) ? skillInput : null
   );
 
-  // 3. SP cost and attack type resolution
+  let part = null;
+  if (skillInput.attackPart !== undefined && skillInput.attackPart !== null) {
+    part = skillInput.attackPart;
+  } else if (skill) {
+    part = findAttackPart(skill);
+  }
+
+  // 3. Resolve dr, SP cost and attack type
   let isNormalAttack = false;
   let isPursuit = false;
   let sp = 4.0;
@@ -57,20 +63,41 @@ export function calculateDestruction(input, data) {
   } else if (skill) {
     sp = Number(skill.sp_cost ?? 4.0);
   }
+  sp = Math.max(0.0, sp);
 
-  // 4. Get dr (destruction rate) from skill parts
-  let dr = 1.0;
-  let part = null;
-  if (skill) {
-    const parts = flattenSkillParts(skill.parts ?? []);
-    for (const p of parts) {
-      if (ATTACK_PART_TYPE_SET.has(String(p.skill_type ?? ''))) {
-        part = p;
-        break;
-      }
+  // Resolve dr value
+  let dr = null;
+  if (part && part.multipliers && part.multipliers.dr !== undefined && part.multipliers.dr !== null) {
+    const conditionResults = skillInput.conditionResults ?? null;
+    if (part.skill_type === 'DamageRateChangeAttackSkill' && part.cond && conditionResults && conditionResults[part.cond] === true) {
+      dr = Number(part.value[0]);
+    } else {
+      dr = Number(part.multipliers.dr);
     }
-    if (part && part.multipliers) {
-      dr = Number(part.multipliers.dr ?? 1.0);
+  }
+
+  if (dr === null || dr === undefined) {
+    if (isNormalAttack) {
+      dr = 1.0;
+    } else if (isPursuit) {
+      dr = 0.75;
+    }
+  }
+
+  // 4. Resolve destruction factor (F_tag) and AoE flag (only used as fallback when dr is missing)
+  const isAoE = (skill && (skill.target_type === 'All' || skill.is_aoe === true)) || (skillInput && skillInput.isAoE === true);
+
+  let fTag = isAoE ? 0.20 : 0.25;
+  if (skill) {
+    const desc = skill.desc || '';
+    if (desc.includes('[破壊率絶大]')) {
+      fTag = 2.50;
+    } else if (desc.includes('[破壊率超特大]')) {
+      fTag = isAoE ? 1.60 : 2.00;
+    } else if (desc.includes('[破壊率特大]')) {
+      fTag = isAoE ? 1.20 : 1.50;
+    } else if (desc.includes('[破壊率大]')) {
+      fTag = isAoE ? 0.80 : 1.00;
     }
   }
 
@@ -89,12 +116,19 @@ export function calculateDestruction(input, data) {
     destMult = Number(destMult);
   }
 
-  // 6. Calculate BG30 (base destruction rate before buffs)
-  let bg30 = 0.0;
-  if (isNormalAttack || isPursuit) {
-    bg30 = (dr * 8.0 * destMult) / 100.0;
+  // 6. Calculate base destruction rate before buffs
+  let baseDestRate = 0.0;
+  if (dr !== null && dr !== undefined) {
+    if (isNormalAttack || isPursuit) {
+      baseDestRate = dr * 8.0 * destMult / 100.0;
+    } else {
+      baseDestRate = dr * 4.0 * destMult / 100.0;
+    }
   } else {
-    bg30 = (dr * sp * destMult) / 100.0;
+    // Fallback tag-based calculation
+    const spVal = (isNormalAttack || isPursuit) ? 8.0 : sp;
+    const drVal = destMult / 25.0;
+    baseDestRate = fTag * spVal * drVal;
   }
 
   // 7. Blaster correction & accessories
@@ -153,12 +187,12 @@ export function calculateDestruction(input, data) {
 
   let baseDestruction = 0.0;
   if (isNormalAttack || isPursuit) {
-    baseDestruction = bg30;
+    baseDestruction = baseDestRate;
   } else {
-    baseDestruction = Math.floor(bg30 * (1.0 + sRatio + buffMultiplier + flatDestructionBonus) * 10000.0) / 10000.0;
+    baseDestruction = Math.floor(baseDestRate * (1.0 + sRatio + buffMultiplier + flatDestructionBonus) * 10000.0) / 10000.0;
   }
 
-  // 12. Apply enemy destructionResist (AL10)
+  // 12. Apply enemy destructionResist
   const destResist = defender.destructionResist !== undefined && defender.destructionResist !== null
     ? Number(defender.destructionResist)
     : 0.0;

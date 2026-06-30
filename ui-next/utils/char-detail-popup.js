@@ -958,6 +958,10 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
   const damageContext = model.damageContext;
   const enemyKey = String(Number(targetEnemyIndex));
   const destructionLimit = resolveDamageCalculatorDestructionRateCapPercent(model, enemyKey) / 100;
+  const contextMultiplier = Number(damageContext?.destructionMultiplierByEnemy?.[enemyKey]);
+  const storedMultiplier = Number(model?.enemyDestructionState?.destructionMultiplierByEnemy?.[enemyKey]);
+  const destructionMultiplierRaw = [contextMultiplier, storedMultiplier]
+    .find((value) => Number.isFinite(value) && value > 0);
   const hitCount = Math.max(
     1,
     Number(damageContext?.effectiveHitCountPerEnemy ?? damageContext?.baseHitCount ?? 1)
@@ -968,19 +972,30 @@ function buildDestructionInput(model, targetEnemyIndex, currentRatePercent) {
       statusEffects: (damageContext?.activeStatusEffects ?? []).filter(
         (e) => e?.statusType === 'DestructionUp'
       ),
-      accessoryDestructionRateBonus: 0,
+      // commit 側（turn-controller）と同じ構成: 超越バースト + ブラストピアス
+      accessoryDestructionRateBonus:
+        Number(damageContext?.transcendenceBurstDestructionRateGainBonusRate ?? 0) +
+        Number(damageContext?.blastPierceDestructionRateBonus ?? 0),
+      // エンシェントチェーンの破壊率上昇量+（フラット加算、commit 側と同構成）
+      flatDestructionRateBonus: Number(damageContext?.chainDestructionRateBonus ?? 0),
+      resonanceDestructionRateBonus: Number(damageContext?.resonanceDestructionRateBonus ?? 0),
     },
     defender: {
       enemyId: null,
       destructionRate: currentRatePercent / 100,
       destructionLimit,
-      destructionMultiplier: null,
+      destructionMultiplier: destructionMultiplierRaw != null
+        ? destructionMultiplierRaw
+        : null,
       dp: 0,
     },
     skill: {
       skillId: damageContext?.skillId ?? null,
       name: damageContext?.skillName ?? '',
       isNormalAttack: Boolean(damageContext?.isNormalAttack),
+      isPursuit: Boolean(damageContext?.isPursuit),
+      attackPart: damageContext?.destructionAttackPart ?? null,
+      conditionResults: damageContext?.destructionConditionResultsByEnemy?.[enemyKey] ?? {},
     },
     hits: Array.from({ length: hitCount }, () => ({ damage: 1, isBreakHit: false })),
     autoBreak: false,
