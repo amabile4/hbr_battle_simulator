@@ -841,19 +841,16 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
   const eventActionInstanceId = String(event?.actionInstanceId ?? '');
   if (actorKey) {
     if (String(event?.[actorKey] ?? '') !== String(actionEntry.characterId ?? '')) {
-      console.warn(`[DEBUG] eventBelongsToActionEntry actorKey mismatch: event.${actorKey}=${event?.[actorKey]} actionEntry.characterId=${actionEntry.characterId}`);
       return false;
     }
   }
   if (characterKey) {
     if (String(event?.[characterKey] ?? '') !== String(actionEntry.characterId ?? '')) {
-      console.warn(`[DEBUG] eventBelongsToActionEntry characterKey mismatch: event.${characterKey}=${event?.[characterKey]} actionEntry.characterId=${actionEntry.characterId}`);
       return false;
     }
   }
   if (skillKey) {
     if (Number(event?.[skillKey] ?? Number.NaN) !== Number(actionEntry.skillId ?? Number.NaN)) {
-      console.warn(`[DEBUG] eventBelongsToActionEntry skillKey mismatch: event.${skillKey}=${event?.[skillKey]} actionEntry.skillId=${actionEntry.skillId}`);
       return false;
     }
   }
@@ -864,17 +861,14 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
       matchSkill: Boolean(skillKey),
     });
     if (!allocatedEntry) {
-      console.warn(`[DEBUG] eventBelongsToActionEntry recipient allocatedEntry not found`);
       return true;
     }
     const allocatedActionInstanceId = String(allocatedEntry?.actionInstanceId ?? '');
     if (allocatedActionInstanceId && actionInstanceId) {
       const ok = allocatedActionInstanceId === actionInstanceId;
-      if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry recipient actionInstanceId mismatch: allocated=${allocatedActionInstanceId} current=${actionInstanceId}`);
       return ok;
     }
     const ok = allocatedEntry === actionEntry;
-    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry recipient entry object mismatch`);
     return ok;
   }
   const matchedCharacterId = actorKey
@@ -893,7 +887,6 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
 
   if (shouldGateByActionInstance && actionInstanceId && eventActionInstanceId) {
     const ok = actionInstanceId === eventActionInstanceId;
-    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry actionInstanceId mismatch: current=${actionInstanceId} event=${eventActionInstanceId}`);
     return ok;
   }
 
@@ -901,7 +894,6 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
     const ok = isLastMatchingActionEntry(actionEntry, options.actionEntries, {
       matchSkill: Boolean(skillKey),
     });
-    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry isLastMatchingActionEntry returned false for actionInstanceId=${actionInstanceId}`);
     return ok;
   }
 
