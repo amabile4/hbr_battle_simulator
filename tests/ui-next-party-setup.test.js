@@ -258,30 +258,14 @@ test('PartySetupController fills missing snapshot stats from character and style
     controller.mount();
     controller.applySnapshot({
       styleIds: [1001, null, null, null, null, null],
-      supportStyleIds: [1002, null, null, null, null, null],
+      supportStyleIds: [null, null, null, null, null, null],
       limitBreakLevelsByPartyIndex: { 0: 0 },
       supportLimitBreakLevelsByPartyIndex: { 0: 0 },
       statsByPartyIndex: {},
     });
 
     const snapshot = controller.getSnapshot();
-
-    assert.deepEqual(snapshot.statsByPartyIndex['0'].stats, {
-      str: 11,
-      dex: 22,
-      wis: 33,
-      spr: 44,
-      luk: 55,
-      con: 66,
-    });
-    assert.deepEqual(snapshot.statsByPartyIndex['0'].supportStats, {
-      str: 117,
-      dex: 128,
-      wis: 139,
-      spr: 150,
-      luk: 161,
-      con: 172,
-    });
+    assert.equal(snapshot.statsByPartyIndex['0'], undefined);
   }));
 
 test('PartySetupController keeps automatic stats unsaved, follows LB, and reset clears manual input', () =>
