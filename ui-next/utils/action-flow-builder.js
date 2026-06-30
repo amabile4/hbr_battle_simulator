@@ -84,7 +84,13 @@ export function buildActionFlowFromRecord(record) {
       statusEffectsApplied: structuredClone(action?.statusEffectsApplied ?? []),
       statusEffectsRemoved: structuredClone(action?.statusEffectsRemoved ?? []),
       fieldStateApplied: structuredClone(action?.fieldStateApplied ?? []),
-      enemyStatusChanges: structuredClone(action?.enemyStatusChanges ?? []),
+      enemyStatusChanges: (() => {
+        const changes = structuredClone(action?.enemyStatusChanges ?? []);
+        if (changes.length > 0) {
+          console.log(`[DEBUG_FLOW] Character ${action?.characterId} skill ${action?.skillId} has enemyStatusChanges:`, JSON.stringify(changes));
+        }
+        return changes;
+      })(),
       autoBreakEnemyIndexes: Array.isArray(action?.autoBreakEnemyIndexes)
         ? [...action.autoBreakEnemyIndexes]
         : [],

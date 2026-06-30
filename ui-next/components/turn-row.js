@@ -619,6 +619,7 @@ export class TurnRowController {
     isBreakEditorOpen = undefined,
     editDraft = undefined,
   }) {
+    console.log(`[DEBUG_UPDATE] update called! rowMode=${rowMode}, hasStateAfter=${Boolean(stateAfter)}, hasPreviewActionFlow=${Boolean(previewActionFlow)}`);
     const previousDraftMode = this.#isDraftMode();
     const nextRowMode = rowMode === undefined
       ? this.#rowMode
@@ -707,6 +708,7 @@ export class TurnRowController {
     if (this.#enemyDetailPopup) {
       this.#refreshEnemyDetailPopup();
     }
+    console.log(`[DEBUG_UPDATE_END] update finished!`);
   }
 
   /**
@@ -5200,9 +5202,14 @@ export class TurnRowController {
   }
 
   #bindEvents() {
+    console.log(`[DEBUG_BIND] bindEvents called! rowMode=${this.#rowMode}, isDraftMode=${this.#isDraftMode()}`);
     if (this.#isDraftMode()) {
-      this.#root.querySelectorAll('[data-skill-select]').forEach((sel) => {
+      const selects = this.#root.querySelectorAll('[data-skill-select]');
+      console.log(`[DEBUG_BIND] Found data-skill-select count: ${selects.length}`);
+      selects.forEach((sel) => {
+        console.log(`[DEBUG_BIND] Binding change listener to select position=${sel.dataset.position}, partyIndex=${sel.dataset.partyIndex}`);
         sel.addEventListener('change', () => {
+          console.log(`[DEBUG_CHANGE] select change event fired! partyIndex=${sel.dataset.partyIndex}, value=${sel.value}`);
           const partyIndex = Number(sel.dataset.partyIndex);
           const skillId = sel.value === '' ? null : Number(sel.value);
           if (Number.isFinite(partyIndex) && skillId != null) {
@@ -5222,10 +5229,8 @@ export class TurnRowController {
             this.#emitPreviewRequest();
             return;
           }
-          if (!formChanged) {
-            this.#rerenderDraftMode();
-            this.#emitPreviewRequest();
-          }
+          this.#rerenderDraftMode();
+          this.#emitPreviewRequest();
         });
       });
     }
@@ -5689,6 +5694,7 @@ export class TurnRowController {
         );
       });
     });
+    console.log(`[DEBUG_BIND_END] bindEvents finished!`);
   }
 
   /**

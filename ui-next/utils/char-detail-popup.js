@@ -1565,6 +1565,46 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
     summaryEl.replaceChildren();
     return;
   }
+  const contactHitCount = Number(breakdown.contactHitCount ?? breakdown.hitCount ?? model?.action?.skillHitCount ?? 0);
+  const calculationHitCount = Number(breakdown.calculationHitCount ?? breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
+  const baseHitCount = Number(breakdown.baseHitCount ?? model?.action?.skillBaseHitCount ?? 0);
+  const funnelHitCount = Number(breakdown.funnelHitCount ?? model?.action?.skillFunnelHitBonus ?? 0);
+  const destructionFunnelHitCount = Number(breakdown.destructionFunnelHitCount ?? funnelHitCount);
+  const funnelMultiplier = Number(breakdown.funnelMultiplier);
+  const breakHitNumber = Number(breakdown.breakHitNumber);
+  const destructionHitCount = Number(breakdown.destructionHitCount);
+  const totalDestructionWeight = Number(breakdown.totalDestructionWeight);
+  const appliedDestructionWeight = Number(breakdown.appliedDestructionWeight);
+  const hitRatios = Array.isArray(breakdown.hitRatios) ? breakdown.hitRatios : [];
+  const parts = [
+    `接触hit ${Number.isFinite(contactHitCount) ? contactHitCount : '-'}`,
+    `計算hit ${Number.isFinite(calculationHitCount) ? calculationHitCount : '-'}`,
+    `base ${Number.isFinite(baseHitCount) ? baseHitCount : '-'}`,
+    `連撃 +${Number.isFinite(funnelHitCount) ? funnelHitCount : '-'}`,
+    `破壊率連撃 +${Number.isFinite(destructionFunnelHitCount) ? destructionFunnelHitCount : '-'}`,
+    `連撃倍率 ${Number.isFinite(funnelMultiplier) ? `x${funnelMultiplier.toFixed(2)}` : '-'}`,
+    `hit ratio [${hitRatios.map((ratio) => formatDamageCalculatorOptionalRatio(ratio)).join(',')}]`,
+    `Break hit ${Number.isFinite(breakHitNumber) ? breakHitNumber : '-'}`,
+    `HP適用 ${Number.isFinite(destructionHitCount) ? destructionHitCount : '-'}hit`,
+    `破壊率weight ${
+      Number.isFinite(appliedDestructionWeight) && Number.isFinite(totalDestructionWeight)
+        ? `${formatDamageCalculatorOptionalRatio(appliedDestructionWeight)}/${formatDamageCalculatorOptionalRatio(totalDestructionWeight)}`
+        : '-'
+    }`,
+    `DP ${formatDamageCalculatorOptionalNumber(breakdown.totalDpDamage)}`,
+    `HP ${formatDamageCalculatorOptionalNumber(breakdown.totalHpDamage)}`,
+    `破壊率 +${formatDamageCalculatorOptionalPercent(breakdown.appliedGainPercent)}`,
+  ];
+  if (breakdown.funnelApplied && breakdown.funnelApplied.enabled) {
+    parts.push('funnel');
+    if (Number.isFinite(breakdown.funnelApplied.hpAppliedTotal)) {
+      parts.push(formatDamageCalculatorOptionalNumber(breakdown.funnelApplied.hpAppliedTotal));
+    }
+    if (Number.isFinite(breakdown.funnelApplied.destructionRateAfterPercent)) {
+      parts.push(`${formatDamageCalculatorOptionalPercent(breakdown.funnelApplied.destructionRateAfterPercent)}%`);
+    }
+  }
+
   const rows = Array.isArray(breakdown.hitBreakdown) ? breakdown.hitBreakdown : [];
   const tableHtml = rows.length > 0
     ? '<table class="char-popup-destruction-hit-table"><thead><tr>' +
@@ -1593,7 +1633,7 @@ function updateDestructionHitSummary(pane, model, enemyKey) {
       `<div class="char-popup-destruction-hit-table-wrapper">${tableHtml}</div>` +
       `</details>`
     : '';
-  summaryEl.innerHTML = detailsHtml;
+  summaryEl.innerHTML = `<div class="char-popup-destruction-hit-summary-text" style="display:none">${esc(parts.join(' / '))}</div>${detailsHtml}`;
 }
 
 function formatStatDeltaSourceText(source = {}) {

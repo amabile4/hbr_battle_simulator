@@ -582,6 +582,7 @@ export function previewTurnRecord(state, actions, enemyAction, enemyCount, optio
 export function commitTurnRecord(state, previewRecord, pendingSwapEvents, options = {}) {
   return commitTurn(state, previewRecord, pendingSwapEvents, {
     applySwapOnCommit: false,
+    validatePreview: options.validatePreview !== false,
     interruptOdLevel: Number(options.interruptOdLevel ?? 0),
     forceOdActivation: Boolean(options.forceOdActivation ?? false),
     forceResourceDeficit: Boolean(options.forceResourceDeficit ?? false),

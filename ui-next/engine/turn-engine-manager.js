@@ -2531,7 +2531,10 @@ export class TurnEngineManager {
         this.#cloneWorkingState(state),
         structuredClone(previewRecord),
         [],
-        { interruptOdLevel: 0 }
+        {
+          interruptOdLevel: 0,
+          validatePreview: false,
+        }
       );
       probeActions = probe?.committedRecord?.actions ?? null;
     } catch {
@@ -2542,11 +2545,11 @@ export class TurnEngineManager {
     }
     for (let i = 0; i < actions.length; i++) {
       const action = actions[i];
+      const probeAction = probeActions[i];
       // 明示的に指定済みの perHit*DamageByEnemy は尊重する
       if (!action || (action.perHitDpDamageByEnemy && action.perHitHpDamageByEnemy)) {
         continue;
       }
-      const probeAction = probeActions[i];
       if (
         !probeAction?.damageContext ||
         String(probeAction.characterId ?? '') !== String(action.characterId ?? '') ||
@@ -2630,17 +2633,19 @@ export class TurnEngineManager {
           [],
           {
             interruptOdLevel: 0,
+            validatePreview: false,
           }
         );
-        if (committedPreview?.record) {
+        if (committedPreview?.committedRecord) {
+          previewActionFlowRecord = committedPreview.committedRecord;
+        } else if (committedPreview?.record) {
           previewActionFlowRecord = committedPreview.record;
         }
         if (committedPreview?.nextState) {
           projectedState = committedPreview.nextState;
         }
-      } catch {
-        // preview 表示に必要な action flow 生成が失敗した場合は、
-        // 既存 previewRecord をフォールバックとして使用する。
+      } catch (err) {
+        console.error('[DEBUG] commitTurnRecord failed in previewResolvedTurn:', err);
       }
       this.#appendPreviewResourceWarnings(previewRecord, warnings);
       const odGaugeAfter = Number(previewRecord.projections?.odGaugeAtEnd ?? state.turnState?.odGauge ?? 0);

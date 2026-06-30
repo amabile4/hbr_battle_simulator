@@ -673,6 +673,7 @@ export class TurnAreaController {
   }
 
   #refreshInputRow() {
+    console.log(`[DEBUG_AREA] refreshInputRow called! hasEditSession=${Boolean(this.#editSession)}, rowCount=${this.#rowControllers.length}`);
     if (this.#editSession) {
       return;
     }

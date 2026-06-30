@@ -82,6 +82,7 @@ test.describe('Mobile preset and target popovers', () => {
 
     const trigger = editRow.locator('[data-role="target-trigger"][data-target-kind="ally"]').first();
     await expect(trigger).toBeVisible({ timeout: 5000 });
+    await page.waitForTimeout(200);
     await trigger.click();
 
     const popover = editRow.locator('[data-role="target-popover"][data-target-kind="ally"]').first();

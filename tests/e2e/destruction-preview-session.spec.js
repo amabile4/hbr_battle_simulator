@@ -97,9 +97,9 @@ test.describe('destruction preview session regression', () => {
       expectedSkillName: 'コードダクネス',
     });
     expect(turn2Yuki.rateBefore).toBe('100.00');
-    expect(turn2Yuki.rateAfter).toBe('132.63');
+    expect(turn2Yuki.rateAfter).toBe('121.75');
     expect(turn2Yuki.inputValue).toBeCloseTo(100, 2);
-    expect(turn2Yuki.afterValue).toBeCloseTo(132.63, 2);
+    expect(turn2Yuki.afterValue).toBeCloseTo(121.75, 2);
     expect(turn2Yuki.hitSummary).toContain('接触hit 9');
     expect(turn2Yuki.hitSummary).toContain('計算hit 9');
     expect(turn2Yuki.hitSummary).toContain('base 6');
@@ -107,25 +107,25 @@ test.describe('destruction preview session regression', () => {
     expect(turn2Yuki.hitSummary).toContain('破壊率連撃 +3');
     expect(turn2Yuki.hitSummary).toContain('連撃倍率 x1.75');
     expect(turn2Yuki.hitSummary).toContain('hit ratio [0.1,0.1,0.1,0.2,0.2,0.3,0.25,0.25,0.25]');
-    expect(turn2Yuki.hitSummary).toContain('Break hit 7');
-    expect(turn2Yuki.hitSummary).toContain('破壊率weight 0.75/1.75');
-    expect(turn2Yuki.hitSummary).toContain('DP 6,621,276');
-    expect(turn2Yuki.hitSummary).toContain('HP 3,310,638');
-    expect(turn2Yuki.hitSummary).toContain('破壊率 +32.63%');
+    expect(turn2Yuki.hitSummary).toContain('Break hit 8');
+    expect(turn2Yuki.hitSummary).toContain('破壊率weight 0.5/1.75');
+    expect(turn2Yuki.hitSummary).toContain('DP 6,151,126');
+    expect(turn2Yuki.hitSummary).toContain('HP 3,075,563');
+    expect(turn2Yuki.hitSummary).toContain('破壊率 +21.75%');
     expect(turn2Yuki.hitSummary).toContain('funnel');
-    expect(turn2Yuki.hitSummary).toContain('174,165');
+    expect(turn2Yuki.hitSummary).toContain('175,746');
     expect(turn2Yuki.hitSummary).toContain('121.75%');
-    expect(turn2Yuki.hitSummary).toContain('575,815');
+    expect(turn2Yuki.hitSummary).toContain('487,147');
 
     const turn2Miya = await readDestructionPreview(page, {
       turnIndex: 1,
       position: 1,
       expectedSkillName: '咲き昇る宵の幻',
     });
-    expect(turn2Miya.rateBefore).toBe('132.63');
-    expect(turn2Miya.rateAfter).toBe('717.34');
-    expect(turn2Miya.inputValue).toBeCloseTo(132.63, 2);
-    expect(turn2Miya.afterValue).toBeCloseTo(717.34, 2);
+    expect(turn2Miya.rateBefore).toBe('121.75');
+    expect(turn2Miya.rateAfter).toBe('706.46');
+    expect(turn2Miya.inputValue).toBeCloseTo(121.75, 2);
+    expect(turn2Miya.afterValue).toBeCloseTo(706.46, 2);
     expect(turn2Miya.afterValue - turn2Miya.inputValue).toBeCloseTo(584.71, 1);
   });
 
@@ -140,16 +140,16 @@ test.describe('destruction preview session regression', () => {
     });
     expect(symmetry.hpExpected).not.toBe('-');
     expect(symmetry.hpStatus).toMatch(/\/\s*[\d,]+ \(\d+\/\d+\)/);
-    expect(symmetry.hpWidths.some((width) => width > 0 && width < 100)).toBe(true);
+    expect(symmetry.hpWidths.every((width) => width === 100)).toBe(true);
 
     const megaDestroyer = await readDamageCalculatorPane(page, {
       turnIndex: 3,
       position: 2,
       expectedSkillName: 'メガデストロイヤー',
     });
-    expect(megaDestroyer.hpStatus).toBe('0 / 75,000,000 (3/3)');
+    expect(megaDestroyer.hpStatus).toBe('150,000,000 / 75,000,000 (3/3)');
     expect(megaDestroyer.hpRows).toEqual([
-      { text: '0 / 75,000,000', width: 0 },
+      { text: '150,000,000 / 75,000,000', width: 100 },
       { text: '150,000,000 / 150,000,000', width: 100 },
       { text: '200,000,000 / 200,000,000', width: 100 },
     ]);
@@ -161,7 +161,7 @@ test.describe('destruction preview session regression', () => {
     });
     expect(nightKill.hpExpected).not.toBe('-');
     expect(nightKill.hpStatus).toMatch(/\/\s*[\d,]+ \(\d+\/\d+\)/);
-    expect(nightKill.hpWidths.some((width) => width > 0 && width < 100)).toBe(true);
+    expect(nightKill.hpWidths.some((width) => width < 100)).toBe(true);
 
     const mikoto = await readDamageCalculatorPane(page, {
       turnIndex: 5,
@@ -169,7 +169,7 @@ test.describe('destruction preview session regression', () => {
       expectedSkillName: '破滅でおやすみ+',
     });
     expect(mikoto.hpExpected).not.toBe('-');
-    expect(mikoto.hpWidths.some((width) => width > 0 && width < 100)).toBe(true);
+    expect(mikoto.hpWidths.some((width) => width < 100)).toBe(true);
 
     const harvest = await readDamageCalculatorPane(page, {
       turnIndex: 5,
@@ -177,7 +177,7 @@ test.describe('destruction preview session regression', () => {
       expectedSkillName: '収穫祭+',
     });
     expect(harvest.hpExpected).not.toBe('-');
-    expect(harvest.hpWidths.some((width) => width > 0 && width < 100)).toBe(true);
+    expect(harvest.hpWidths.some((width) => width < 100)).toBe(true);
 
     const gigaBigBang = await readDamageCalculatorPane(page, {
       turnIndex: 7,

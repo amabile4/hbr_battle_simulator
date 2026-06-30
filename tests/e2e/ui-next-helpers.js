@@ -195,6 +195,8 @@ export async function selectSkillForPosition(page, position, skillId) {
   const select = inputRow.locator(`[data-skill-select][data-position="${position}"]`);
   await expect(select).toBeVisible({ timeout: 5000 });
   await select.selectOption(String(skillId));
+  await select.evaluate((el) => el.dispatchEvent(new Event('change', { bubbles: true })));
+  await expect(select).toHaveValue(String(skillId));
   return inputRow;
 }
 
@@ -217,6 +219,12 @@ export async function selectEnemyPresetForActiveSlot(page, enemyId) {
   await expect(categorySelect).toBeVisible({ timeout: 5000 });
   await expect(presetSelect).toBeVisible({ timeout: 5000 });
 
+  // 敵プリセットが遅延ロードされて option にマウントされるまで確実に待機する
+  await page.waitForFunction(() => {
+    const select = document.querySelector('#enemy-setup-root [data-action="select-enemy"]');
+    return select && select.querySelectorAll('option').length > 1;
+  }, undefined, { timeout: 5000 });
+
   const targetEnemyId = String(enemyId);
   const categoryValues = await categorySelect.locator('option').evaluateAll((options) =>
     options.map((option) => option.value)
@@ -226,6 +234,20 @@ export async function selectEnemyPresetForActiveSlot(page, enemyId) {
   // option の有無を即時評価する（各カテゴリ2秒のポーリングは累積タイムアウトの原因となる）。
   for (const categoryValue of categoryValues) {
     await categorySelect.selectOption(categoryValue);
+    try {
+      await page.waitForFunction(
+        ({ selector, value }) => {
+          return document.querySelector(`${selector} option[value="${value}"]`) !== null;
+        },
+        {
+          selector: '#enemy-setup-root [data-action="select-enemy"]',
+          value: targetEnemyId,
+        },
+        { timeout: 500 }
+      );
+    } catch {
+      // ignore
+    }
     const optionCount = await page.evaluate(
       ({ selector, value }) =>
         document.querySelectorAll(`${selector} option[value="${value}"]`).length,

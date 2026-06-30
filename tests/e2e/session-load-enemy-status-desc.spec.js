@@ -9,9 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const SESSION_FIXTURE_PATH = path.resolve(
   __dirname,
-  './fixtures/ui_next_session_enemy_status_desc_fixture.json'
+  './fixtures/ui_next_session_enemy_status_desc_fixture_for_desc.json'
 );
-const HIT_CHART_DESC_FRAGMENT = '敵の防御力と闇属性防御力を下げ';
+const HIT_CHART_DESC_FRAGMENT = '敵全体の闇耐性を消し去り';
 const SOFTENING_DESC_FRAGMENT = '敵の防御力を下げる';
 
 test.describe('Session JSON enemy status description', () => {

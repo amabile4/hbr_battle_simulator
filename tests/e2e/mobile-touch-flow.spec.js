@@ -78,6 +78,9 @@ for (const deviceName of MOBILE_DEVICE_NAMES) {
       await gotoUiNext(page);
       await page.locator('#session-load-input').setInputFiles(getLatestDownloadedSessionPath());
 
+      // セッションロード後の初期化レンダリングが完全に安定するのを待つ
+      await page.waitForTimeout(500);
+
       const inputRow = page.locator('[data-turn-row][data-row-mode="input"]').last();
       await expect(inputRow).toBeVisible({ timeout: 15000 });
 

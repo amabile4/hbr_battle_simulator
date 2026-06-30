@@ -841,16 +841,19 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
   const eventActionInstanceId = String(event?.actionInstanceId ?? '');
   if (actorKey) {
     if (String(event?.[actorKey] ?? '') !== String(actionEntry.characterId ?? '')) {
+      console.warn(`[DEBUG] eventBelongsToActionEntry actorKey mismatch: event.${actorKey}=${event?.[actorKey]} actionEntry.characterId=${actionEntry.characterId}`);
       return false;
     }
   }
   if (characterKey) {
     if (String(event?.[characterKey] ?? '') !== String(actionEntry.characterId ?? '')) {
+      console.warn(`[DEBUG] eventBelongsToActionEntry characterKey mismatch: event.${characterKey}=${event?.[characterKey]} actionEntry.characterId=${actionEntry.characterId}`);
       return false;
     }
   }
   if (skillKey) {
     if (Number(event?.[skillKey] ?? Number.NaN) !== Number(actionEntry.skillId ?? Number.NaN)) {
+      console.warn(`[DEBUG] eventBelongsToActionEntry skillKey mismatch: event.${skillKey}=${event?.[skillKey]} actionEntry.skillId=${actionEntry.skillId}`);
       return false;
     }
   }
@@ -861,13 +864,18 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
       matchSkill: Boolean(skillKey),
     });
     if (!allocatedEntry) {
+      console.warn(`[DEBUG] eventBelongsToActionEntry recipient allocatedEntry not found`);
       return true;
     }
     const allocatedActionInstanceId = String(allocatedEntry?.actionInstanceId ?? '');
     if (allocatedActionInstanceId && actionInstanceId) {
-      return allocatedActionInstanceId === actionInstanceId;
+      const ok = allocatedActionInstanceId === actionInstanceId;
+      if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry recipient actionInstanceId mismatch: allocated=${allocatedActionInstanceId} current=${actionInstanceId}`);
+      return ok;
     }
-    return allocatedEntry === actionEntry;
+    const ok = allocatedEntry === actionEntry;
+    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry recipient entry object mismatch`);
+    return ok;
   }
   const matchedCharacterId = actorKey
     ? String(event?.[actorKey] ?? '')
@@ -884,13 +892,17 @@ function eventBelongsToActionEntry(actionEntry, event, options = {}) {
   const shouldGateByActionInstance = Boolean(actorKey || (characterKey && !isRecipientScopedCharacterEvent));
 
   if (shouldGateByActionInstance && actionInstanceId && eventActionInstanceId) {
-    return actionInstanceId === eventActionInstanceId;
+    const ok = actionInstanceId === eventActionInstanceId;
+    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry actionInstanceId mismatch: current=${actionInstanceId} event=${eventActionInstanceId}`);
+    return ok;
   }
 
   if (shouldGateByActionInstance && actionInstanceId && !eventActionInstanceId) {
-    return isLastMatchingActionEntry(actionEntry, options.actionEntries, {
+    const ok = isLastMatchingActionEntry(actionEntry, options.actionEntries, {
       matchSkill: Boolean(skillKey),
     });
+    if (!ok) console.warn(`[DEBUG] eventBelongsToActionEntry isLastMatchingActionEntry returned false for actionInstanceId=${actionInstanceId}`);
+    return ok;
   }
 
   return true;
@@ -15338,7 +15350,7 @@ export function commitTurn(state, previewRecord, swapEvents = [], options = {}) 
   for (const entry of previewRecord.actions) {
     const actionResult = applyCommittedActionSideEffects(state, entry, {
       buffMetadataValidation: options?.buffMetadataValidation ?? options?.validateBuffMetadata,
-      validatePreview: true,
+      validatePreview: options?.validatePreview !== false,
       enemyCount: Number(previewRecord.enemyCount ?? DEFAULT_ENEMY_COUNT),
     });
     removeDebuffEvents.push(...actionResult.removeDebuffEvents);

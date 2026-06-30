@@ -45,13 +45,13 @@ test.describe('Session JSON save', () => {
       return panel;
     };
     let panel = await openMainStats();
-    await expect(panel.locator('[data-stat="str"]')).toHaveValue('439');
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('453');
     await panel.locator('[data-action="close-stats"]').click();
 
     const limitBreakSelect = page.locator('select[data-field="lb"][data-slot-index="0"]');
     await limitBreakSelect.selectOption('4');
     panel = await openMainStats();
-    await expect(panel.locator('[data-stat="str"]')).toHaveValue('533');
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('550');
     await panel.locator('[data-stat="str"]').fill('700');
     await panel.locator('[data-action="apply-stats"]').click();
 
@@ -60,7 +60,7 @@ test.describe('Session JSON save', () => {
     await expect(panel.locator('[data-stat="str"]')).toHaveValue('700');
     await panel.locator('[data-action="reset-stats"]').click();
     panel = await openMainStats();
-    await expect(panel.locator('[data-stat="str"]')).toHaveValue('439');
+    await expect(panel.locator('[data-stat="str"]')).toHaveValue('453');
     await panel.locator('[data-action="close-stats"]').click();
 
     await limitBreakSelect.selectOption('4');

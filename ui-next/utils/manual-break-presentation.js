@@ -136,6 +136,10 @@ export function buildDpAutoBreakChipModels({
   const seen = new Set();
   const models = [];
   for (const action of Array.isArray(actions) ? actions : []) {
+    console.log(`[DEBUG_CHIP] Action for character ${action?.actorCharacterId} has enemyStatusChanges count: ${action?.enemyStatusChanges?.length}`);
+    if (action?.enemyStatusChanges?.length > 0) {
+      console.log(`[DEBUG_CHIP] Changes:`, JSON.stringify(action.enemyStatusChanges));
+    }
     const existingAutoBreaks = Array.isArray(action?.autoBreakEnemyIndexes) ? action.autoBreakEnemyIndexes : [];
     const dpBreakChanges = (Array.isArray(action?.enemyStatusChanges) ? action.enemyStatusChanges : [])
       .filter(
