@@ -68,16 +68,10 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
-<<<<<<< HEAD
+| [active/damage_calculator_remaining_wbs.md](active/damage_calculator_remaining_wbs.md) | 🟢 進行中 | **計算機完成までの残タスクマスター WBS**。C（バフ・デバフ接続検証）/ S（stats実値化）/ E（全能力ダウン差分計算）/ D（破壊率turn接続・HP表示）/ SP（AttackBySp別タスク）/ V（受け入れ検証）の6大分類と依存グラフ。D-6エッジ検証、S-2現状確認、S-3敵stat delta表示、DP破壊率除外、SkillSwitch子スキル解決、コードダクネス9hit検証、critical summary rate接続、敵DP配線と多段DP→HP按分の残タスクを反映 | 2026-06-07 |
 | [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A の一般スキルDPダメージMVPとして、member role/凸由来read-only stats、Charge倍率往復等価、DP固定表示、resolved skill invariant、選択敵ごとの実 `param_border` 配線、unit / Playwright 回帰まで反映。AttackBySp・HP破壊率・stat delta実値は後続 | 2026-06-04 |
 | [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）の単独タスク検討＆WBS。`calculateDestruction` の初期実装として 1.0 ベース、`spMapping` loader、`destructionMultiplier`、手動 `isBreakHit` / 任意 `autoBreak`、Enemy Setup 初期現在破壊率表示を追加。turnState 接続、威力詳細/HP表示、ブラスタースロープ等の実値検証は継続 | 2026-06-06 |
 | [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集とテンプレート①自動算出。Lv200・転生5回テンプレート、選択LB、サポート10%、手入力優先、replay固定に加え、実機58キャラのLv補間・転生・称号累積・所持スタイル共有能力をfixture化し6能力348値の全件一致を確認 | 2026-06-29 |
-=======
-| [active/damage_calculator_remaining_wbs.md](active/damage_calculator_remaining_wbs.md) | 🟢 進行中 | **計算機完成までの残タスクマスター WBS**。C（バフ・デバフ接続検証）/ S（stats実値化）/ E（全能力ダウン差分計算）/ D（破壊率turn接続・HP表示）/ SP（AttackBySp別タスク）/ V（受け入れ検証）の6大分類と依存グラフ。D-6エッジ検証、S-2現状確認、S-3敵stat delta表示、DP破壊率除外、SkillSwitch子スキル解決、コードダクネス9hit検証、critical summary rate接続、敵DP配線と多段DP→HP按分の残タスクを反映 | 2026-06-07 |
-| [active/damage_calculator_integration_plan.md](active/damage_calculator_integration_plan.md) | 🟢 進行中 | 威力詳細タブのダメージ計算機統合。Phase A（一般スキルDPダメージMVP: A-1〜A-7）完了。2026-06-07 に breakdown → synthetic 効果接続を再検証し、token-passive の DP条件倍率を乗算扱いへ修正。Phase B以降の残タスクは damage_calculator_remaining_wbs.md を参照 | 2026-06-07 |
-| [active/destruction_rate_implementation_plan.md](active/destruction_rate_implementation_plan.md) | 🟢 進行中 | 破壊率（HPダメージ係数・最大1299%級）。エンジン単体（calculateDestruction）実装済み、右クリックポップアップ手動入力（暫定）完了。D-3 turnState最小接続、敵 `d_rate` 上昇倍率接続、D-4 damageContext 接合、D-5 HP ダメージ表示、D-6エッジ検証、DP破壊率除外、コードダクネス9hit検証、新規snapshotの敵DP配線を反映。威力詳細での多段中DP→HP按分表示は後続 | 2026-06-07 |
-| [active/partysetup_stats_editing_plan.md](active/partysetup_stats_editing_plan.md) | ✅ 完了 | PartySetupステータス編集機能。スロット単位の `statsByPartyIndex`、メイン/サポート別パネル、自由入力、CharacterStyle・session・lightweight replay 永続化、威力詳細への実stats供給を実装。2026-06-07 に `characters.json` + `styles.json` 由来の初期実 stats 補完、`0/null` fallback、手動入力パネルの日本語ラベル化と `力/器用さ`, `体力/精神`, `知性/運` 表示順を追加。unit / Playwright 回帰まで固定済み | 2026-06-07 |
->>>>>>> 669c8ae
 
 ---
 
