@@ -178,6 +178,16 @@ docs/
 
 ## 📦 スナップショット（日付別・変更しない）
 
+### 20260701_three_checkpoint_test_audit/ — 3基準点テスト・fixture全件監査（2026-07-01実施）
+
+| ドキュメント | 概要 |
+|-------------|------|
+| [20260701_three_checkpoint_test_audit/README.md](20260701_three_checkpoint_test_audit/README.md) | 計算機精緻化tag、ASTリファクタtag、現行mainの間にあるテスト関連107コミットを監査。実測oracle追随3件、生成fixture根拠不足、lockfile不整合、実行結果と復元方針を記録 |
+| [20260701_three_checkpoint_test_audit/commit-ledger.md](20260701_three_checkpoint_test_audit/commit-ledger.md) | 全107コミットの系統・test範囲・旧新差分・根拠・4区分判定 |
+| [20260701_three_checkpoint_test_audit/fixture-ledger.md](20260701_three_checkpoint_test_audit/fixture-ledger.md) | fixture変更29 file change setのsemantic path、入力差分、生成・実測根拠、判定 |
+
+---
+
 ### 20260701_invalid_main_history/ — 旧 `main` 誤統合履歴の無効化記録（2026-07-01実施）
 
 | ドキュメント | 概要 |
