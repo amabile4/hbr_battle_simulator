@@ -276,10 +276,11 @@ export class InitialSetupController {
         if (this.#isApplyingSetupSnapshot) {
           return;
         }
-        if (!this.#hasActiveBattle || !meta?.hasSkillSetDelta || !snapshot?.isFrontFilled) {
+        const hasAutomaticRecalculationDelta = meta?.hasSkillSetDelta || meta?.hasStatsDelta;
+        if (!this.#hasActiveBattle || !hasAutomaticRecalculationDelta || !snapshot?.isFrontFilled) {
           return;
         }
-        this.#onRecalculate?.(this.getSetupSnapshot(snapshot), {
+        this.#onRecalculate?.(this.getSetupSnapshot(this.#partySetup.getEffectiveSnapshot()), {
           automatic: true,
           meta,
         });
@@ -298,7 +299,7 @@ export class InitialSetupController {
         if (this.#isApplyingSetupSnapshot) {
           return;
         }
-        const partySnapshot = this.#partySetup?.getSnapshot();
+        const partySnapshot = this.#partySetup?.getEffectiveSnapshot();
         if (!this.#hasActiveBattle || !partySnapshot?.isFrontFilled) {
           return;
         }
@@ -321,7 +322,7 @@ export class InitialSetupController {
     // 戦闘開始クリック
     this.#applyBtn.addEventListener('click', () => {
       if (this.#applyBtn.disabled) return;
-      const snapshot = this.#partySetup.getSnapshot();
+      const snapshot = this.#partySetup.getEffectiveSnapshot();
       if (!snapshot.isFrontFilled) return;
       this.#onApply?.(this.getSetupSnapshot(snapshot));
     });
@@ -329,7 +330,7 @@ export class InitialSetupController {
     // 設定を反映クリック
     this.#recalcBtn.addEventListener('click', () => {
       if (this.#recalcBtn.disabled) return;
-      const snapshot = this.#partySetup.getSnapshot();
+      const snapshot = this.#partySetup.getEffectiveSnapshot();
       if (!snapshot.isFrontFilled) return;
       this.#onRecalculate?.(this.getSetupSnapshot(snapshot), {
         automatic: false,

@@ -27,7 +27,19 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
 
+      - name: Pin npm 10.9.7
+        run: npm install --global npm@10.9.7
+
+      - name: Verify npm version
+        run: test "$(npm --version)" = "10.9.7"
+
       - run: npm ci
 
       - name: Run tests
         run: npm test
+
+      - name: Run calc fixture regression
+        run: npm run test:calc
+
+      - name: Run lint
+        run: npm run lint

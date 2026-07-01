@@ -299,6 +299,7 @@ test('PartySetupController keeps automatic stats unsaved, follows LB, and reset 
     panel = openStats();
     assert.equal(panel.querySelector('[data-stat="str"]').value, '715');
     assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
+    assert.equal(controller.getEffectiveSnapshot().statsByPartyIndex['0'].stats.str, 715);
 
     panel.querySelector('[data-stat="str"]').value = '800';
     panel.querySelector('[data-action="apply-stats"]')
@@ -311,6 +312,61 @@ test('PartySetupController keeps automatic stats unsaved, follows LB, and reset 
     assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
     panel = openStats();
     assert.equal(panel.querySelector('[data-stat="str"]').value, '715');
+  }));
+
+test('PartySetupController materializes automatic stats only at the effective snapshot boundary', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [1002, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {},
+    });
+
+    assert.deepEqual(controller.getSnapshot().statsByPartyIndex, {});
+    assert.deepEqual(controller.getEffectiveSnapshot().statsByPartyIndex['0'], {
+      stats: { str: 710, dex: 710, wis: 667, spr: 662, luk: 660, con: 660 },
+      supportStats: { str: 600, dex: 600, wis: 670, spr: 620, luk: 600, con: 600 },
+    });
+  }));
+
+test('PartySetupController automatic recompute preserves manual main and support stats', () =>
+  withDom(({ root, pickerOverlay }) => {
+    const controller = new PartySetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStub(),
+    });
+    const manualStats = { str: 801, dex: 802, wis: 803, spr: 804, luk: 805, con: 806 };
+    const manualSupportStats = { str: 301, dex: 302, wis: 303, spr: 304, luk: 305, con: 306 };
+    controller.mount();
+    controller.applySnapshot({
+      styleIds: [1001, null, null, null, null, null],
+      supportStyleIds: [1002, null, null, null, null, null],
+      limitBreakLevelsByPartyIndex: { 0: 0 },
+      supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+      statsByPartyIndex: {
+        0: { stats: manualStats, supportStats: manualSupportStats },
+      },
+    });
+
+    controller.recomputeAllAutomaticStats();
+
+    assert.deepEqual(controller.getSnapshot().statsByPartyIndex['0'], {
+      stats: manualStats,
+      supportStats: manualSupportStats,
+    });
+    assert.deepEqual(controller.getEffectiveSnapshot().statsByPartyIndex['0'], {
+      stats: manualStats,
+      supportStats: manualSupportStats,
+    });
   }));
 
 test('PartySetupController exports belt selection as normalAttackElementsByPartyIndex', () =>

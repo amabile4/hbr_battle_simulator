@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "node scripts/dev-server.mjs",
     "test": "node --test tests/*.test.js",
-    "test:calc": "node tests/calc/destruction-fixtures.mjs",
+    "generate:calc-fixtures": "node scripts/generate-destruction-large-fixtures.mjs --write",
+    "check:calc-fixtures": "node scripts/generate-destruction-large-fixtures.mjs --check",
+    "test:calc": "node scripts/generate-destruction-large-fixtures.mjs --check && node tests/calc/destruction-fixtures.mjs",
     "test:e2e": "playwright test",
     "lint": "eslint src ui-next tests scripts",
     "crg": "code-review-graph",

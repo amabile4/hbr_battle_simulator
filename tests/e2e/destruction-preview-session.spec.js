@@ -1,22 +1,18 @@
 /**
- * E2E 実機確認フィクスチャ更新履歴 ＆ 実測根拠 (Fixture Governance):
- * 
- * 1. 対象フィクスチャ: tests/e2e/fixtures/ui_next_session_destruction_preview_2026-06-14.json
- *    - 更新日時: 2026-07-01
- *    - 実測根拠: 2026-06-14 に測定された実機セッション。マスタデータ（json/*.json）更新により、
- *      和泉ユキの基礎ステータスが上昇したことで、コードダクネスによるDP突破（BREAK）発生タイミングが
- *      7ヒット目から8ヒット目へズレ（Yukiの破壊率上昇値も 132.63% -> 121.75% へ変化）。
- *      この物理挙動の変動を正本とし、E2Eテストのアサーション期待値を実測キャリブレーション値に更新。
- * 
- * 2. 対象フィクスチャ: tests/e2e/fixtures/ui_next_session_enemy_status_desc_fixture.json
- *    - 更新日時: 2026-07-01
- *    - 実測根拠: レイアウト検証用とデバフ説明検証用のテストデータが共通化されていたため、
- *      敵（フィギュリンホーン: HP 55,500）がオーバーキルされて committed 行が消滅する干渉が発生。
- *      対策としてデバフ説明用に `ui_next_session_enemy_status_desc_fixture_for_desc.json` を新しく分離。
- *      知性を 999 にしてソフニング効果を確実に付与しつつ、力・器用を 1 に固定して生存させる実測データを正本として採用。
+ * E2E 実機確認fixtureの根拠 (Fixture Governance):
+ *
+ * 1. ui_next_session_destruction_preview_2026-06-14.json
+ *    - 2026-06-14実測。固定されたmain/support 72能力値を入力条件とする。
+ *    - 実測oracle: ユキ 100 -> 132.63% (Break hit 7)、美也 132.63 -> 717.34%。
+ *    - 根拠: docs/calc/destruction_rate_step0_raw_data.md
+ *
+ * 2. ui_next_session_multi_hp_gauge_2026-06-05.json
+ *    - 元ファイル名の観測時刻: 2026-06-05T21:24:36.194+09:00
+ *    - 取込日: 2026-07-01
+ *    - SHA-256: f8da31953b6c0095a9fae8a86199abcf59eac3db412de04e5f80ea59f44290be
+ *    - enemy 13312940、HP gauge [75,000,000, 150,000,000, 200,000,000]を採用。
  */
 import path from 'node:path';
-import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 import { test, expect } from '@playwright/test';
@@ -29,7 +25,10 @@ const SESSION_FIXTURE_PATH = path.resolve(
   __dirname,
   './fixtures/ui_next_session_destruction_preview_2026-06-14.json'
 );
-const HP_GAUGE_SESSION_PATH = '/Users/ram4/Downloads/ui_next_session_2026-06-05T21-24-36.194+09-00.json';
+const HP_GAUGE_SESSION_PATH = path.resolve(
+  __dirname,
+  './fixtures/ui_next_session_multi_hp_gauge_2026-06-05.json'
+);
 
 function parsePercentText(text) {
   return Number(String(text ?? '').replace('%', '').trim());
@@ -114,9 +113,9 @@ test.describe('destruction preview session regression', () => {
       expectedSkillName: 'コードダクネス',
     });
     expect(turn2Yuki.rateBefore).toBe('100.00');
-    expect(turn2Yuki.rateAfter).toBe('121.75');
+    expect(turn2Yuki.rateAfter).toBe('132.63');
     expect(turn2Yuki.inputValue).toBeCloseTo(100, 2);
-    expect(turn2Yuki.afterValue).toBeCloseTo(121.75, 2);
+    expect(turn2Yuki.afterValue).toBeCloseTo(132.63, 2);
     expect(turn2Yuki.hitSummary).toContain('接触hit 9');
     expect(turn2Yuki.hitSummary).toContain('計算hit 9');
     expect(turn2Yuki.hitSummary).toContain('base 6');
@@ -124,30 +123,29 @@ test.describe('destruction preview session regression', () => {
     expect(turn2Yuki.hitSummary).toContain('破壊率連撃 +3');
     expect(turn2Yuki.hitSummary).toContain('連撃倍率 x1.75');
     expect(turn2Yuki.hitSummary).toContain('hit ratio [0.1,0.1,0.1,0.2,0.2,0.3,0.25,0.25,0.25]');
-    expect(turn2Yuki.hitSummary).toContain('Break hit 8');
-    expect(turn2Yuki.hitSummary).toContain('破壊率weight 0.5/1.75');
-    expect(turn2Yuki.hitSummary).toContain('DP 6,151,126');
-    expect(turn2Yuki.hitSummary).toContain('HP 3,075,563');
-    expect(turn2Yuki.hitSummary).toContain('破壊率 +21.75%');
+    expect(turn2Yuki.hitSummary).toContain('Break hit 7');
+    expect(turn2Yuki.hitSummary).toContain('破壊率weight 0.75/1.75');
+    expect(turn2Yuki.hitSummary).toContain('DP 6,621,276');
+    expect(turn2Yuki.hitSummary).toContain('HP 3,310,638');
+    expect(turn2Yuki.hitSummary).toContain('破壊率 +32.63%');
     expect(turn2Yuki.hitSummary).toContain('funnel');
-    expect(turn2Yuki.hitSummary).toContain('175,746');
+    expect(turn2Yuki.hitSummary).toContain('174,165');
     expect(turn2Yuki.hitSummary).toContain('121.75%');
-    expect(turn2Yuki.hitSummary).toContain('487,147');
+    expect(turn2Yuki.hitSummary).toContain('575,815');
 
     const turn2Miya = await readDestructionPreview(page, {
       turnIndex: 1,
       position: 1,
       expectedSkillName: '咲き昇る宵の幻',
     });
-    expect(turn2Miya.rateBefore).toBe('121.75');
-    expect(turn2Miya.rateAfter).toBe('706.46');
-    expect(turn2Miya.inputValue).toBeCloseTo(121.75, 2);
-    expect(turn2Miya.afterValue).toBeCloseTo(706.46, 2);
+    expect(turn2Miya.rateBefore).toBe('132.63');
+    expect(turn2Miya.rateAfter).toBe('717.34');
+    expect(turn2Miya.inputValue).toBeCloseTo(132.63, 2);
+    expect(turn2Miya.afterValue).toBeCloseTo(717.34, 2);
     expect(turn2Miya.afterValue - turn2Miya.inputValue).toBeCloseTo(584.71, 1);
   });
 
   test('real multi HP gauge session keeps HP damage display and temporary SuperBreakDown cap lifecycle', async ({ page }) => {
-    test.skip(!fs.existsSync(HP_GAUGE_SESSION_PATH), `fixture not found: ${HP_GAUGE_SESSION_PATH}`);
     await loadUiNextSession(page, HP_GAUGE_SESSION_PATH);
 
     const symmetry = await readDamageCalculatorPane(page, {

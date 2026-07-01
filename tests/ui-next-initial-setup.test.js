@@ -125,6 +125,38 @@ function createStoreStub() {
   };
 }
 
+function createStoreStubWithBaseStats() {
+  const store = createStoreStub();
+  const stats = { str: 10, dex: 20, wis: 30, spr: 40, luk: 50, con: 60 };
+  store.characters = [
+    {
+      label: 'C1001',
+      base_param: {
+        level: [1, 200],
+        ...Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, [1, value]])),
+      },
+    },
+    {
+      label: 'C1002',
+      base_param: {
+        level: [1, 200],
+        ...Object.fromEntries(Object.entries(stats).map(([key, value]) => [key, [1, value + 100]])),
+      },
+    },
+  ];
+  store.getCharacterByLabel = (label) =>
+    store.characters.find((character) => character.label === label) ?? null;
+  for (const [index, style] of store.styles.entries()) {
+    style.role = index === 0 ? 'Attacker' : 'Buffer';
+    style.base_param = index === 0
+      ? { str: 1, dex: 2, wis: 3, spr: 4, luk: 5, con: 6 }
+      : { str: 7, dex: 8, wis: 9, spr: 10, luk: 11, con: 12 };
+    style.ability_tree = [];
+    style.limit_break = { stat_up_per_level: 2.5, bonus_per_level: [] };
+  }
+  return store;
+}
+
 function createDimensionBattlesFixture() {
   return [
     {
@@ -533,6 +565,37 @@ test('InitialSetupController getCurrentSetupSnapshot returns party and simulator
     );
     assert.equal(snapshot.simulatorSettings.captureUntilBattleEnd, true);
     assert.equal(snapshot.enemy.preemptiveField, 'none');
+  }));
+
+test('InitialSetupController keeps session setup raw and materializes stats at the battle boundary', () =>
+  withDom(({ root, pickerOverlay }) => {
+    let appliedSnapshot = null;
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStubWithBaseStats(),
+      onApply: (snapshot) => {
+        appliedSnapshot = snapshot;
+      },
+    });
+    controller.mount();
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1001, 1001, null, null, null],
+        supportStyleIds: [1002, null, null, null, null, null],
+        limitBreakLevelsByPartyIndex: { 0: 0 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 0 },
+        statsByPartyIndex: {},
+      },
+    });
+
+    assert.deepEqual(controller.getCurrentSetupSnapshot().party.statsByPartyIndex, {});
+
+    root.querySelector('[data-role="apply-btn"]').click();
+    const effectiveStats = appliedSnapshot.party.statsByPartyIndex['0'];
+    assert.ok(effectiveStats);
+    assert.deepEqual(Object.keys(effectiveStats.stats).sort(), ['con', 'dex', 'luk', 'spr', 'str', 'wis']);
+    assert.deepEqual(Object.keys(effectiveStats.supportStats).sort(), ['con', 'dex', 'luk', 'spr', 'str', 'wis']);
   }));
 
 test('InitialSetupController restores enemy manual resistance percent, absorb selection, and Eシールド', () =>
@@ -1013,6 +1076,39 @@ test('InitialSetupController auto-recalculates when active battle gains skills f
       46400001,
       46500001,
     ]);
+  }));
+
+test('InitialSetupController auto-recalculates effective automatic stats after character settings change', () =>
+  withDom(({ root, pickerOverlay, win }) => {
+    const recalculations = [];
+    const controller = new InitialSetupController({
+      root,
+      pickerOverlay,
+      store: createStoreStubWithBaseStats(),
+      onRecalculate: (snapshot, options) => {
+        recalculations.push({ snapshot, options });
+      },
+    });
+    controller.mount();
+    controller.applySetupSnapshot({
+      party: {
+        styleIds: [1001, 1002, 1003, null, null, null],
+        supportStyleIds: [null, null, null, null, null, null],
+        limitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0 },
+        supportLimitBreakLevelsByPartyIndex: { 0: 0, 1: 0, 2: 0 },
+        statsByPartyIndex: {},
+      },
+    });
+    controller.setHasActiveBattle(true);
+    win.localStorage.setItem('hbr.ui_next.character_settings.v1', JSON.stringify({
+      C1001: { titleRank: 12, reincarnation: 6 },
+    }));
+
+    controller.recomputePartyStats();
+
+    assert.equal(recalculations.length, 1);
+    assert.equal(recalculations[0].options.meta.hasStatsDelta, true);
+    assert.ok(recalculations[0].snapshot.party.statsByPartyIndex['0'].stats);
   }));
 
 test('InitialSetupController auto-recalculates active battle when enemy preset changes', () =>

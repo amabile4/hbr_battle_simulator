@@ -1847,5 +1847,161 @@
         "con": 175
       }
     }
-  ]
+  ],
+  "titleBadgeRankSource": {
+    "path": "golden/master_json/MasterTitleBadgeRank.json",
+    "sha256": "94778853f556898812597a9abb9bab408f493f2e91788e6213640ce0c787b785"
+  },
+  "titleBadgeRanks": {
+    "items": [
+      {
+        "id": 238000001,
+        "label": "TitleBadge.rank.1",
+        "rank": 1,
+        "exp": 0,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": null
+      },
+      {
+        "id": 238000002,
+        "label": "TitleBadge.rank.2",
+        "rank": 2,
+        "exp": 500,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000003,
+        "label": "TitleBadge.rank.3",
+        "rank": 3,
+        "exp": 1500,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000004,
+        "label": "TitleBadge.rank.4",
+        "rank": 4,
+        "exp": 3000,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000005,
+        "label": "TitleBadge.rank.5",
+        "rank": 5,
+        "exp": 5000,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "DP_RealNumber_50"
+        ]
+      },
+      {
+        "id": 238000006,
+        "label": "TitleBadge.rank.6",
+        "rank": 6,
+        "exp": 7500,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000007,
+        "label": "TitleBadge.rank.7",
+        "rank": 7,
+        "exp": 10500,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000008,
+        "label": "TitleBadge.rank.8",
+        "rank": 8,
+        "exp": 14000,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000009,
+        "label": "TitleBadge.rank.9",
+        "rank": 9,
+        "exp": 18000,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "DP_RealNumber_50"
+        ]
+      },
+      {
+        "id": 238000010,
+        "label": "TitleBadge.rank.10",
+        "rank": 10,
+        "exp": 22500,
+        "releaseLabel": "release.titlebadge_01_start",
+        "abilityEffectLabel": [
+          "SkillSlotCount_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000011,
+        "label": "TitleBadge.rank.11",
+        "rank": 11,
+        "exp": 27500,
+        "releaseLabel": "release.titlebadge_renewal01",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000012,
+        "label": "TitleBadge.rank.12",
+        "rank": 12,
+        "exp": 33000,
+        "releaseLabel": "release.titlebadge_renewal01",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000013,
+        "label": "TitleBadge.rank.13",
+        "rank": 13,
+        "exp": 39000,
+        "releaseLabel": "release.titlebadge_renewal01",
+        "abilityEffectLabel": [
+          "ParamAll_RealNumber_1"
+        ]
+      },
+      {
+        "id": 238000014,
+        "label": "TitleBadge.rank.14",
+        "rank": 14,
+        "exp": 45500,
+        "releaseLabel": "release.titlebadge_renewal01",
+        "abilityEffectLabel": [
+          "DP_RealNumber_50"
+        ]
+      },
+      {
+        "id": 238000015,
+        "label": "TitleBadge.rank.15",
+        "rank": 15,
+        "exp": 52500,
+        "releaseLabel": "release.titlebadge_renewal01",
+        "abilityEffectLabel": [
+          "DP_RealNumber_50"
+        ]
+      }
+    ]
+  }
 }

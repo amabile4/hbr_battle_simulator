@@ -13,7 +13,7 @@ const readJson = (path) => JSON.parse(readFileSync(path, 'utf8'));
 const fixture = readJson('tests/fixtures/template1_actual_character_stats_20260629.json');
 const characters = readJson('json/characters.json');
 const styles = readJson('json/styles.json');
-const titleBadgeRanks = readJson('golden/master_json/MasterTitleBadgeRank.json');
+const titleBadgeRanks = fixture.titleBadgeRanks;
 
 function createFixtureLimitBreakMap() {
   return new Map([
@@ -24,6 +24,12 @@ function createFixtureLimitBreakMap() {
 }
 
 test('実機fixtureの58キャラクターで装備・サポートなし共有能力が全件一致する', () => {
+  assert.equal(fixture.titleBadgeRankSource.path, 'golden/master_json/MasterTitleBadgeRank.json');
+  assert.equal(
+    fixture.titleBadgeRankSource.sha256,
+    '94778853f556898812597a9abb9bab408f493f2e91788e6213640ce0c787b785'
+  );
+  assert.equal(titleBadgeRanks.items.length, 15);
   const charactersByLabel = new Map(characters.map((character) => [character.label, character]));
   const limitBreakLevelsByStyleId = createFixtureLimitBreakMap();
 

@@ -70,7 +70,8 @@ test.describe('Session JSON save', () => {
     const savedJson = await readDownloadedJson(await downloadPromise);
 
     expect(savedJson.setup.statsByPartyIndex['0']).toBeUndefined();
-    expect(savedJson.replayScript.setup.statsByPartyIndex['0'].stats.str).toBe(533);
+    // The replay oracle must freeze the same LB4 + title/reincarnation effective value shown above.
+    expect(savedJson.replayScript.setup.statsByPartyIndex['0'].stats.str).toBe(550);
   });
 
   test('Party stats edit drives damage calculator and survives session save/load', async ({ page }) => {
