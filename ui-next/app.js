@@ -926,7 +926,7 @@ async function main() {
       fetchJsonOrFallback('../json/support_skills.json', []),
       fetchJson('../json/boosters.json'),
       fetchJson('../json/chips.json'),
-      fetchJsonOrFallback('../golden/master_json/MasterTitleBadgeRank.json', { items: [] }),
+      fetchJsonOrFallback('../json/title_badge_rank.json', []),
     ]);
     const payload = {
       characters,

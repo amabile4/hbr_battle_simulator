@@ -63,3 +63,7 @@
 ### 既知flake（別PR）
 
 `turn-row-operation-chip-layout.spec.js` は `--workers=1 --repeat-each=3` で2 pass / 1 failだった。失敗signatureは既知の `clientRectCount: expected 1, received 0` と一致し、同じ変更集合のfull E2Eではpassした。今回変更した破壊率、multi-HP、stats保存、comparison-viewの各specは反復実行で失敗していないため、本WBSの範囲外として分離する。
+
+### 完了後の追加確認（2026-07-02）
+
+UI起動時に残っていた `golden/master_json/MasterTitleBadgeRank.json` の直接参照を除去し、同内容の正本 `json/title_badge_rank.json` へ切り替えた。テストfixture内のgolden pathは実測データのprovenanceとしてのみ保持し、実行時には参照しない。unit 1564件、lint、対象E2E 2件は成功。full E2Eは新規検証を含む115件中113件成功し、失敗したpreview-inputは単独3/3成功、既知operation-chip flakeは単独2/3成功で同一signatureを再現した。
