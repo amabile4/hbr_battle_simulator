@@ -10,6 +10,11 @@ const DEFAULT_MAX_D_RATE = 999;
 const DEFAULT_OD_RATE_MULTIPLIER = 1;
 const DEFAULT_D_RATE_RAW = 5;
 const DEFAULT_CURRENT_DESTRUCTION_RATE = 1;
+// スコアアタック最新イベントの難易度40(最高、アビス)時点の破壊ボーダー(rbl[0])に一致する値。
+// スコアアタック敵は score-attack-enemy-stats.js の resolveScoreAttackGrade40Stats 経由で
+// 実データから解決されるため、この定数は敵が一切選択されていない場合の最終フォールバックとしてのみ使う。
+// (旧docsに「グレード35相当」という記載があるが、これは廃止済みの旧用語かつ
+// battles[].d(難易度)と rules[].grade(ルール発動閾値)という別軸との混同なので参照しないこと)
 export const DEFAULT_ENEMY_PARAM_BORDER = 770;
 const ENEMY_ELEMENT_KEYS = Object.freeze([
   'slash',

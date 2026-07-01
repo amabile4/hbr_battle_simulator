@@ -1073,6 +1073,16 @@ async function main() {
       }
     }, 0);
 
+    // score_attack.json は Enemy Setup のスコアアタック敵パラメータ解決用データとして遅延ロードする。
+    scheduleDeferredTask(async () => {
+      try {
+        const scoreAttackEvents = await fetchJsonOrFallback('../json/score_attack.json', []);
+        initialSetup.setScoreAttackEvents(scoreAttackEvents);
+      } catch (error) {
+        console.error('Failed to hydrate score attack presets:', error);
+      }
+    }, 0);
+
     // DPダメージガイド用の計算データを TurnEngineManager に注入する。
     // 起動時のレンダリングをブロックしないよう遅延ロードする。
     // 失敗時はガイドなしのまま続行（アプリを止めない）。

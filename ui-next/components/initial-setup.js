@@ -523,6 +523,10 @@ export class InitialSetupController {
     this.#enemySetup?.setEnemies(this.#enemies);
   }
 
+  setScoreAttackEvents(rawScoreAttackEvents = []) {
+    this.#enemySetup?.setScoreAttackEvents(rawScoreAttackEvents);
+  }
+
   setDimensionBattles(dimensionBattles = []) {
     this.#dimensionBattles = Array.isArray(dimensionBattles) ? dimensionBattles : [];
     this.#stageSetup?.setDimensionBattles(this.#dimensionBattles);

@@ -337,6 +337,7 @@ export function buildEnemyList(rawEnemies, today = new Date(), options = {}) {
     return {
       id: enemy.id,
       name: resolveDisplayEnemyName(enemy),
+      label: String(enemy?.label ?? ''),
       base_param: enemy?.base_param && typeof enemy.base_param === 'object'
         ? { ...enemy.base_param }
         : {},

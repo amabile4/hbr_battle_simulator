@@ -10,6 +10,11 @@ import {
   formatEnemyOdRatePercent,
   normalizeEnemyOdRateMultiplier,
 } from '../utils/enemy-setup-snapshot.js';
+import {
+  isScoreAttackEnemyLabel,
+  normalizeScoreAttackEvents,
+  resolveScoreAttackGrade40Stats,
+} from '../utils/score-attack-enemy-stats.js';
 
 // 属性一覧（物理3種 → 魔法5種 → 無）
 const ELEMENTS = [
@@ -82,7 +87,20 @@ function normalizeDestructionMultiplierRaw(value) {
   return Number.isFinite(numeric) ? numeric : DEFAULT_D_RATE_RAW;
 }
 
-function resolveEnemyParamBorder(enemy = null) {
+// スコアアタック敵は enemies.json 側の base_param が難易度によらないプレースホルダのため、
+// 難易度40(最高、アビス)の実データ(score_attack.json の rbl/dl/hl)が引ければそちらを優先する。
+function resolveScoreAttackOverrideStats(enemy, scoreAttackEvents) {
+  if (!isScoreAttackEnemyLabel(enemy?.label)) {
+    return null;
+  }
+  return resolveScoreAttackGrade40Stats(enemy.label, scoreAttackEvents);
+}
+
+function resolveEnemyParamBorder(enemy = null, scoreAttackEvents = []) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+  if (override) {
+    return override.param_border;
+  }
   const direct = Number(enemy?.param_border);
   if (Number.isFinite(direct) && direct > 0) {
     return direct;
@@ -93,13 +111,26 @@ function resolveEnemyParamBorder(enemy = null) {
     : DEFAULT_ENEMY_PARAM_BORDER;
 }
 
-function resolveEnemyDp(enemy = null) {
+function resolveEnemyDp(enemy = null, scoreAttackEvents = []) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+  if (override) {
+    return override.dp;
+  }
   const direct = Number(enemy?.dp);
   if (Number.isFinite(direct) && direct >= 0) {
     return direct;
   }
   const baseParam = Number(enemy?.base_param?.dp);
   return Number.isFinite(baseParam) && baseParam >= 0 ? baseParam : 0;
+}
+
+function resolveEnemyHp(enemy = null, scoreAttackEvents = []) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+  if (override) {
+    return override.hp;
+  }
+  const direct = Number(enemy?.base_param?.hp);
+  return Number.isFinite(direct) && direct >= 0 ? direct : 0;
 }
 
 function formatDestructionRatePercent(value) {
@@ -406,6 +437,7 @@ function normalizeSelectedCategoryKey(value, categoryOptions = [], fallbackKey =
 export class EnemySetupController {
   #root;
   #enemies;
+  #scoreAttackEvents = [];
   #onChange;
   #state = {
     selectedEnemyIds: createDefaultSelectedEnemyIds(),
@@ -686,13 +718,13 @@ export class EnemySetupController {
         slotIndex,
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
-        maxDp: Number(selectedEnemy?.base_param?.dp ?? 0),
-        currentDp: Number(selectedEnemy?.base_param?.dp ?? 0),
-        maxHp: Number(selectedEnemy?.base_param?.hp ?? 0),
-        currentHp: Number(selectedEnemy?.base_param?.hp ?? 0),
-        param_border: resolveEnemyParamBorder(selectedEnemy),
+        maxDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
+        currentDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
+        maxHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents),
+        currentHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents),
+        param_border: resolveEnemyParamBorder(selectedEnemy, this.#scoreAttackEvents),
         // snapshot 直書きの dp/hp（手動敵）を優先し、なければ選択敵から導出
-        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy),
+        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
         ...(gaugeOverride?.hp != null ? { hp: gaugeOverride.hp } : {}),
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
@@ -817,6 +849,11 @@ export class EnemySetupController {
     this.#enemies = Array.isArray(enemies) ? enemies : [];
     this.#ensureRequiredSlotSelected();
     this.#syncSelectedCategories();
+    this.#render();
+  }
+
+  setScoreAttackEvents(rawScoreAttackEvents = []) {
+    this.#scoreAttackEvents = normalizeScoreAttackEvents(rawScoreAttackEvents);
     this.#render();
   }
 
