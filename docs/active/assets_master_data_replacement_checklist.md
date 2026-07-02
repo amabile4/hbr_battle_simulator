@@ -63,9 +63,9 @@
 | 分類 | 件数 | 内容 | 扱い |
 |---|---|---|---|
 | 属性別の完パケ画像 | 35 | `[Dark/Fire/Ice/Light/Thunder][AttackUp/CriticalDamageUp/CriticalRateUp/DefenseDown/ResistDown/ResistDownOverwrite/Zone].webp` | 対応表では「ベース画像＋矢印＋属性マークの動的合成」に分類される組み合わせ。個別の完パケ画像として対応表に記載がなく、代替画像の可能性が高い |
-| `SuperBreak` の属性版完パケ | 2 | `IceSuperBreak.webp` / `LightSuperBreak.webp` | 動的合成の対応表（51種）にも含まれておらず扱い未確定 |
+| `SuperBreak` の属性版完パケ | 2 | `IceSuperBreak.webp` / `LightSuperBreak.webp` | **自作画像と確認済み**。文字（英語テキスト）が画像に直接焼き込まれ、属性マークも合成済みの状態で1枚化されている。対応表の動的合成方式（ベース＋矢印＋マークをランタイムで重ねる）とは作り方が異なり、対応表にも記載がない |
 | 基本バフ/デバフの完パケ画像 | 6 | `AttackUp` / `AttackDown` / `DefenseUp` / `DefenseDown` / `CriticalRateUp` / `CriticalDamageUp` | 対応表では動的合成対象。シミュレータ側は既にベース画像＋矢印の合成表示へ切り替え済みで、これらのファイルはコードから参照されなくなっている（`docs/active/skill_type_icon_rename_pr24_acceptance.md` 参照） |
-| ステータス名は存在するが対応表に専用画像がないもの | 22 | `EpLimitOverwrite` `FixedHpDamageRateAttack` `GiveDebuffTurnUp` `GiveHealUp` `HealDown` `HealEp` `HealSkillUsedCount` `HealSpRandom` `IgnoreEShieldElement` `OverwriteSp` `ReduceSp` `RemoveBuff` `RemoveSpecialStatus` `SkillSwitch` `SpecialCommandCountUp` `SuperBreakDown` `TokenSet` `TokenSetByAttacked` `TokenSetByAttacking` `TokenSetByHealedDp` `ToughnessUpValue` `ZoneUpEternal` | ステータス名の完全一覧（207件）には含まれるが、画像の対応表（180件）には対応する専用画像がない。代替画像の可能性が高い |
+| ステータス名は存在するが対応表に専用画像がないもの | 22 | `EpLimitOverwrite` `FixedHpDamageRateAttack` `GiveDebuffTurnUp` `GiveHealUp` `HealDown` `HealEp` `HealSkillUsedCount` `HealSpRandom` `IgnoreEShieldElement` `OverwriteSp` `ReduceSp` `RemoveBuff` `RemoveSpecialStatus` `SkillSwitch` `SpecialCommandCountUp` `SuperBreakDown` `TokenSet` `TokenSetByAttacked` `TokenSetByAttacking` `TokenSetByHealedDp` `ToughnessUpValue` `ZoneUpEternal` | ステータス名の完全一覧（207件）には含まれるが、画像の対応表（180件）には対応する専用画像がない。代替画像の可能性が高い。うち `SuperBreakDown.webp` は自作画像と確認済み（割れた盾の背景に英語テキストが直接焼き込まれている点が `IceSuperBreak`/`LightSuperBreak` と同一の作り方） |
 | `Motivation` 代表以外 | 4 | `Motivation2_1` `Motivation3_1` `Motivation4_1` `Motivation5_1` | ユーザー確定事項の適用範囲（`Motivation1_1` のみ残す） |
 
 69件の内訳合計: 35 + 2 + 6 + 22 + 4 = 69（過不足なく分類完了）。
@@ -92,8 +92,9 @@
 
 - `assets/ui/` の手作業画像6件（`Break`/`dead`/`defeat`/`Reinforce`/`Summon`/`TokenSet`）の
   正規対応表が届き次第、本チェックリストを更新する。
-- `IceSuperBreak.webp`/`LightSuperBreak.webp` の扱い（対応表・動的合成表のいずれにも
-  記載がない）は未確定。
+- `assets/skill_type/` の自作画像3件（`IceSuperBreak`/`LightSuperBreak`/`SuperBreakDown`）も
+  同様に、`SuperBreak`（無属性・属性なし版は対応表に記載あり）や属性マークの動的合成で
+  代替できるか、専用の対応表が必要かを別途判断する。
 - `None.webp` のコード接続（PartySetup スタイル絞り込み、敵の無属性耐性表示）は別タスク。
 - 過剰候補69件を実際に削除するかどうかは、画像入れ替え作業本体とあわせて別途判断する
   （本チェックリストは対象リストの確定までがスコープ）。
