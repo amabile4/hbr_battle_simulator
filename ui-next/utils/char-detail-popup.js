@@ -59,13 +59,58 @@ const damageCalculationActionModels = new Map();
 const damageCalculationInteractionPanels = new WeakSet();
 let damageCalculationDataPromise = null;
 
+// プログラム内のステータス定義名から、ゲームの本来のバトルアイコン画像名へのマッピング
+const SKILL_TYPE_IMAGE_MAP = {
+  // 攻撃・防御（本来の名前: IconBuffAttack / IconBuffDefense）
+  AttackUp: 'BuffAttack',
+  AttackDown: 'BuffAttack',
+  DefenseUp: 'BuffDefense',
+  DefenseDown: 'BuffDefense',
+  AttackUpIncludeNormal: 'BuffAttack',
+  AttackUpPerToken: 'BuffAttack',
+  DefenseUpPerToken: 'BuffDefense',
+  BorderRefPDownByAdmiral: 'AttackDown',
+
+  // 回復・SP・EP（本来の名前: IconBuffRecovery / IconBuffSP / IconBuffEP 等）
+  HealDp: 'BuffRecovery',
+  HealDpRate: 'BuffRecovery',
+  ReviveDp: 'BuffRecovery',
+  HealSp: 'BuffSP',
+  HealEp: 'BuffEP',
+  SpecifySp: 'BuffSP',
+  RemoveDebuff: 'BuffRecovery',
+  ReviveTerritory: 'RegeneDP',
+
+  // OD・耐性（本来の名前: IconBuffOverdrive / IconBuffResist）
+  OverDrivePointUp: 'BuffOverdrive',
+  OverDrivePointDown: 'BuffOverdrive',
+  ResistDown: 'BuffResist',
+  ResistDownOverwrite: 'ResistElementOverwrite',
+
+  // クリティカル
+  CriticalRateUp: 'CriticalRate',
+  CriticalDamageUp: 'CriticalDamage',
+
+  // 独自命名されていたステータスの本来のアセット名への修正
+  ConfusionRandom: 'Confusion',
+  ImprisonRandom: 'Imprison',
+  RecoilRandom: 'Recoil',
+  StunRandom: 'Stun',
+  SkillRandom: 'SkillCondition',
+  DamageRateUp: 'DamageRate',
+  DamageRateUpPerToken: 'DamageRate',
+  OverDrivePointUpByToken: 'OverDrivePointUp',
+  OverDrivePointUpRandom: 'OverDrivePointUp',
+};
+
 export function resolveSkillTypeIconUrl(statusType) {
   const name = String(statusType ?? '').trim();
   if (!name) return '';
   if (name.toLowerCase() === 'dead') {
     return resolveUiAssetUrl(DEAD_STATUS_ICON_FILE_NAME);
   }
-  return resolveSkillTypeAssetUrl(`${name}.webp`);
+  const mappedName = SKILL_TYPE_IMAGE_MAP[name] ?? name;
+  return resolveSkillTypeAssetUrl(`${mappedName}.webp`);
 }
 
 // ============================================================
