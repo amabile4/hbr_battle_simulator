@@ -11,8 +11,11 @@ import { resolveSkillTypeIconUrl } from '../ui-next/utils/char-detail-popup.js';
 
 // 解決済み: SKILL_TYPE_IMAGE_MAP の修正により、実在するファイルへ正しく解決される
 // ようになった statusType。誤って存在しないファイル名へマッピングしていたもの
-// （HealSp/SpecifySp/OverDrivePointUp/OverDrivePointDown/ResistDown）と、
-// 実バトルUIでの流用先へのマッピングを追加したもの（HealEp/BreakDownTurnUp/Provoke）。
+// （HealSp/SpecifySp/OverDrivePointUp/OverDrivePointDown/ResistDown）、誤って矢印なしの
+// ベース素材（BuffAttack/BuffDefense）へ丸めてバフ/デバフの区別が消えていたもの
+// （AttackUp/AttackDown/DefenseUp/DefenseDown/AttackUpIncludeNormal/AttackUpPerToken/
+// DefenseUpPerToken）、実バトルUIでの流用先へのマッピングを追加したもの
+// （HealEp/BreakDownTurnUp/Provoke/BorderRefPDownByAdmiral）。
 const RESOLVED_STATUS_TYPES = [
   'HealSp',
   'SpecifySp',
@@ -22,6 +25,14 @@ const RESOLVED_STATUS_TYPES = [
   'ResistDown',
   'BreakDownTurnUp',
   'Provoke',
+  'AttackUp',
+  'AttackDown',
+  'DefenseUp',
+  'DefenseDown',
+  'AttackUpIncludeNormal',
+  'AttackUpPerToken',
+  'DefenseUpPerToken',
+  'BorderRefPDownByAdmiral',
 ];
 
 for (const statusType of RESOLVED_STATUS_TYPES) {
@@ -31,6 +42,26 @@ for (const statusType of RESOLVED_STATUS_TYPES) {
       fs.existsSync(filePath),
       true,
       `${statusType} の解決先アイコン (${filePath}) が存在すること`
+    );
+  });
+}
+
+// 回帰防止: バフ/デバフの対になる statusType が、矢印なしの共通ベース素材へ丸められて
+// 視覚的に区別できなくなっていないことを確認する。AttackUp/AttackDown が同一ファイルに
+// 解決される事故が過去に一度発生している。
+const BUFF_DEBUFF_PAIRS_MUST_DIFFER = [
+  ['AttackUp', 'AttackDown'],
+  ['DefenseUp', 'DefenseDown'],
+];
+
+for (const [buffType, debuffType] of BUFF_DEBUFF_PAIRS_MUST_DIFFER) {
+  test(`resolveSkillTypeIconUrl('${buffType}') and ('${debuffType}') resolve to different icon assets`, () => {
+    const buffPath = fileURLToPath(resolveSkillTypeIconUrl(buffType));
+    const debuffPath = fileURLToPath(resolveSkillTypeIconUrl(debuffType));
+    assert.notEqual(
+      buffPath,
+      debuffPath,
+      `${buffType} と ${debuffType} が同一アイコンに解決されるとバフ/デバフが見分けられません`
     );
   });
 }
@@ -48,6 +79,7 @@ const UNRESOLVED_STATUS_TYPES = [
   'HealDpByDamage',
   'RegenerationDp',
   'ReviveDpRate',
+  'ResistUp',
 ];
 
 for (const statusType of UNRESOLVED_STATUS_TYPES) {

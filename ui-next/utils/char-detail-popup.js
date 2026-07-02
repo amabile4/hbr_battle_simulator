@@ -64,14 +64,12 @@ const damageCalculationInteractionPanels = new WeakSet();
 
 // プログラム内のステータス定義名から、ゲームの本来のバトルアイコン画像名へのマッピング
 const SKILL_TYPE_IMAGE_MAP = {
-  // 攻撃・防御（本来の名前: IconBuffAttack / IconBuffDefense）
-  AttackUp: 'BuffAttack',
-  AttackDown: 'BuffAttack',
-  DefenseUp: 'BuffDefense',
-  DefenseDown: 'BuffDefense',
-  AttackUpIncludeNormal: 'BuffAttack',
-  AttackUpPerToken: 'BuffAttack',
-  DefenseUpPerToken: 'BuffDefense',
+  // 攻撃・防御（AttackUp/AttackDown/DefenseUp/DefenseDown は矢印込みの専用ファイルが
+  // 個別に存在するためマッピング不要。BuffAttack/BuffDefense は矢印なしのベース素材で、
+  // これらへ丸めるとバフ/デバフの矢印が消え見分けがつかなくなるため使わない）
+  AttackUpIncludeNormal: 'AttackUp',
+  AttackUpPerToken: 'AttackUp',
+  DefenseUpPerToken: 'DefenseUp',
   BorderRefPDownByAdmiral: 'AttackDown',
 
   // 回復・SP・EP（本来の名前: IconBuffRecovery 等。HealSp/SpecifySp/OverDrivePointUp/
