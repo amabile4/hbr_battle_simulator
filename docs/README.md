@@ -82,6 +82,7 @@ docs/
 
 | ドキュメント | ステータス | 概要 | 最終更新 |
 |-------------|-----------|------|----------|
+| [active/new_style_audit_workflow.md](active/new_style_audit_workflow.md) | 🟢 進行中 | 新規 `json/` / `assets/` 受領後の最新 `in_date` スタイル監査運用。`in_date` 空欄、cond/overwrite_cond/SpecialStatus、状態変化・状態異常、追加ターン、限界突破パッシブ、説明文充足をスタイル単位で確認する。2026-06-19 11:00 追加スタイルはシャルロッタ「異国のプリンツェッサ」を先行監査し、`GiveDefenseDebuffUp` が防御力ダウン効果量へ未反映である実装ギャップを記録 | 2026-07-02 |
 | [active/score_attack_special_rule_phase3_wbs.md](active/score_attack_special_rule_phase3_wbs.md) | 🟢 進行中(未着手) | enemy setup スコアアタック敵対応 Phase 3(特別ルール対応)の ToDo/WBS。Phase 1(難易度40実データ解決)・Phase 2(難易度1〜40選択UI)は完了。Phase 3 は `rules[]`(grade閾値付きCommandPattern/SkillPart等)の構造調査・新規パース層・エンジン適用経路を要する新規開発のため、実装前確認事項5点を明記のうえ着手待ち | 2026-07-02 |
 | [active/master_json_gap_analysis.md](active/master_json_gap_analysis.md) | 🟢 進行中 | `golden/master_json` 集合A（キャラ・カード・スキル・能力）と `json/` の突き合わせ調査。T-A/T-B として `interval_turn` のT1→T4再使用境界、`sp_cost_by_use_count` の使用回数別SP解決、最終使用ターンのclone/snapshot保持を実装し1300件PASS。残件は INTRINSIC_MARK_EFFECTS 等のハードコード根拠確認 | 2026-06-27 |
 | [active/pierce_equipment_implementation.md](active/pierce_equipment_implementation.md) | ✅ 完了 | ピアス装備4種（ドライブ/アタック/ブレイク/ブラスト × 10/12/15%）のヒット数補正と、エンシェントチェーン汎用1択（スキル攻撃力+10% / 破壊率上昇量+10% / 初期SP+3）を実装。減衰型（アタック=対HP・ブレイク=対DPダメージ乗数）と上昇型（ブラスト=破壊率上昇量・ドライブ=OD上昇量）を `src/domain/pierce-correction.js` に共通化し、PartySetup `pierce` / `chainEquipByPartyIndex` → CharacterStyle → damageContext まで接続。エンシェントチェーンの攻撃+10%は既存攻撃バフ枠へ反映済み、破壊率+10%は `chainDestructionRateBonus` → `flatDestructionRateBonus` で計算適用済み。共鳴アビリティの支援 `DamageRateUp`（31D `Fly High!`）は `resonanceDestructionRateBonus` として action / damageContext / 破壊率計算へ接続済み。旧 `drivePierceByPartyIndex` / `startSpEquipByPartyIndex` snapshot/preset 互換維持。残課題はエンシェントチェーン属性スキル回数+1、属性リング等 | 2026-06-13 |
@@ -170,6 +171,7 @@ docs/
 | [specs/runs/RUN_20260228_001/decision_log.md](specs/runs/RUN_20260228_001/decision_log.md) | 設計意思決定ログ（DEC-001〜012） | 2026-02-28 |
 | [specs/runs/RUN_20260228_001/open_questions.md](specs/runs/RUN_20260228_001/open_questions.md) | ユーザー確認が必要な未決事項（Q-S001等） | 2026-02-28 |
 | [specs/repo_workflow.md](specs/repo_workflow.md) | project 固有の branch 命名、merge 方針、shared 変更の流し方、git 実行安全ルール、実装者自身によるテスト責務 | 2026-03-15 |
+| [specs/simulator_data_update_workflow.md](specs/simulator_data_update_workflow.md) | `json/`・`assets/` 更新時にローカルスキル `$refresh-simulator-data` へ接続する起動フレーズと情報境界 | 2026-07-02 |
 | [specs/od_gauge_calculation_spec.md](specs/od_gauge_calculation_spec.md) | ODゲージ計算仕様（通常攻撃 `7.5%` 固定、od_rate の1hit単位切り捨て・共鳴OD重複防止・Stage Setup `ODゲージ上昇量（%）` 任意値の `ODピアス` 同枠加算を反映） | 2026-05-31 |
 | [specs/sp_condition_skill_spec.md](specs/sp_condition_skill_spec.md) | SP条件スキル仕様（Sp()<0 / Sp()>0 / Sp()>19, sp_cost=-1 全SP消費） | 2026-03-12 |
 | [specs/dev_principles.md](specs/dev_principles.md) | 開発原則：バグ切り分け・UI/エンジン責務境界・安易な実装禁止事項・新UI設計指針（原則1〜5） | 2026-03-16 |
