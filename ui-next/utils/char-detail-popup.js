@@ -62,16 +62,32 @@ const DEFAULT_DESTRUCTION_PREVIEW_DP = 1;
 const damageCalculationActionModels = new Map();
 const damageCalculationInteractionPanels = new WeakSet();
 
+// ベース画像＋矢印(バフ/デバフ)＋属性マークの動的合成が必要な statusType。
+// ゲーム本来の仕様ではこれらの単体完パケアセットは存在せず、ベース素材と
+// オーバーレイパーツ（assets/ui/ArrowBuff.webp 等）の重ね合わせで表現される。
+// AttackUp.webp/AttackDown.webp 等は初期実装時に暫定用意された代替画像であり、
+// 矢印なしのベース素材（BuffAttack.webp 等）へ丸めるとバフ/デバフの矢印が消えて
+// 見分けがつかなくなるため使わず、合成表示に統一する。
+const COMPOSITE_ICON_MAP = {
+  AttackUp: { base: 'BuffAttack', arrow: 'buff' },
+  AttackDown: { base: 'BuffAttack', arrow: 'debuff' },
+  AttackUpIncludeNormal: { base: 'BuffAttack', arrow: 'buff' },
+  AttackUpPerToken: { base: 'BuffAttack', arrow: 'buff' },
+  DefenseUp: { base: 'BuffDefense', arrow: 'buff' },
+  DefenseDown: { base: 'BuffDefense', arrow: 'debuff' },
+  DefenseUpPerToken: { base: 'BuffDefense', arrow: 'buff' },
+  BorderRefPDownByAdmiral: { base: 'BuffAttack', arrow: 'debuff' },
+
+  // 専用アセットが存在せず旧ファイルも削除済みだったため未接続扱いだったもの。
+  // 合成の仕組みが用意できたため、対応するベース画像＋矢印で解決する
+  GiveDefenseDebuffUp: { base: 'BuffDefense', arrow: 'debuff' },
+  HealDpByDamage: { base: 'BuffAttack', arrow: 'buff' },
+  RegenerationDp: { base: 'RegeneDP', arrow: 'buff' },
+  ReviveDpRate: { base: 'RegeneDP', arrow: 'buff' },
+};
+
 // プログラム内のステータス定義名から、ゲームの本来のバトルアイコン画像名へのマッピング
 const SKILL_TYPE_IMAGE_MAP = {
-  // 攻撃・防御（AttackUp/AttackDown/DefenseUp/DefenseDown は矢印込みの専用ファイルが
-  // 個別に存在するためマッピング不要。BuffAttack/BuffDefense は矢印なしのベース素材で、
-  // これらへ丸めるとバフ/デバフの矢印が消え見分けがつかなくなるため使わない）
-  AttackUpIncludeNormal: 'AttackUp',
-  AttackUpPerToken: 'AttackUp',
-  DefenseUpPerToken: 'DefenseUp',
-  BorderRefPDownByAdmiral: 'AttackDown',
-
   // 回復・SP・EP（本来の名前: IconBuffRecovery 等。HealSp/SpecifySp/OverDrivePointUp/
   // OverDrivePointDown/ResistDown は本来のファイル名がそのまま存在するためマッピング不要）
   HealDp: 'BuffRecovery',
@@ -113,8 +129,43 @@ export function resolveSkillTypeIconUrl(statusType) {
   if (name.toLowerCase() === 'dead') {
     return resolveUiAssetUrl(DEAD_STATUS_ICON_FILE_NAME);
   }
+  const composite = COMPOSITE_ICON_MAP[name];
+  if (composite) {
+    return resolveSkillTypeAssetUrl(`${composite.base}.webp`);
+  }
   const mappedName = SKILL_TYPE_IMAGE_MAP[name] ?? name;
   return resolveSkillTypeAssetUrl(`${mappedName}.webp`);
+}
+
+const ARROW_ASSET_FILE_NAMES = Object.freeze({
+  buff: 'ArrowBuff.webp',
+  debuff: 'ArrowDebuff.webp',
+});
+
+/**
+ * statusType がベース画像＋矢印/属性マークの動的合成対象であれば、
+ * 合成用マークアップ（ベース画像 <img> + オーバーレイ <img>）を返す。
+ * 対象外の statusType には '' を返す。呼び出し元は '' の場合、
+ * resolveSkillTypeIconUrl による単一 <img> 表示にフォールバックすること。
+ * 呼び出し元は合成コンテナ要素（position: relative、CSS側で
+ * .composite-base / .composite-overlay.arrow / .composite-overlay.marker
+ * を定義済み）でこの戻り値をラップする必要がある。
+ */
+export function resolveSkillTypeIconCompositeHtml(statusType, altText) {
+  const name = String(statusType ?? '').trim();
+  const composite = COMPOSITE_ICON_MAP[name];
+  if (!composite) return '';
+  const baseUrl = resolveSkillTypeAssetUrl(`${composite.base}.webp`);
+  if (!baseUrl) return '';
+  const arrowFile = ARROW_ASSET_FILE_NAMES[composite.arrow];
+  const arrowUrl = arrowFile ? resolveUiAssetUrl(arrowFile) : '';
+  const markerUrl = composite.marker ? resolveUiAssetUrl(`MarkerAttribute${composite.marker}.webp`) : '';
+  const escAlt = esc(String(altText ?? name));
+  return (
+    `<img class="composite-base" src="${baseUrl}" alt="${escAlt}" />` +
+    (arrowUrl ? `<img class="composite-overlay arrow" src="${arrowUrl}" alt="" />` : '') +
+    (markerUrl ? `<img class="composite-overlay marker" src="${markerUrl}" alt="" />` : '')
+  );
 }
 
 // ============================================================
@@ -543,13 +594,20 @@ function buildStatusBlockHtml(effect, options = {}) {
       : `${Number(effect.remaining ?? 0)}T`;
   const sourceCharName = String(effect.sourceCharacterName ?? '').trim();
   const elementalStatusType = resolveElementalStatusType(effect.statusType, effect.elements);
-  const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(elementalStatusType || effect.statusType);
+  const statusTypeForIcon = elementalStatusType || effect.statusType;
+  const hasExplicitIconUrl = Boolean(String(effect?.iconUrl ?? '').trim());
+  const compositeIconHtml = hasExplicitIconUrl
+    ? ''
+    : resolveSkillTypeIconCompositeHtml(statusTypeForIcon, String(effect.statusType ?? ''));
+  const iconUrl = String(effect?.iconUrl ?? '').trim() || resolveSkillTypeIconUrl(statusTypeForIcon);
+  const iconInnerHtml =
+    compositeIconHtml || (iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : '');
   const isAdopted = effect._adopted !== false;
   const adoptedAttr = ` data-adopted="${isAdopted}"`;
   const dimmedClass = isAdopted ? '' : ' dimmed';
   return (
     `<div class="char-popup-buff-block${dimmedClass}"${adoptedAttr}>` +
-    `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconUrl ? `<img src="${iconUrl}" alt="${esc(String(effect.statusType ?? ''))}" />` : ''}</div>` +
+    `<div class="char-popup-buff-icon${iconUrl ? ' has-icon' : ''}">${iconInnerHtml}</div>` +
     `<div class="char-popup-buff-center">` +
     `<div class="char-popup-buff-title">${esc(label)}${powerStr ? `<span class="char-popup-buff-power">${esc(powerStr)}</span>` : ''}${skillName ? `<span class="char-popup-buff-skill">[${esc(skillName)}]</span>` : ''}` +
     (sourceCharName ? `<span class="char-popup-buff-from">${esc(sourceCharName)}</span>` : '') +

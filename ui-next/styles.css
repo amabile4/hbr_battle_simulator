@@ -2499,6 +2499,7 @@
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  position: relative;
 }
 /* アイコン画像あり: 枠・背景を消してアイコンをそのまま表示 */
 .char-popup-buff-icon.has-icon {
@@ -2510,6 +2511,31 @@
   width: 28px;
   height: 28px;
   object-fit: contain;
+}
+
+/* 合成アイコン: ベース画像に矢印(バフ/デバフ)・属性マークを重ね合わせて表示する。
+   64px基準のオフセット仕様を 28px コンテナへ比例縮小（scale = 28/64 = 0.4375）。 */
+.char-popup-buff-icon .composite-base {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+.char-popup-buff-icon .composite-overlay {
+  position: absolute;
+  pointer-events: none;
+  object-fit: contain;
+}
+.char-popup-buff-icon .composite-overlay.arrow {
+  width: 9px;
+  height: 11px;
+  right: 7px;
+  bottom: 7px;
+}
+.char-popup-buff-icon .composite-overlay.marker {
+  width: 11px;
+  height: 11px;
+  top: 1px;
+  left: 1px;
 }
 
 /* =====================================================   Used Skills Overlay
