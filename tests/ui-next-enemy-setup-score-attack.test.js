@@ -189,3 +189,104 @@ test('enemy setup: out-of-range scoreAttackGrade values are clamped to 1-40', ()
     assert.equal(controller.getSnapshot().scoreAttackGrade, 1);
   });
 });
+
+// --- スコアアタック「イベント選択(入力補助)」セクション ---
+
+const SCORE_ATTACK_EVENT_91 = {
+  id: 145000091,
+  name: '#91 The lurking despair',
+  in_date: '2026-02-13 02:00:00+00:00',
+  battles: [
+    {
+      d: 40, dn: 'アビス', b: ['DesertDendronNether_scoreattack91_g'],
+      bn: [{ n: 'ネザーデンドロン' }],
+      rbl: [500, 0, 0], dl: [900000, 0, 0], hl: [50000000, 0, 0],
+    },
+  ],
+};
+
+const SCORE_ATTACK_EVENT_TOO_OLD = {
+  id: 145000001,
+  name: 'スコアアタック1',
+  in_date: '2022-04-08 02:00:00+00:00',
+  battles: [
+    { d: 40, dn: 'アビス', b: ['DeathSlug1st_scoreattack_a'], bn: [{ n: 'デススラッグ' }], rbl: [65, 0, 0], dl: [9000, 0, 0], hl: [30000, 0, 0] },
+  ],
+};
+
+// SCORE_ATTACK_EVENTS の #98 に bn を付与した版(イベント選択セクションの代表名抽出に必要)
+const SCORE_ATTACK_EVENTS_WITH_BN = [
+  {
+    ...SCORE_ATTACK_EVENTS[0],
+    battles: SCORE_ATTACK_EVENTS[0].battles.map((b) => ({ ...b, bn: [{ n: 'オーカークロウ' }] })),
+  },
+  SCORE_ATTACK_EVENT_91,
+  SCORE_ATTACK_EVENT_TOO_OLD,
+];
+
+test('enemy setup: score attack event select lists only cutoff-supported events, newest first', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+
+    const select = root.querySelector('[data-action="select-score-attack-event"]');
+    assert.ok(select, 'イベント選択 select が存在すること');
+    // 「選択なし」+ #98 + #91(#1 はカットオフ未満のため除外)
+    assert.equal(select.options.length, 3);
+    assert.equal(select.value, '', '初期状態は未選択であること');
+    assert.ok(select.options[1].textContent.includes('#98'));
+    assert.ok(select.options[1].textContent.includes('オーカークロウ'));
+    assert.ok(select.options[2].textContent.includes('#91'));
+    assert.ok(!select.innerHTML.includes('スコアアタック1'), 'カットオフ未満のイベントは含まれないこと');
+  });
+});
+
+test('enemy setup: selecting a score attack event assigns it to the active slot and resolves stats', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+
+    const eventSelect = root.querySelector('[data-action="select-score-attack-event"]');
+    const option98 = [...eventSelect.options].find((o) => o.textContent.includes('#98'));
+    eventSelect.value = option98.value;
+    eventSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.ok(snapshot.selectedEnemyName.includes('オーカークロウ'));
+    // 既定の難易度40で、Phase1/2 で固定済みの実データ(770/1800000/110000000)と一致すること
+    assert.equal(snapshot.enemySlots[0].param_border, 770);
+    assert.equal(snapshot.enemySlots[0].maxDp, 1800000);
+    assert.equal(snapshot.enemySlots[0].maxHp, 110000000);
+
+    // 難易度セレクタと連動して再解決されること
+    const gradeSelect = root.querySelector('[data-action="select-score-attack-grade"]');
+    gradeSelect.value = '1';
+    gradeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    const snapshotAfterGradeChange = controller.getSnapshot();
+    assert.equal(snapshotAfterGradeChange.enemySlots[0].param_border, 160);
+  });
+});
+
+test('enemy setup: score attack event selection survives applySnapshot -> getSnapshot roundtrip', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+
+    const eventSelect = root.querySelector('[data-action="select-score-attack-event"]');
+    const option98 = [...eventSelect.options].find((o) => o.textContent.includes('#98'));
+    eventSelect.value = option98.value;
+    eventSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const saved = controller.getSnapshot();
+
+    controller.resetToDefaults();
+    assert.notEqual(controller.getSnapshot().selectedEnemyId, saved.selectedEnemyId, 'reset 後はスコアアタック選択が残っていないこと');
+
+    controller.applySnapshot(saved);
+    assert.ok(controller.getSnapshot().selectedEnemyName.includes('オーカークロウ'));
+    assert.equal(controller.getSnapshot().enemySlots[0].param_border, 770);
+  });
+});

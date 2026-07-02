@@ -14,6 +14,7 @@ import {
   isScoreAttackEnemyLabel,
   normalizeScoreAttackEvents,
   resolveScoreAttackStatsByGrade,
+  buildScoreAttackEventEnemyPresets,
 } from '../utils/score-attack-enemy-stats.js';
 
 // 属性一覧（物理3種 → 魔法5種 → 無）
@@ -455,6 +456,10 @@ function normalizeSelectedCategoryKey(value, categoryOptions = [], fallbackKey =
  */
 export class EnemySetupController {
   #root;
+  // 外部(enemies.json由来)の敵リスト。スコアアタックイベント仮想プリセットとは別に保持し、
+  // #recomputeEnemies() で結合した結果を #enemies として公開する。
+  #externalEnemies = [];
+  #scoreAttackEventPresets = [];
   #enemies;
   #scoreAttackEvents = [];
   #onChange;
@@ -474,8 +479,14 @@ export class EnemySetupController {
 
   constructor({ root, enemies = [], onChange = null }) {
     this.#root    = root;
-    this.#enemies = enemies;
     this.#onChange = onChange;
+    this.#externalEnemies = Array.isArray(enemies) ? enemies : [];
+    this.#recomputeEnemies();
+  }
+
+  // 外部の敵リストとスコアアタックイベント仮想プリセットを結合して #enemies を更新する。
+  #recomputeEnemies() {
+    this.#enemies = [...this.#externalEnemies, ...this.#scoreAttackEventPresets];
   }
 
   mount() {
@@ -594,6 +605,26 @@ export class EnemySetupController {
 
       if (t.dataset.action === 'select-score-attack-grade') {
         this.#state.scoreAttackGrade = normalizeScoreAttackGrade(t.value);
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
+      if (t.dataset.action === 'select-score-attack-event') {
+        const slotIndex = this.#state.activeSlotIndex;
+        const selectedEnemyId = normalizeSelectedEnemyId(t.value);
+        if (selectedEnemyId === null) {
+          return;
+        }
+        this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId;
+        const selectedEnemy = this.#findEnemyById(selectedEnemyId);
+        if (selectedEnemy) {
+          this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
+        }
+        this.#state.isManualBySlot[slotIndex] = false;
+        this.#state.gaugeOverridesBySlot[slotIndex] = null;
+        this.#ensureRequiredSlotSelected();
+        this.#syncSelectedCategories();
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -878,7 +909,8 @@ export class EnemySetupController {
   }
 
   setEnemies(enemies = []) {
-    this.#enemies = Array.isArray(enemies) ? enemies : [];
+    this.#externalEnemies = Array.isArray(enemies) ? enemies : [];
+    this.#recomputeEnemies();
     this.#ensureRequiredSlotSelected();
     this.#syncSelectedCategories();
     this.#render();
@@ -886,6 +918,8 @@ export class EnemySetupController {
 
   setScoreAttackEvents(rawScoreAttackEvents = []) {
     this.#scoreAttackEvents = normalizeScoreAttackEvents(rawScoreAttackEvents);
+    this.#scoreAttackEventPresets = buildScoreAttackEventEnemyPresets(this.#scoreAttackEvents);
+    this.#recomputeEnemies();
     this.#render();
   }
 
@@ -1069,6 +1103,27 @@ export class EnemySetupController {
               </option>
             `).join('')}
           </select>
+        </div>
+
+        <div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
+          <div class="text-xs font-semibold text-indigo-700">スコアアタック</div>
+          <label class="block text-xs text-gray-600" for="enemy-score-attack-event-select">イベント選択(入力補助)</label>
+          <select id="enemy-score-attack-event-select"
+                  data-action="select-score-attack-event"
+                  class="w-full text-xs rounded-md border border-indigo-200 bg-white px-2 py-1.5
+                         focus:outline-none focus:ring-1 focus:ring-indigo-400">
+            <option value="${EMPTY_ENEMY_SELECT_VALUE}" ${!this.#scoreAttackEventPresets.some((p) => p.id === selectedEnemyId) ? 'selected' : ''}>
+              ${EMPTY_ENEMY_SELECT_LABEL}
+            </option>
+            ${this.#scoreAttackEventPresets.map((preset) => `
+              <option value="${preset.id}" ${preset.id === selectedEnemyId ? 'selected' : ''}>
+                ${preset.name}
+              </option>
+            `).join('')}
+          </select>
+          <p class="text-[11px] text-gray-500">
+            現行ルール対象イベント(#88以降)から敵を選択できます。選択後、下の難易度でパラメータを調整してください。
+          </p>
         </div>
 
         <div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
