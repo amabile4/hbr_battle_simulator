@@ -55,6 +55,14 @@ const SCORE_ATTACK_EVENTS = [
     in_date: '2026-06-19 02:00:00+00:00',
     battles: [
       {
+        d: 1,
+        dn: 'ビギナー',
+        b: ['SwellCrowOchre_scoreattack98_a'],
+        rbl: [160, 0, 0],
+        dl: [5000, 0, 0],
+        hl: [10000, 0, 0],
+      },
+      {
         d: 40,
         dn: 'アビス',
         b: ['SwellCrowOchre_scoreattack98_g'],
@@ -115,5 +123,69 @@ test('enemy setup: selecting a normal (non score-attack) enemy is unaffected by 
     assert.equal(snapshot.enemySlots[0].param_border, 620);
     assert.equal(snapshot.enemySlots[0].maxDp, 480);
     assert.equal(snapshot.enemySlots[0].maxHp, 3400);
+  });
+});
+
+test('enemy setup: renders a score attack grade select (1-40) defaulting to 40', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [SCORE_ATTACK_ENEMY] });
+    controller.mount();
+
+    const select = root.querySelector('[data-action="select-score-attack-grade"]');
+    assert.ok(select, '難易度選択 select が存在すること');
+    assert.equal(select.options.length, 40, '選択肢が1〜40の40件であること');
+    assert.equal(select.value, '40', '既定値は40であること');
+    assert.equal(controller.getSnapshot().scoreAttackGrade, 40);
+  });
+});
+
+test('enemy setup: changing the score attack grade re-resolves stats for the selected difficulty', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [SCORE_ATTACK_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS);
+    selectEnemy(root, SCORE_ATTACK_ENEMY.id);
+
+    const gradeSelect = root.querySelector('[data-action="select-score-attack-grade"]');
+    gradeSelect.value = '1';
+    gradeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.equal(snapshot.scoreAttackGrade, 1);
+    assert.equal(snapshot.enemySlots[0].param_border, 160, '難易度1の rbl[0] になること');
+    assert.equal(snapshot.enemySlots[0].maxDp, 5000, '難易度1の dl[0] になること');
+    assert.equal(snapshot.enemySlots[0].maxHp, 10000, '難易度1の hl[0] になること');
+  });
+});
+
+test('enemy setup: scoreAttackGrade survives applySnapshot -> getSnapshot roundtrip', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [SCORE_ATTACK_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS);
+    selectEnemy(root, SCORE_ATTACK_ENEMY.id);
+
+    const gradeSelect = root.querySelector('[data-action="select-score-attack-grade"]');
+    gradeSelect.value = '1';
+    gradeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const saved = controller.getSnapshot();
+    controller.resetToDefaults();
+    assert.equal(controller.getSnapshot().scoreAttackGrade, 40, 'reset 後は既定値40に戻ること');
+
+    controller.applySnapshot(saved);
+    assert.equal(controller.getSnapshot().scoreAttackGrade, 1, 'applySnapshot で難易度が復元されること');
+  });
+});
+
+test('enemy setup: out-of-range scoreAttackGrade values are clamped to 1-40', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [SCORE_ATTACK_ENEMY] });
+    controller.mount();
+    controller.applySnapshot({ scoreAttackGrade: 999 });
+    assert.equal(controller.getSnapshot().scoreAttackGrade, 40);
+
+    controller.applySnapshot({ scoreAttackGrade: -5 });
+    assert.equal(controller.getSnapshot().scoreAttackGrade, 1);
   });
 });

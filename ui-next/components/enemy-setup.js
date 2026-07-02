@@ -13,7 +13,7 @@ import {
 import {
   isScoreAttackEnemyLabel,
   normalizeScoreAttackEvents,
-  resolveScoreAttackGrade40Stats,
+  resolveScoreAttackStatsByGrade,
 } from '../utils/score-attack-enemy-stats.js';
 
 // 属性一覧（物理3種 → 魔法5種 → 無）
@@ -72,6 +72,24 @@ function normalizePreemptiveField(value) {
     : DEFAULT_PREEMPTIVE_FIELD;
 }
 
+// スコアアタック難易度(1〜40)。バトル内の全敵に共通の1軸(実ゲーム仕様どおり)。
+const DEFAULT_SCORE_ATTACK_GRADE = 40;
+const SCORE_ATTACK_GRADE_MIN = 1;
+const SCORE_ATTACK_GRADE_MAX = 40;
+const SCORE_ATTACK_GRADE_OPTIONS = Array.from(
+  { length: SCORE_ATTACK_GRADE_MAX - SCORE_ATTACK_GRADE_MIN + 1 },
+  (_, index) => SCORE_ATTACK_GRADE_MIN + index
+);
+
+function normalizeScoreAttackGrade(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return DEFAULT_SCORE_ATTACK_GRADE;
+  }
+  const truncated = Math.trunc(numeric);
+  return Math.min(SCORE_ATTACK_GRADE_MAX, Math.max(SCORE_ATTACK_GRADE_MIN, truncated));
+}
+
 function normalizeElementRatePercent(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : DEFAULT_ENEMY_RESISTANCE_RATE_PERCENT;
@@ -88,16 +106,17 @@ function normalizeDestructionMultiplierRaw(value) {
 }
 
 // スコアアタック敵は enemies.json 側の base_param が難易度によらないプレースホルダのため、
-// 難易度40(最高、アビス)の実データ(score_attack.json の rbl/dl/hl)が引ければそちらを優先する。
-function resolveScoreAttackOverrideStats(enemy, scoreAttackEvents) {
+// 選択中の難易度(1〜40、既定40=最高・アビス)の実データ(score_attack.json の rbl/dl/hl)が
+// 引ければそちらを優先する。
+function resolveScoreAttackOverrideStats(enemy, scoreAttackEvents, scoreAttackGrade = DEFAULT_SCORE_ATTACK_GRADE) {
   if (!isScoreAttackEnemyLabel(enemy?.label)) {
     return null;
   }
-  return resolveScoreAttackGrade40Stats(enemy.label, scoreAttackEvents);
+  return resolveScoreAttackStatsByGrade(enemy.label, scoreAttackEvents, scoreAttackGrade);
 }
 
-function resolveEnemyParamBorder(enemy = null, scoreAttackEvents = []) {
-  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+function resolveEnemyParamBorder(enemy = null, scoreAttackEvents = [], scoreAttackGrade = DEFAULT_SCORE_ATTACK_GRADE) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents, scoreAttackGrade);
   if (override) {
     return override.param_border;
   }
@@ -111,8 +130,8 @@ function resolveEnemyParamBorder(enemy = null, scoreAttackEvents = []) {
     : DEFAULT_ENEMY_PARAM_BORDER;
 }
 
-function resolveEnemyDp(enemy = null, scoreAttackEvents = []) {
-  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+function resolveEnemyDp(enemy = null, scoreAttackEvents = [], scoreAttackGrade = DEFAULT_SCORE_ATTACK_GRADE) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents, scoreAttackGrade);
   if (override) {
     return override.dp;
   }
@@ -124,8 +143,8 @@ function resolveEnemyDp(enemy = null, scoreAttackEvents = []) {
   return Number.isFinite(baseParam) && baseParam >= 0 ? baseParam : 0;
 }
 
-function resolveEnemyHp(enemy = null, scoreAttackEvents = []) {
-  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents);
+function resolveEnemyHp(enemy = null, scoreAttackEvents = [], scoreAttackGrade = DEFAULT_SCORE_ATTACK_GRADE) {
+  const override = resolveScoreAttackOverrideStats(enemy, scoreAttackEvents, scoreAttackGrade);
   if (override) {
     return override.hp;
   }
@@ -444,6 +463,8 @@ export class EnemySetupController {
     selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
     activeSlotIndex: REQUIRED_SLOT_INDEX,
     preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
+    // スコアアタック敵選択時のパラメータ解決に使う難易度(1〜40)。バトル全体で1軸。
+    scoreAttackGrade: DEFAULT_SCORE_ATTACK_GRADE,
     isManualBySlot: createDefaultManualFlags(),
     manualBySlot: createDefaultManualBySlot(),
     // snapshot 直書きの dp/hp（手動敵・フィクスチャ用）。敵を選び直すとクリアされ、
@@ -566,6 +587,13 @@ export class EnemySetupController {
 
       if (t.dataset.action === 'select-preemptive-field') {
         this.#state.preemptiveField = normalizePreemptiveField(t.value);
+        this.#onChange?.(this.getSnapshot());
+        this.#render();
+        return;
+      }
+
+      if (t.dataset.action === 'select-score-attack-grade') {
+        this.#state.scoreAttackGrade = normalizeScoreAttackGrade(t.value);
         this.#onChange?.(this.getSnapshot());
         this.#render();
         return;
@@ -718,13 +746,13 @@ export class EnemySetupController {
         slotIndex,
         selectedEnemyId,
         selectedEnemyName: selectedEnemy?.name ?? '',
-        maxDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
-        currentDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
-        maxHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents),
-        currentHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents),
-        param_border: resolveEnemyParamBorder(selectedEnemy, this.#scoreAttackEvents),
+        maxDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
+        currentDp: resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
+        maxHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
+        currentHp: resolveEnemyHp(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
+        param_border: resolveEnemyParamBorder(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
         // snapshot 直書きの dp/hp（手動敵）を優先し、なければ選択敵から導出
-        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents),
+        dp: gaugeOverride?.dp ?? resolveEnemyDp(selectedEnemy, this.#scoreAttackEvents, this.#state.scoreAttackGrade),
         ...(gaugeOverride?.hp != null ? { hp: gaugeOverride.hp } : {}),
         isManual: Boolean(this.#state.isManualBySlot[slotIndex]),
         manual: cloneManual(this.#state.manualBySlot[slotIndex]),
@@ -745,6 +773,7 @@ export class EnemySetupController {
       activeSlotIndex: this.#state.activeSlotIndex,
       enemySlots,
       preemptiveField: this.#state.preemptiveField,
+      scoreAttackGrade: this.#state.scoreAttackGrade,
 
       // Legacy-compatible flat fields (slot 1)
       selectedEnemyId: slot0.selectedEnemyId,
@@ -837,6 +866,9 @@ export class EnemySetupController {
     if (snapshot.preemptiveField != null) {
       this.#state.preemptiveField = normalizePreemptiveField(snapshot.preemptiveField);
     }
+    if (snapshot.scoreAttackGrade != null) {
+      this.#state.scoreAttackGrade = normalizeScoreAttackGrade(snapshot.scoreAttackGrade);
+    }
     if (snapshot.activeSlotIndex != null) {
       this.#state.activeSlotIndex = normalizeSlotIndex(snapshot.activeSlotIndex, REQUIRED_SLOT_INDEX);
     }
@@ -863,6 +895,7 @@ export class EnemySetupController {
       selectedCategoryKeys: createDefaultSelectedCategoryKeys(),
       activeSlotIndex: REQUIRED_SLOT_INDEX,
       preemptiveField: DEFAULT_PREEMPTIVE_FIELD,
+      scoreAttackGrade: DEFAULT_SCORE_ATTACK_GRADE,
       isManualBySlot: createDefaultManualFlags(),
       manualBySlot: createDefaultManualBySlot(),
       gaugeOverridesBySlot: createDefaultGaugeOverrides(),
@@ -963,7 +996,7 @@ export class EnemySetupController {
   }
 
   #render() {
-    const { selectedEnemyIds, activeSlotIndex, preemptiveField } = this.#state;
+    const { selectedEnemyIds, activeSlotIndex, preemptiveField, scoreAttackGrade } = this.#state;
     const selectedEnemyId = selectedEnemyIds[activeSlotIndex];
     const selected = this.#getSelectedEnemyBySlot(activeSlotIndex);
     const vals = this.#getEffectiveBySlot(activeSlotIndex);
@@ -1036,6 +1069,22 @@ export class EnemySetupController {
               </option>
             `).join('')}
           </select>
+        </div>
+
+        <div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
+          <div class="text-xs font-semibold text-indigo-700">スコアアタック難易度(敵パラメータ)</div>
+          <label class="block text-xs text-gray-600" for="enemy-score-attack-grade-select">難易度(1〜40)</label>
+          <select id="enemy-score-attack-grade-select"
+                  data-action="select-score-attack-grade"
+                  class="w-full text-xs rounded-md border border-indigo-200 bg-white px-2 py-1.5
+                         focus:outline-none focus:ring-1 focus:ring-indigo-400">
+            ${SCORE_ATTACK_GRADE_OPTIONS.map((grade) => `
+              <option value="${grade}" ${grade === scoreAttackGrade ? 'selected' : ''}>${grade}</option>
+            `).join('')}
+          </select>
+          <p class="text-[11px] text-gray-500">
+            スコアアタック敵を選択した場合のみ、選んだ難易度のDP/HP/破壊ボーダーが反映されます。
+          </p>
         </div>
 
         <!-- 敵プリセット選択 -->
