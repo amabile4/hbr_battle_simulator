@@ -10,6 +10,11 @@
 
 関連: [pierce_equipment_implementation.md](pierce_equipment_implementation.md)（DamageRateUp=破壊率上昇量+ の接続記録）
 
+> 2026-07-02 追記: 本書の `GiveAttackBuffUp` / `GiveDefenseDebuffUp` 残タスクは、共鳴アビリティ限定の
+> 調査だったが、通常パッシブ・限界突破パッシブ・アクティブスキルにも同種の未接続が広く存在することが
+> [effect_up_multiplier_connection_wbs.md](effect_up_multiplier_connection_wbs.md) の包括調査で判明した。
+> 実装時はそちらの Phase 1/2 へ統合する。
+
 ## 接続済み（A: 対応不要・9種）
 
 AttackUp / DamageRateUp（`resonanceDestructionRateBonus`、2026-06-13接続。同日に
