@@ -433,7 +433,7 @@ test('buildEnemyStatusTableHtml keeps base icon/label when elements is empty', (
 
   const html = buildEnemyStatusTableHtml(statuses);
 
-  assert(html.includes('DefenseDown.webp'), 'should use base DefenseDown.webp icon');
+  assert(html.includes('BuffDefense.webp'), 'should use base BuffDefense.webp icon');
   assert(html.includes('防御力ダウン'), 'should show base label');
   // 属性漢字が付かないこと
   assert(!html.includes('氷防御力ダウン'), 'should not prefix element kanji');
