@@ -100,7 +100,7 @@ test('sortStatusEffectsForStatusTab orders same statusType as Eternal then Turn 
 test('resolveSkillTypeIconUrl uses ui dead icon for Dead status', () => {
   const url = resolveSkillTypeIconUrl('Dead');
 
-  assert.match(url, /assets\/ui\/dead\.webp$/);
+  assert.match(url, /assets\/ui_custom\/dead\.webp$/);
 });
 
 test('resolveDamageCalculatorStoredDestructionRatePercent falls back to default rate without enemy state', () => {
