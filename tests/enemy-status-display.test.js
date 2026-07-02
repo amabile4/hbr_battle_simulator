@@ -451,7 +451,7 @@ test('buildEnemyStatusTableHtml uses fallback icon and label for DownTurn', () =
   ];
 
   const html = buildEnemyStatusTableHtml(statuses);
-  assert(html.includes('BreakDownTurnUp.webp'), 'DownTurn should fallback to BreakDownTurnUp icon');
+  assert(html.includes('Recoil.webp'), 'DownTurn should fallback to Recoil icon (BreakDownTurnUp mapping)');
   assert(html.includes('ダウンターン'), 'DownTurn should show Japanese label');
   assert(html.includes('2T'), 'DownTurn should show remaining turns');
 });

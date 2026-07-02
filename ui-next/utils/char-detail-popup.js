@@ -74,20 +74,16 @@ const SKILL_TYPE_IMAGE_MAP = {
   DefenseUpPerToken: 'BuffDefense',
   BorderRefPDownByAdmiral: 'AttackDown',
 
-  // 回復・SP・EP（本来の名前: IconBuffRecovery / IconBuffSP / IconBuffEP 等）
+  // 回復・SP・EP（本来の名前: IconBuffRecovery 等。HealSp/SpecifySp/OverDrivePointUp/
+  // OverDrivePointDown/ResistDown は本来のファイル名がそのまま存在するためマッピング不要）
   HealDp: 'BuffRecovery',
   HealDpRate: 'BuffRecovery',
   ReviveDp: 'BuffRecovery',
-  HealSp: 'BuffSP',
-  HealEp: 'BuffEP',
-  SpecifySp: 'BuffSP',
+  HealEp: 'HealSp',
   RemoveDebuff: 'BuffRecovery',
   ReviveTerritory: 'RegeneDP',
 
-  // OD・耐性（本来の名前: IconBuffOverdrive / IconBuffResist）
-  OverDrivePointUp: 'BuffOverdrive',
-  OverDrivePointDown: 'BuffOverdrive',
-  ResistDown: 'BuffResist',
+  // 耐性
   ResistDownOverwrite: 'ResistElementOverwrite',
 
   // クリティカル
@@ -104,6 +100,10 @@ const SKILL_TYPE_IMAGE_MAP = {
   DamageRateUpPerToken: 'DamageRate',
   OverDrivePointUpByToken: 'OverDrivePointUp',
   OverDrivePointUpRandom: 'OverDrivePointUp',
+
+  // 専用アセットが存在しないため、実バトルUIでの流用先へマッピング
+  BreakDownTurnUp: 'Recoil',
+  Provoke: 'Target',
 };
 
 export function resolveSkillTypeIconUrl(statusType) {
