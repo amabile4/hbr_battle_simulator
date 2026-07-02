@@ -1,0 +1,104 @@
+# assets/ui・assets/skill_type マスターデータ入れ替えチェックリスト
+
+**ステータス**: 🟢 進行中
+**最終更新**: 2026-07-03
+
+## 目的
+
+`assets/ui/` と `assets/skill_type/` に、正規のマスターデータと対応が取れないファイル
+（手作業で用意された代替画像）が混在している。提供された対応表と現状のリポジトリを
+突き合わせ、入れ替え対象・不足・過剰（削除候補）を確定する。
+
+対応表の出典・取得手順は本ドキュメントに記載しない（`docs/specs/simulator_data_update_workflow.md`
+の情報境界に従う）。以下「対応表」とだけ表記する。
+
+## ユーザー確定事項
+
+- `Motivation1_2.webp`〜`Motivation5_8.webp`（`Motivation[1-5]_[2-8]`、計39件）は不要。
+  `Motivation1_1.webp` のみを代表画像として使う。
+- `*_ko.webp` / `*_zhTW.webp`（多言語版、計12件）は不要。
+- `Morale.webp` は `assets/ui/` と `assets/skill_type/` の両方から参照されるファイルとして、
+  最終的に `assets/skill_type/` 側に格納し共有する。
+- `None.webp`（無属性アイコン）は現在未格納・コード未接続だが、将来 PartySetup の
+  スタイル絞り込みや敵の無属性耐性表示で使う可能性があるため、入れ替え対象に含める
+  （コード接続は本チェックリストのスコープ外、別タスク）。
+
+## assets/ui/ 入れ替えリスト
+
+対応表でカバーされるのは20件。[assets_ui_final_list.txt](assets_master_data_replacement_lists/assets_ui_final_list.txt) 参照。
+
+| 分類 | 件数 | 内容 |
+|---|---|---|
+| 対応表に一致・現状も存在（入れ替え可） | 19 | `ArrowBuff`/`ArrowDebuff`（2）、`MarkerAttribute[Dark/Fire/Ice/Light/Thunder]`（5）、`Slash`/`Stab`/`Strike`（3）、`Fire`/`Ice`/`Thunder`/`Light`/`Dark`（5）、`IconRarityA`/`S`/`SS`/`SSR`（4） |
+| 対応表にあるが現状は未格納（新規格納） | 1 | `None.webp` |
+
+### 対応表の対象外（未対応、6件）
+
+以下はユーザー確認により手作業で用意された画像と判明した。正規の対応表がまだなく、
+今回は入れ替えない。
+
+- `Break.webp`
+- `dead.webp`
+- `defeat.webp`
+- `Reinforce.webp`
+- `Summon.webp`
+- `TokenSet.webp`（`resolveUiAssetUrl` からの参照箇所なし。コード上未使用の孤立ファイルの可能性が高い）
+
+### 対象外（アイコンではない）
+
+- `workspace-toolbar-bg.png` — ツールバー背景装飾。状態アイコンではないため対象外。
+
+## assets/skill_type/ 入れ替えリスト
+
+対応表（180件）から、ユーザー確定事項（`Motivation[1-5]_[2-8]` 39件、多言語版12件、
+計51件）を除いた **129件** が最終リスト。
+[assets_skill_type_final_list.txt](assets_master_data_replacement_lists/assets_skill_type_final_list.txt) 参照。
+
+現状の `assets/skill_type/`（198件）と突き合わせたところ、129件全てが既に存在しており
+**不足はゼロ**。一方、現状に存在するが最終リストにない**69件**があり、これらが
+入れ替え・削除の候補になる。
+
+### 過剰候補（69件）の内訳
+
+| 分類 | 件数 | 内容 | 扱い |
+|---|---|---|---|
+| 属性別の完パケ画像 | 35 | `[Dark/Fire/Ice/Light/Thunder][AttackUp/CriticalDamageUp/CriticalRateUp/DefenseDown/ResistDown/ResistDownOverwrite/Zone].webp` | 対応表では「ベース画像＋矢印＋属性マークの動的合成」に分類される組み合わせ。個別の完パケ画像として対応表に記載がなく、代替画像の可能性が高い |
+| `SuperBreak` の属性版完パケ | 2 | `IceSuperBreak.webp` / `LightSuperBreak.webp` | 動的合成の対応表（51種）にも含まれておらず扱い未確定 |
+| 基本バフ/デバフの完パケ画像 | 6 | `AttackUp` / `AttackDown` / `DefenseUp` / `DefenseDown` / `CriticalRateUp` / `CriticalDamageUp` | 対応表では動的合成対象。シミュレータ側は既にベース画像＋矢印の合成表示へ切り替え済みで、これらのファイルはコードから参照されなくなっている（`docs/active/skill_type_icon_rename_pr24_acceptance.md` 参照） |
+| ステータス名は存在するが対応表に専用画像がないもの | 22 | `EpLimitOverwrite` `FixedHpDamageRateAttack` `GiveDebuffTurnUp` `GiveHealUp` `HealDown` `HealEp` `HealSkillUsedCount` `HealSpRandom` `IgnoreEShieldElement` `OverwriteSp` `ReduceSp` `RemoveBuff` `RemoveSpecialStatus` `SkillSwitch` `SpecialCommandCountUp` `SuperBreakDown` `TokenSet` `TokenSetByAttacked` `TokenSetByAttacking` `TokenSetByHealedDp` `ToughnessUpValue` `ZoneUpEternal` | ステータス名の完全一覧（207件）には含まれるが、画像の対応表（180件）には対応する専用画像がない。代替画像の可能性が高い |
+| `Motivation` 代表以外 | 4 | `Motivation2_1` `Motivation3_1` `Motivation4_1` `Motivation5_1` | ユーザー確定事項の適用範囲（`Motivation1_1` のみ残す） |
+
+69件の内訳合計: 35 + 2 + 6 + 22 + 4 = 69（過不足なく分類完了）。
+
+## 動的合成の対応表（参考、51種類）
+
+`assets/ui/` の透過パーツ（矢印・属性マーク）を使い、ランタイムでベース画像に重ね合わせて
+表示する組み合わせの対応表。内訳:
+
+- 属性なし基本バフ・デバフ: 6種（`AttackUp`/`AttackDown`/`DefenseUp`/`DefenseDown`/
+  `CriticalRateUp`/`CriticalDamageUp`）
+- 特殊バフ・デバフ/流用系: 10種（`AttackUpIncludeNormal`/`AttackUpPerToken`/
+  `DefenseUpPerToken`/`BorderRefPDownByAdmiral`/`GiveDefenseDebuffUp`/`HealDpByDamage`/
+  `RegenerationDp`/`ReviveDpRate`/`ReviveTerritory`/`ResistDownOverwrite`）
+- 属性別: 35種（`[Element]` × `AttackUp`/`DefenseDown`/`Zone`/`CriticalRateUp`/
+  `CriticalDamageUp`/`ResistDown`/`ResistDownOverwrite`、`[Element]` は
+  Fire/Ice/Thunder/Light/Dark）
+
+このうち12種（属性なし6種の一部＋特殊系の一部）は
+`docs/active/skill_type_icon_rename_pr24_acceptance.md` の実装で対応済み。
+属性別35種と特殊系の残り（`ReviveTerritory`/`ResistDownOverwrite`）は未実装。
+
+## 未確定・要フォローアップ
+
+- `assets/ui/` の手作業画像6件（`Break`/`dead`/`defeat`/`Reinforce`/`Summon`/`TokenSet`）の
+  正規対応表が届き次第、本チェックリストを更新する。
+- `IceSuperBreak.webp`/`LightSuperBreak.webp` の扱い（対応表・動的合成表のいずれにも
+  記載がない）は未確定。
+- `None.webp` のコード接続（PartySetup スタイル絞り込み、敵の無属性耐性表示）は別タスク。
+- 過剰候補69件を実際に削除するかどうかは、画像入れ替え作業本体とあわせて別途判断する
+  （本チェックリストは対象リストの確定までがスコープ）。
+
+## 関連ドキュメント
+
+- [active/skill_type_icon_rename_pr24_acceptance.md](skill_type_icon_rename_pr24_acceptance.md):
+  PR #24 受け入れとレイヤー合成実装の記録。動的合成12種の実装済み範囲はこちらに詳細がある。
