@@ -610,26 +610,6 @@ export class EnemySetupController {
         return;
       }
 
-      if (t.dataset.action === 'select-score-attack-event') {
-        const slotIndex = this.#state.activeSlotIndex;
-        const selectedEnemyId = normalizeSelectedEnemyId(t.value);
-        if (selectedEnemyId === null) {
-          return;
-        }
-        this.#state.selectedEnemyIds[slotIndex] = selectedEnemyId;
-        const selectedEnemy = this.#findEnemyById(selectedEnemyId);
-        if (selectedEnemy) {
-          this.#state.selectedCategoryKeys[slotIndex] = getEnemyPresetCategoryMetadata(selectedEnemy).key;
-        }
-        this.#state.isManualBySlot[slotIndex] = false;
-        this.#state.gaugeOverridesBySlot[slotIndex] = null;
-        this.#ensureRequiredSlotSelected();
-        this.#syncSelectedCategories();
-        this.#onChange?.(this.getSnapshot());
-        this.#render();
-        return;
-      }
-
       if (t.dataset.editField) {
         const val = Number(t.value);
         if (Number.isFinite(val)) {
@@ -1105,28 +1085,8 @@ export class EnemySetupController {
           </select>
         </div>
 
-        <div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
-          <div class="text-xs font-semibold text-indigo-700">スコアアタック</div>
-          <label class="block text-xs text-gray-600" for="enemy-score-attack-event-select">イベント選択(入力補助)</label>
-          <select id="enemy-score-attack-event-select"
-                  data-action="select-score-attack-event"
-                  class="w-full text-xs rounded-md border border-indigo-200 bg-white px-2 py-1.5
-                         focus:outline-none focus:ring-1 focus:ring-indigo-400">
-            <option value="${EMPTY_ENEMY_SELECT_VALUE}" ${!this.#scoreAttackEventPresets.some((p) => p.id === selectedEnemyId) ? 'selected' : ''}>
-              ${EMPTY_ENEMY_SELECT_LABEL}
-            </option>
-            ${this.#scoreAttackEventPresets.map((preset) => `
-              <option value="${preset.id}" ${preset.id === selectedEnemyId ? 'selected' : ''}>
-                ${preset.name}
-              </option>
-            `).join('')}
-          </select>
-          <p class="text-[11px] text-gray-500">
-            現行ルール対象イベント(#88以降)から敵を選択できます。選択後、下の難易度でパラメータを調整してください。
-          </p>
-        </div>
-
-        <div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
+        ${isScoreAttackEnemyLabel(selected?.label)
+          ? `<div class="rounded-md border border-indigo-100 bg-indigo-50/50 p-2 space-y-1.5">
           <div class="text-xs font-semibold text-indigo-700">スコアアタック難易度(敵パラメータ)</div>
           <label class="block text-xs text-gray-600" for="enemy-score-attack-grade-select">難易度(1〜40)</label>
           <select id="enemy-score-attack-grade-select"
@@ -1138,9 +1098,10 @@ export class EnemySetupController {
             `).join('')}
           </select>
           <p class="text-[11px] text-gray-500">
-            スコアアタック敵を選択した場合のみ、選んだ難易度のDP/HP/破壊ボーダーが反映されます。
+            選んだ難易度のDP/HP/破壊ボーダーが反映されます。
           </p>
-        </div>
+        </div>`
+          : ''}
 
         <!-- 敵プリセット選択 -->
         <div>

@@ -190,7 +190,9 @@ test('enemy setup: out-of-range scoreAttackGrade values are clamped to 1-40', ()
   });
 });
 
-// --- スコアアタック「イベント選択(入力補助)」セクション ---
+// --- スコアアタックイベントは「敵プリセット」カテゴリの1つとして統合される ---
+// (専用のイベント選択欄は敵プリセット欄と二重になるため廃止。難易度欄は
+//  スコアアタック敵を選択中のときだけ表示する)
 
 const SCORE_ATTACK_EVENT_91 = {
   id: 145000091,
@@ -214,7 +216,7 @@ const SCORE_ATTACK_EVENT_TOO_OLD = {
   ],
 };
 
-// SCORE_ATTACK_EVENTS の #98 に bn を付与した版(イベント選択セクションの代表名抽出に必要)
+// SCORE_ATTACK_EVENTS の #98 に bn を付与した版(代表名抽出に必要)
 const SCORE_ATTACK_EVENTS_WITH_BN = [
   {
     ...SCORE_ATTACK_EVENTS[0],
@@ -224,34 +226,46 @@ const SCORE_ATTACK_EVENTS_WITH_BN = [
   SCORE_ATTACK_EVENT_TOO_OLD,
 ];
 
-test('enemy setup: score attack event select lists only cutoff-supported events, newest first', () => {
-  withDom(({ root }) => {
-    const controller = new EnemySetupController({ root, enemies: [] });
-    controller.mount();
-    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+function selectCategoryByLabel(root, label) {
+  const categorySelect = root.querySelector('[data-action="select-enemy-category"]');
+  const option = [...categorySelect.options].find((o) => o.textContent.trim() === label);
+  categorySelect.value = option.value;
+  categorySelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+}
 
-    const select = root.querySelector('[data-action="select-score-attack-event"]');
-    assert.ok(select, 'イベント選択 select が存在すること');
-    // 「選択なし」+ #98 + #91(#1 はカットオフ未満のため除外)
-    assert.equal(select.options.length, 3);
-    assert.equal(select.value, '', '初期状態は未選択であること');
-    assert.ok(select.options[1].textContent.includes('#98'));
-    assert.ok(select.options[1].textContent.includes('オーカークロウ'));
-    assert.ok(select.options[2].textContent.includes('#91'));
-    assert.ok(!select.innerHTML.includes('スコアアタック1'), 'カットオフ未満のイベントは含まれないこと');
-  });
-});
-
-test('enemy setup: selecting a score attack event assigns it to the active slot and resolves stats', () => {
+test('enemy setup: score attack events are exposed as a single "スコアアタック" category in the existing 敵プリセット selector (newest first, cutoff applied)', () => {
   withDom(({ root }) => {
     const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
     controller.mount();
     controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
 
-    const eventSelect = root.querySelector('[data-action="select-score-attack-event"]');
-    const option98 = [...eventSelect.options].find((o) => o.textContent.includes('#98'));
-    eventSelect.value = option98.value;
-    eventSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    // 専用のイベント選択欄は存在しない(敵プリセット欄との二重表示を避けるため)
+    assert.equal(root.querySelector('[data-action="select-score-attack-event"]'), null);
+
+    selectCategoryByLabel(root, 'スコアアタック');
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const optionLabels = [...presetSelect.options].map((o) => o.textContent.trim());
+
+    // スロット1は「選択なし」を表示しないため #98 + #91 の2件(#1 はカットオフ未満のため除外)
+    assert.equal(optionLabels.length, 2);
+    assert.ok(optionLabels[0].includes('#98'));
+    assert.ok(optionLabels[0].includes('オーカークロウ'));
+    assert.ok(optionLabels[1].includes('#91'));
+    assert.ok(!root.innerHTML.includes('スコアアタック1'), 'カットオフ未満のイベントは含まれないこと');
+  });
+});
+
+test('enemy setup: selecting a score attack event enemy via the 敵プリセット selector resolves stats and shows the difficulty box', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+
+    selectCategoryByLabel(root, 'スコアアタック');
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const option98 = [...presetSelect.options].find((o) => o.textContent.includes('#98'));
+    presetSelect.value = option98.value;
+    presetSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     const snapshot = controller.getSnapshot();
     assert.ok(snapshot.selectedEnemyName.includes('オーカークロウ'));
@@ -260,12 +274,24 @@ test('enemy setup: selecting a score attack event assigns it to the active slot 
     assert.equal(snapshot.enemySlots[0].maxDp, 1800000);
     assert.equal(snapshot.enemySlots[0].maxHp, 110000000);
 
-    // 難易度セレクタと連動して再解決されること
+    // スコアアタック敵選択時のみ難易度セレクタが表示されること
     const gradeSelect = root.querySelector('[data-action="select-score-attack-grade"]');
+    assert.ok(gradeSelect, 'スコアアタック敵選択時は難易度セレクタが表示されること');
     gradeSelect.value = '1';
     gradeSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
     const snapshotAfterGradeChange = controller.getSnapshot();
     assert.equal(snapshotAfterGradeChange.enemySlots[0].param_border, 160);
+  });
+});
+
+test('enemy setup: the difficulty box is hidden when the selected enemy is not a score attack enemy', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
+    selectEnemy(root, NORMAL_ENEMY.id);
+
+    assert.equal(root.querySelector('[data-action="select-score-attack-grade"]'), null);
   });
 });
 
@@ -275,10 +301,11 @@ test('enemy setup: score attack event selection survives applySnapshot -> getSna
     controller.mount();
     controller.setScoreAttackEvents(SCORE_ATTACK_EVENTS_WITH_BN);
 
-    const eventSelect = root.querySelector('[data-action="select-score-attack-event"]');
-    const option98 = [...eventSelect.options].find((o) => o.textContent.includes('#98'));
-    eventSelect.value = option98.value;
-    eventSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    selectCategoryByLabel(root, 'スコアアタック');
+    const presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const option98 = [...presetSelect.options].find((o) => o.textContent.includes('#98'));
+    presetSelect.value = option98.value;
+    presetSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
 
     const saved = controller.getSnapshot();
 
