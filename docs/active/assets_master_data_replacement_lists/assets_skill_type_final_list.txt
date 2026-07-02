@@ -82,6 +82,10 @@ Mocktail.webp
 Morale.webp
 Motivation.webp
 Motivation1_1.webp
+Motivation2_1.webp
+Motivation3_1.webp
+Motivation4_1.webp
+Motivation5_1.webp
 NegativeMind.webp
 OverDrivePointDown.webp
 OverDrivePointUp.webp
