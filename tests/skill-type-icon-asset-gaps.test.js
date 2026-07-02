@@ -15,7 +15,8 @@ import { resolveSkillTypeIconUrl } from '../ui-next/utils/char-detail-popup.js';
 // ベース素材（BuffAttack/BuffDefense）へ丸めてバフ/デバフの区別が消えていたもの
 // （AttackUp/AttackDown/DefenseUp/DefenseDown/AttackUpIncludeNormal/AttackUpPerToken/
 // DefenseUpPerToken）、実バトルUIでの流用先へのマッピングを追加したもの
-// （HealEp/BreakDownTurnUp/Provoke/BorderRefPDownByAdmiral）。
+// （HealEp/BreakDownTurnUp/Provoke/BorderRefPDownByAdmiral）、付与元スキルタイプ名との
+// 異名同義語で専用アセットが付与元側にのみ存在したもの（NegativeState → NegativeMind）。
 const RESOLVED_STATUS_TYPES = [
   'HealSp',
   'SpecifySp',
@@ -33,6 +34,7 @@ const RESOLVED_STATUS_TYPES = [
   'AttackUpPerToken',
   'DefenseUpPerToken',
   'BorderRefPDownByAdmiral',
+  'NegativeState',
 ];
 
 for (const statusType of RESOLVED_STATUS_TYPES) {
@@ -66,31 +68,37 @@ for (const [buffType, debuffType] of BUFF_DEBUFF_PAIRS_MUST_DIFFER) {
   });
 }
 
-// 未解決: ベース画像＋矢印/属性マークのレイヤー合成が必要だが、合成の仕組み自体は
-// 未実装のため、現時点では画像未提供のまま残る statusType。
+// 未解決: 専用アセットが未提供のため、現時点では画像未提供のまま残る statusType。
 //
 // 各 statusType は resolveSkillTypeIconUrl() の解決先ファイルが assets/skill_type/
-// に存在しないことを assert する。レイヤー合成が実装され解決先ファイルが実在する
+// に存在しないことを assert する。アセットが提供され解決先ファイルが実在する
 // ようになった場合、このテストは（存在しないはずが存在する、という理由で）失敗する。
 // その場合は該当エントリをこのリストから削除し、RESOLVED_STATUS_TYPES または
 // tests/style-asset-url.test.js の実在確認テストへ移設すること。
 const UNRESOLVED_STATUS_TYPES = [
+  // ベース画像＋矢印/属性マークのレイヤー合成が必要（合成の仕組み自体が未実装）
   'GiveDefenseDebuffUp',
   'HealDpByDamage',
   'RegenerationDp',
   'ReviveDpRate',
+  // 専用アセット未提供。現行データでは使用実績なし（休眠）だが、生成経路（エンジン側の
+  // 状態付与ロジック）自体は完成しているため、対応する skill_type を持つスキル/パッシブが
+  // データに追加された時点で表示され404になる
   'ResistUp',
+  'OverDriveRateUp',
+  'Attention',
+  'Zone',
 ];
 
 for (const statusType of UNRESOLVED_STATUS_TYPES) {
-  test(`resolveSkillTypeIconUrl('${statusType}') is a known unresolved icon asset (layer composition not yet implemented)`, () => {
+  test(`resolveSkillTypeIconUrl('${statusType}') is a known unresolved icon asset`, () => {
     const url = resolveSkillTypeIconUrl(statusType);
     const filePath = fileURLToPath(url);
 
     assert.equal(
       fs.existsSync(filePath),
       false,
-      `${statusType} の解決先アイコン (${filePath}) は現時点でレイヤー合成未実装のため存在しないはずです。` +
+      `${statusType} の解決先アイコン (${filePath}) は現時点でアセット未提供のため存在しないはずです。` +
         `もしこのアサーションが失敗した場合、このエントリを RESOLVED_STATUS_TYPES へ移設してください。`
     );
   });

@@ -102,6 +102,9 @@ const SKILL_TYPE_IMAGE_MAP = {
   // 専用アセットが存在しないため、実バトルUIでの流用先へマッピング
   BreakDownTurnUp: 'Recoil',
   Provoke: 'Target',
+
+  // 付与元スキルタイプ名と付与される状態名が異なるもの（専用アセットは付与元側のみ存在）
+  NegativeState: 'NegativeMind',
 };
 
 export function resolveSkillTypeIconUrl(statusType) {
