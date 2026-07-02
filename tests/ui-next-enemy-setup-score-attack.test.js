@@ -317,3 +317,53 @@ test('enemy setup: score attack event selection survives applySnapshot -> getSna
     assert.equal(controller.getSnapshot().enemySlots[0].param_border, 770);
   });
 });
+
+// #92相当: 1バトルに2種族(魔王ヤマワキ+使い魔ブンゴ)が同時に登場するイベント。
+// 修正前は代表種族1体しか選べず、スロット#2に入れるべき敵が見つからない回帰があった。
+const SCORE_ATTACK_EVENT_DUAL_BOSS = {
+  id: 145000092,
+  name: '#92 Sovereign Duo',
+  in_date: '2026-02-27 02:00:00+00:00',
+  battles: [
+    {
+      d: 40, dn: 'アビス',
+      b: ['BIYamawakiEvil_scoreattack92_a', 'YBungoEvil_scoreattack92_a'],
+      bn: [{ n: '魔王ヤマワキ' }, { n: '使い魔ブンゴ' }],
+      rbl: [400, 0, 0], dl: [700000, 0, 0], hl: [40000000, 0, 0],
+    },
+  ],
+};
+
+test('enemy setup: both creatures of a dual-boss score attack event (#92-like) are selectable, one per slot', () => {
+  withDom(({ root }) => {
+    const controller = new EnemySetupController({ root, enemies: [NORMAL_ENEMY] });
+    controller.mount();
+    controller.setScoreAttackEvents([SCORE_ATTACK_EVENT_DUAL_BOSS]);
+
+    // スロット1: 魔王ヤマワキ
+    selectCategoryByLabel(root, 'スコアアタック');
+    let presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const yamawakiOption = [...presetSelect.options].find((o) => o.textContent.includes('魔王ヤマワキ'));
+    assert.ok(yamawakiOption, '魔王ヤマワキが選択肢にあること');
+    presetSelect.value = yamawakiOption.value;
+    presetSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    // スロット2をアクティブにして、使い魔ブンゴを選択する
+    root.querySelector('[data-action="set-active-slot"][data-slot-index="1"]')
+      .dispatchEvent(new window.Event('click', { bubbles: true }));
+    selectCategoryByLabel(root, 'スコアアタック');
+    presetSelect = root.querySelector('[data-action="select-enemy"]');
+    const bungoOption = [...presetSelect.options].find((o) => o.textContent.includes('使い魔ブンゴ'));
+    assert.ok(bungoOption, '使い魔ブンゴが選択肢にあること(修正前は欠落していた回帰)');
+    presetSelect.value = bungoOption.value;
+    presetSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+
+    const snapshot = controller.getSnapshot();
+    assert.ok(snapshot.enemySlots[0].selectedEnemyName.includes('魔王ヤマワキ'));
+    assert.ok(snapshot.enemySlots[1].selectedEnemyName.includes('使い魔ブンゴ'));
+    assert.notEqual(snapshot.enemySlots[0].selectedEnemyId, snapshot.enemySlots[1].selectedEnemyId);
+    // 両者とも同じ難易度(既定40)の実データが解決されること
+    assert.equal(snapshot.enemySlots[0].param_border, 400);
+    assert.equal(snapshot.enemySlots[1].param_border, 400);
+  });
+});

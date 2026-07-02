@@ -79,31 +79,39 @@ const SCORE_ATTACK_ENEMY_ELEMENT_KEYS = Object.freeze([
   'slash', 'stab', 'strike', 'fire', 'ice', 'thunder', 'light', 'dark', 'nonelement',
 ]);
 
-// イベント先頭から順にバトルを走査し、最初に有効な(空文字でないラベル・bnが非null の)
-// 敵ラベル/日本語名の組を代表種族として抽出する。
-// (#94相当: 先頭バトルの1体目がラベル空文字・bn=null で、2体目から有効データが取れる例に対応)
-function findRepresentativeCreature(event) {
+// イベント先頭から順にバトルを走査し、最初に1件でも有効なエントリを持つバトルを見つけたら、
+// そのバトルの b[]/bn[] から有効な(空文字でないラベル・bnが非null の)敵ラベル/日本語名の組を
+// 全て抽出して返す(1バトル内の複数敵に対応。例: #92は魔王ヤマワキ+使い魔ブンゴの2体、
+// #94は先頭が空ラベル/bn=nullでスキップされ、2体目・3体目のフィギュリンホーン×2が該当)。
+function findAllCreaturesForEvent(event) {
   const battles = Array.isArray(event?.battles) ? event.battles : [];
   for (const battle of battles) {
     const labels = Array.isArray(battle?.b) ? battle.b : [];
     const names = Array.isArray(battle?.bn) ? battle.bn : [];
+    const creatures = [];
     for (let i = 0; i < labels.length; i += 1) {
       const label = String(labels[i] ?? '').trim();
       const name = names[i]?.n;
       if (label && name) {
-        return { label, name: String(name) };
+        creatures.push({ label, name: String(name) });
       }
     }
+    if (creatures.length > 0) {
+      return creatures;
+    }
   }
-  return null;
+  return [];
 }
 
 // score_attack.json のイベント(id >= SCORE_ATTACK_MIN_SUPPORTED_EVENT_ID)から、
-// enemy setup の敵選択に混ぜ込める仮想プリセット(1イベント=1敵)を合成する。
+// enemy setup の敵選択に混ぜ込める仮想プリセットを合成する。1イベントに複数の敵が
+// 登場する場合(#92の2種族同時、#94の同名2体等)は、敵の数だけ個別のプリセットを生成し、
+// それぞれ別々のスロットへ選択できるようにする。
 // 実パラメータ(dp/hp/param_border)は resolveEnemyDp 等が難易度選択時に都度解決するため、
-// ここでは base_param を持たせない。id はイベントIDの符号反転(負値)で、実在の
-// enemies.json のIDと衝突しない(既存の buildOrbBossLevel4Enemies と同じ仮想ID方式)。
-// 新しいイベントが先頭に来るよう id 降順でソートして返す。
+// ここでは base_param を持たせない。id はイベントIDから合成した負値(既存の
+// buildOrbBossLevel4Enemies と同じ仮想ID方式)で、実在の enemies.json のIDとも
+// 他イベントの敵とも衝突しない。新しいイベントが先頭に来るよう id 降順でソートして返す
+// (同一イベント内の複数エントリは元の並び順を維持)。
 export function buildScoreAttackEventEnemyPresets(scoreAttackEvents = []) {
   if (!Array.isArray(scoreAttackEvents)) {
     return [];
@@ -114,28 +122,27 @@ export function buildScoreAttackEventEnemyPresets(scoreAttackEvents = []) {
 
   const presets = [];
   for (const event of sortedEvents) {
-    const creature = findRepresentativeCreature(event);
-    if (!creature) {
-      continue;
-    }
-    presets.push({
-      id: -Number(event.id),
-      name: `${String(event?.name ?? '').trim()} — ${creature.name}`.trim(),
-      label: creature.label,
-      base_param: {},
-      categoryKey: SCORE_ATTACK_EVENT_CATEGORY_KEY,
-      categoryLabel: SCORE_ATTACK_EVENT_CATEGORY_LABEL,
-      param_border: 0,
-      dp: 0,
-      od_rate: 0,
-      max_d_rate: 999,
-      d_rate: 5,
-      resistances: {
-        element: Object.fromEntries(
-          SCORE_ATTACK_ENEMY_ELEMENT_KEYS.map((key) => [key, DEFAULT_SCORE_ATTACK_ENEMY_RESISTANCE_RATE_PERCENT])
-        ),
-      },
-      absorbElementList: [],
+    const creatures = findAllCreaturesForEvent(event);
+    creatures.forEach((creature, entryIndex) => {
+      presets.push({
+        id: -(Number(event.id) * 100 + entryIndex),
+        name: `${String(event?.name ?? '').trim()} — ${creature.name}`.trim(),
+        label: creature.label,
+        base_param: {},
+        categoryKey: SCORE_ATTACK_EVENT_CATEGORY_KEY,
+        categoryLabel: SCORE_ATTACK_EVENT_CATEGORY_LABEL,
+        param_border: 0,
+        dp: 0,
+        od_rate: 0,
+        max_d_rate: 999,
+        d_rate: 5,
+        resistances: {
+          element: Object.fromEntries(
+            SCORE_ATTACK_ENEMY_ELEMENT_KEYS.map((key) => [key, DEFAULT_SCORE_ATTACK_ENEMY_RESISTANCE_RATE_PERCENT])
+          ),
+        },
+        absorbElementList: [],
+      });
     });
   }
   return presets;

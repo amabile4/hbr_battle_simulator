@@ -124,13 +124,27 @@ const EVENT_91 = makeMinimalEvent({
   ],
 });
 
-// #94相当: 先頭バトルの1体目がラベル空文字・bn=null、2体目から有効データが取れる例
+// #94相当: 先頭バトルの1体目がラベル空文字・bn=null、2体目以降が有効な同名2体
 const EVENT_94_LIKE = makeMinimalEvent({
   id: 145000094,
   name: '#94 Endless Phantom',
   in_date: '2026-04-10 02:00:00+00:00',
   battles: [
     { d: 1, dn: 'ビギナー', b: ['', 'CatHornFigurine_scoreattack94_a_a', 'CatHornFigurine_scoreattack94_a_b'], bn: [null, { n: 'フィギュリンホーン' }, { n: 'フィギュリンホーン' }] },
+  ],
+});
+
+// #92相当: 2種族同時(魔王ヤマワキ+使い魔ブンゴ)
+const EVENT_92_LIKE = makeMinimalEvent({
+  id: 145000092,
+  name: '#92 Sovereign Duo',
+  in_date: '2026-02-27 02:00:00+00:00',
+  battles: [
+    {
+      d: 1, dn: 'ビギナー',
+      b: ['BIYamawakiEvil_scoreattack92_a', 'YBungoEvil_scoreattack92_a'],
+      bn: [{ n: '魔王ヤマワキ' }, { n: '使い魔ブンゴ' }],
+    },
   ],
 });
 
@@ -151,11 +165,26 @@ test('buildScoreAttackEventEnemyPresets extracts a representative label/name per
   assert.equal(preset98.categoryKey, SCORE_ATTACK_EVENT_CATEGORY_KEY);
 });
 
-test('buildScoreAttackEventEnemyPresets skips empty label / null bn entries and uses the next valid one', () => {
+test('buildScoreAttackEventEnemyPresets skips empty label / null bn entries and exposes both remaining creatures as separate presets', () => {
   const presets = buildScoreAttackEventEnemyPresets([EVENT_94_LIKE]);
-  assert.equal(presets.length, 1);
+  assert.equal(presets.length, 2, '空エントリはスキップしつつ、残り2体分は個別プリセットになること');
   assert.equal(presets[0].label, 'CatHornFigurine_scoreattack94_a_a');
+  assert.equal(presets[1].label, 'CatHornFigurine_scoreattack94_a_b');
   assert.ok(presets[0].name.includes('フィギュリンホーン'));
+  assert.ok(presets[1].name.includes('フィギュリンホーン'));
+  assert.notEqual(presets[0].id, presets[1].id, '同名でも別々の敵スロットに割り当てられるよう id は別であること');
+});
+
+test('buildScoreAttackEventEnemyPresets exposes multiple distinct creatures in the same battle as separate presets (#92-like dual boss)', () => {
+  const presets = buildScoreAttackEventEnemyPresets([EVENT_92_LIKE]);
+  assert.equal(presets.length, 2, '魔王ヤマワキ・使い魔ブンゴの両方が選択肢に出ること');
+  const yamawaki = presets.find((p) => p.name.includes('魔王ヤマワキ'));
+  const bungo = presets.find((p) => p.name.includes('使い魔ブンゴ'));
+  assert.ok(yamawaki, '魔王ヤマワキが見つかること');
+  assert.ok(bungo, '使い魔ブンゴが見つかること(修正前は欠落していた回帰)');
+  assert.equal(yamawaki.label, 'BIYamawakiEvil_scoreattack92_a');
+  assert.equal(bungo.label, 'YBungoEvil_scoreattack92_a');
+  assert.notEqual(yamawaki.id, bungo.id);
 });
 
 test('buildScoreAttackEventEnemyPresets excludes events before the supported cutoff id', () => {
@@ -164,15 +193,16 @@ test('buildScoreAttackEventEnemyPresets excludes events before the supported cut
   assert.equal(presets[0].label, 'SwellCrowOchre_scoreattack98_a');
 });
 
-test('buildScoreAttackEventEnemyPresets sorts newest event first (descending by event id)', () => {
-  const presets = buildScoreAttackEventEnemyPresets([EVENT_91, EVENT_98]);
-  assert.deepEqual(presets.map((p) => -p.id), [145000098, 145000091]);
+test('buildScoreAttackEventEnemyPresets sorts newest event first (descending by event id), preserving per-event creature order', () => {
+  const presets = buildScoreAttackEventEnemyPresets([EVENT_91, EVENT_92_LIKE, EVENT_98]);
+  const eventOrder = presets.map((p) => p.name.match(/^#(\d+)/)?.[1]);
+  assert.deepEqual(eventOrder, ['98', '92', '92', '91']);
 });
 
-test('buildScoreAttackEventEnemyPresets assigns a unique negative id per event', () => {
-  const presets = buildScoreAttackEventEnemyPresets([EVENT_91, EVENT_98]);
+test('buildScoreAttackEventEnemyPresets assigns a unique negative id per creature (single-event and multi-event)', () => {
+  const presets = buildScoreAttackEventEnemyPresets([EVENT_91, EVENT_92_LIKE, EVENT_98]);
   assert.ok(presets.every((p) => p.id < 0));
-  assert.deepEqual(new Set(presets.map((p) => p.id)).size, presets.length);
+  assert.equal(new Set(presets.map((p) => p.id)).size, presets.length);
 });
 
 test('buildScoreAttackEventEnemyPresets returns an empty array for invalid input', () => {
